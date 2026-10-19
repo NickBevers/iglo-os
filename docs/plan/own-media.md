@@ -5,7 +5,7 @@ You want to add your own files. They come in all kinds of formats, and they must
 ## Two layers
 
 1. **Live, in Jellyfin.** When a device can't play a file, Jellyfin transcodes it on the fly with the GPU (Intel Quick Sync). This already works for every file.
-2. **Once, in FileFlows.** You drop a file in the `inbox` folder on the Umbrel. [FileFlows](https://fileflows.com) sees it, converts it with ffmpeg on the GPU, and moves it to the right library. After that, no live transcode is needed.
+2. **Once, in FileFlows.** You drop a file in the `Inbox` folder on the Umbrel. [FileFlows](https://fileflows.com) sees it, converts it with ffmpeg on the GPU, and moves it to the right library. After that, no live transcode is needed.
 
 ffmpeg does the real work. HandBrake is mostly a window around the same idea. FileFlows adds a watched folder and the moves to the libraries.
 
@@ -37,12 +37,12 @@ Music files are not converted. Jellyfin converts audio live, and that costs almo
 
 | Folder | Goes to |
 | --- | --- |
-| `inbox/movies` | `media/movies` |
-| `inbox/series` | `media/series` |
-| `inbox/anime` | `media/anime` |
-| `inbox/music` | `music/library`, without converting |
+| `Inbox/Movies` | `Videos/Movies` |
+| `Inbox/Series` | `Videos/Series` |
+| `Inbox/Anime` | `Videos/Anime` |
+| `Inbox/Music` | `Music/Library`, without converting |
 
 ## Open questions
 
-- What happens to the original after converting? Delete it, or keep it for some days in `inbox/done`?
+- What happens to the original after converting? Delete it, or keep it for some days in `Inbox/Done`?
 - How should a file be named so it lands in the right series and season? Jellyfin needs names like `Show/Season 01/Show S01E01.mkv`.

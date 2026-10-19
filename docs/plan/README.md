@@ -68,6 +68,7 @@ Still to do:
 
 ## Open questions
 
+- Share only the folders Iglo-OS needs, instead of the whole Home folder? See [storage.md](storage.md#share-only-what-iglo-os-needs).
 - 16 or 32 GB memory, 512 GB or 1 TB SSD? We advise 32 GB and 1 TB. See [hardware.md](hardware.md).
 - What happens to the original of a file you drop in the inbox? See [own-media.md](own-media.md#open-questions).
 - Where does the second copy of the photos go? See [storage.md](storage.md#a-second-copy-of-the-photos).

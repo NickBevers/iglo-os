@@ -12,7 +12,7 @@ Immich runs in its own container on the mini PC, not on the Umbrel. Then it uses
 
 | What | Where | Why |
 | --- | --- | --- |
-| Originals of photos and videos | Umbrel, `photos` folder | The 8 TB are there. |
+| Originals of photos and videos | Umbrel, `Photos/Immich` | The 8 TB are there. |
 | Database (Postgres) | SSD of the mini PC | Immich warns against a database on a network share. |
 | Thumbnails | SSD of the mini PC | Scrolling through the library stays fast. |
 

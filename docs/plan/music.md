@@ -17,9 +17,9 @@ Music is a separate library, apart from movies, series and anime. It should feel
 1. It downloads the audio only. AAC (m4a) is the first choice, because every client plays it without a transcode.
 2. It puts the cover art and the tags (artist, album, track number) in the file.
 3. It crops the cover art to a square. Songs from YouTube Music have square art, but plain YouTube uploads have a 16:9 video frame.
-4. It saves the file as `music/library/<Artist>/<Album>/<number> <title>.m4a`.
+4. It saves the file as `Music/Library/<Artist>/<Album>/<number> <title>.m4a`.
 
-For a music video, you ask for it apart. Then it saves the video in `music/videos`.
+For a music video, you ask for it apart. Then it saves the video in `Music/Videos`.
 
 YouTube changes often, and an old yt-dlp stops working. So the music container must update yt-dlp often. The weekly container updates on the Updates page can do that.
 

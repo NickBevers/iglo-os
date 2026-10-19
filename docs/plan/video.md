@@ -28,7 +28,7 @@ The LG Jellyfin app is the Jellyfin web client in a TV app, and it can draw ASS 
 
 Anime gets its own folders, quality profiles and indexers:
 
-- **Folders:** `media/anime` for series and `media/anime-movies` for movies, next to `movies` and `series`.
+- **Folders:** `Videos/Anime` for series and `Videos/Anime-Movies` for movies, next to `Videos/Movies` and `Videos/Series`.
 - **Sonarr:** the series type **Anime**. It uses absolute episode numbers, the way most anime releases are numbered.
 - **Quality profiles:** the anime profiles of [TRaSH Guides](https://trash-guides.info), synced by Recyclarr. They prefer good release groups and dual audio when you want it. This goes in `deploy/stacks/arr/recyclarr.yml`.
 - **Indexers:** Nyaa and AnimeTosho in Prowlarr. Both are public, so you need no account.

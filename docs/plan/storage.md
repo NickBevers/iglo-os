@@ -1,35 +1,66 @@
 # Storage
 
-The Umbrel keeps all files: media, music, photos and backups. It has 8 TB free, runs umbrelOS 2 and has more than one user. The mini PC keeps only what must be fast or local. See [hardware.md](hardware.md#ssd).
+The Umbrel keeps all files: media, music, photos and backups. It runs umbrelOS 2 and has more than one user. The mini PC keeps only what must be fast or local. See [hardware.md](hardware.md#ssd).
 
-## Turn on SMB on the Umbrel
+## SMB on the Umbrel
 
-The Umbrel shares folders over SMB, but sharing is off by default. It is on since 19 October 2026. Nick has the username and password. The install form asks for them, and they never go in git.
+The Umbrel shares folders over SMB. Sharing is off by default. Nick turned it on on 19 October 2026 and connected the Mac to it in Finder. Nick has the username and password. The install form asks for them, and they never go in git.
+
+To turn it on, or to change what is shared:
 
 1. On the Umbrel, open **Settings > File sharing > Configure**.
-2. Share the whole Home folder, or only the folders below. You can also right-click a folder in Files and choose **Share over network**.
+2. Share the whole Home folder, or only some folders. You can also right-click a folder in Files and choose **Share over network**.
 3. Note the username and password on that page. They are not your Umbrel login.
 4. Test it from the Mac: Finder > Go > Connect to Server > `smb://umbrel.local`.
 
 Source: [Umbrel: accessing your files from other devices](https://umbrel.com/support/files/accessing-your-files-from-other-devices).
 
-Give the Umbrel a fixed IP in the router (a DHCP reservation). Iglo-OS mounts the share by IP. Then the mount doesn't depend on mDNS on the Proxmox host.
+### What the Mac sees
+
+Checked on 19 October 2026 with `mount` and `smbutil statshares -a`:
+
+| | |
+| --- | --- |
+| Share | `Nick's Umbrel`, the whole Home folder |
+| User | `umbrel` |
+| Protocol | SMB 3.1.1, with signing on and encryption off |
+| Free space | 7.1 TiB (the 8 TB disk, counted in TiB) |
+| Folders | `Documents`, `Downloads`, `Music`, `Photos`, `Videos`. These are the folders umbrelOS makes itself. |
+
+SMB 3.1.1 is the newest version, and the Linux CIFS client supports it well. The mount can ask for it with `vers=3.1.1`.
+
+### Share only what Iglo-OS needs
+
+Today the Mac sees the whole Home folder, `Documents` included. That is fine for the Mac. For the mini PC, share only the folders Iglo-OS uses: `Videos`, `Music`, `Photos`, `Inbox` and `Backups`. Then the mini PC can't touch `Documents` or `Downloads`, even when something on it goes wrong.
+
+It also avoids a small problem. The name `Nick's Umbrel` has a quote and a space, and a systemd mount unit needs those escaped. A share named after a single folder, like `Videos`, has neither.
+
+Check on the Umbrel that a folder share gets the name of its folder.
+
+Give the Umbrel a fixed IP in the router (a DHCP reservation). Iglo-OS mounts the shares by IP. Then the mount doesn't depend on mDNS on the Proxmox host.
 
 ## Folders on the Umbrel
 
+The plan uses the folders that umbrelOS already has. Files then also show up in the right place in the Files app of the Umbrel.
+
 | Folder | What is in it | Used by |
 | --- | --- | --- |
-| `media/movies` | movies | Radarr, Jellyfin |
-| `media/series` | series | Sonarr, Jellyfin |
-| `media/anime` | anime series | Sonarr, Jellyfin |
-| `media/anime-movies` | anime movies | Radarr, Jellyfin |
-| `music/library` | songs, as Artist/Album | yt-dlp, later Lidarr, Jellyfin |
-| `music/videos` | music videos, only when you ask for one | yt-dlp, Jellyfin |
-| `inbox` | your own files, before they are converted | FileFlows |
-| `photos` | the originals of your photos and videos | Immich |
-| `backups` | Proxmox backups of the containers | Proxmox |
+| `Videos/Movies` | movies | Radarr, Jellyfin |
+| `Videos/Series` | series | Sonarr, Jellyfin |
+| `Videos/Anime` | anime series | Sonarr, Jellyfin |
+| `Videos/Anime-Movies` | anime movies | Radarr, Jellyfin |
+| `Music/Library` | songs, as Artist/Album | yt-dlp, later Lidarr, Jellyfin |
+| `Music/Videos` | music videos, only when you ask for one | yt-dlp, Jellyfin |
+| `Photos/Immich` | photos and videos from the phones | Immich |
+| `Inbox` | your own files, before they are converted | FileFlows |
+| `Backups` | Proxmox backups of the containers | Proxmox |
 
-The names are a proposal. The install forms ask for them, like they ask for the movies and series folders today.
+`Inbox` and `Backups` are new. The install forms ask for the folders, like they ask for the movies and series folders today.
+
+Files that are already on the Umbrel:
+
+- **`Videos`** already has some videos. Jellyfin only reads the subfolders above, so loose files in `Videos` stay out of the libraries. Move them to `Inbox` to convert and sort them.
+- **`Photos`** may already hold photos. Immich writes new photos to `Photos/Immich`. It can show the older ones as an external library, which it only reads and never changes.
 
 ## What changes in Iglo-OS
 
@@ -50,7 +81,7 @@ So a finished file exists twice while it seeds. Set a seeding limit in qBittorre
 
 ## Proxmox backups on the Umbrel
 
-Add the `backups` share as a Proxmox storage of type SMB/CIFS, with the content "VZDump backup". Then choose it as the storage on the Backups page of Iglo-OS.
+Add the `Backups` share as a Proxmox storage of type SMB/CIFS, with the content "VZDump backup". Then choose it as the storage on the Backups page of Iglo-OS.
 
 Proxmox does not back up the media, music or photos folders. A backup of a container skips its mounts. Those folders only live on the Umbrel.
 
