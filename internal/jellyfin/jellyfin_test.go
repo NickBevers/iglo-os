@@ -65,10 +65,31 @@ func TestNowPlayingShowsSeriesForEpisodes(t *testing.T) {
 
 	playing := nowPlaying(session)
 
-	if playing.Title != "Pioneer One" || playing.Subtitle != "S1:E1 · Pilot" || playing.ItemID != "series" {
+	if playing.Title != "Pioneer One" || playing.Subtitle != "S1:E1, Pilot" || playing.ItemID != "series" {
 		t.Fatalf("unexpected titles: %+v", playing)
 	}
 	if playing.Progress != 25 || !playing.Transcode {
 		t.Fatalf("unexpected progress or transcode: %+v", playing)
+	}
+}
+
+func TestCountsReadsVideosAndMusic(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/Items/Counts" {
+			http.NotFound(w, r)
+			return
+		}
+		// A part of what Jellyfin answers.
+		w.Write([]byte(`{"MovieCount":412,"SeriesCount":38,"EpisodeCount":1290,"ArtistCount":61,"AlbumCount":97,"SongCount":1534,"MusicVideoCount":12}`))
+	}))
+	defer server.Close()
+
+	counts, err := NewClient(server.URL, "key").Counts(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := Counts{MovieCount: 412, SeriesCount: 38, EpisodeCount: 1290, AlbumCount: 97, SongCount: 1534, MusicVideoCount: 12}
+	if counts != want {
+		t.Fatalf("counts = %+v, want %+v", counts, want)
 	}
 }

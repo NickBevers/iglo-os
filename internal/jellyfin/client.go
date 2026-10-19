@@ -79,9 +79,12 @@ func (c *Client) Info(ctx context.Context) (SystemInfo, error) {
 }
 
 type Counts struct {
-	MovieCount   int `json:"MovieCount"`
-	SeriesCount  int `json:"SeriesCount"`
-	EpisodeCount int `json:"EpisodeCount"`
+	MovieCount      int `json:"MovieCount"`
+	SeriesCount     int `json:"SeriesCount"`
+	EpisodeCount    int `json:"EpisodeCount"`
+	AlbumCount      int `json:"AlbumCount"`
+	SongCount       int `json:"SongCount"`
+	MusicVideoCount int `json:"MusicVideoCount"`
 }
 
 func (c *Client) Counts(ctx context.Context) (Counts, error) {
