@@ -45,7 +45,7 @@ export function UpdatesPage() {
         <div className="flex flex-col gap-8">
             <header className="flex flex-wrap items-center justify-between gap-3">
                 <div>
-                    <h1 className="text-lg font-semibold">Updates</h1>
+                    <h1 className="page-title">Updates</h1>
                     <p className="text-sm text-muted-foreground">
                         {data.nextRun
                             ? `Next automatic run: ${formatDateTime(data.nextRun)}`
@@ -70,7 +70,7 @@ export function UpdatesPage() {
             <HostUpdates host={data.host} busy={busy} />
 
             <section className="flex flex-col gap-3">
-                <h2 className="text-lg font-semibold">Containers</h2>
+                <h2 className="section-title">Containers</h2>
                 <ContainerUpdates updates={data} />
             </section>
 
@@ -81,7 +81,7 @@ export function UpdatesPage() {
             </div>
 
             <section className="flex flex-col gap-3">
-                <h2 className="text-lg font-semibold">History</h2>
+                <h2 className="section-title">History</h2>
                 <UpdateHistory runs={data.history} />
             </section>
         </div>

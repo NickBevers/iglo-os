@@ -31,7 +31,7 @@ export function HostUpdates({ host, busy }: { host: UpdateTarget; busy: boolean 
                 <CardTitle>Proxmox host</CardTitle>
                 <CardDescription>
                     {host.checkedAt
-                        ? `${count === 0 ? 'Up to date' : `${count} updates`} · checked ${formatRelative(host.checkedAt)}`
+                        ? `${count === 0 ? 'Up to date' : `${count} updates`}, checked ${formatRelative(host.checkedAt)}`
                         : 'Not checked yet'}
                 </CardDescription>
                 <CardAction>

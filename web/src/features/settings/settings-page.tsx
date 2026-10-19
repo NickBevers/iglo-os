@@ -31,8 +31,8 @@ const sectionTitles: Record<SettingsChange['section'], string> = {
 const statusBadges: Record<SettingsChange['status'], { label: string; className?: string }> = {
     unchanged: { label: 'No change', className: 'text-muted-foreground' },
     changed: { label: 'Changes', className: 'border-transparent bg-primary text-primary-foreground' },
-    applied: { label: 'Saved', className: 'border-transparent bg-emerald-600 text-white' },
-    skipped: { label: 'Skipped', className: 'text-amber-600 dark:text-amber-400' },
+    applied: { label: 'Saved', className: 'border-transparent bg-success text-white dark:text-background' },
+    skipped: { label: 'Skipped', className: 'text-warning' },
     failed: { label: 'Failed', className: 'border-transparent bg-destructive/10 text-destructive' },
 }
 
@@ -40,7 +40,7 @@ export function SettingsPage() {
     return (
         <div className="flex flex-col gap-6">
             <header>
-                <h1 className="text-lg font-semibold">Settings</h1>
+                <h1 className="page-title">Settings</h1>
                 <p className="text-sm text-muted-foreground">Settings that belong to Iglo-OS itself.</p>
             </header>
 

@@ -6,6 +6,7 @@ import { Terminal } from '@xterm/xterm'
 import '@xterm/xterm/css/xterm.css'
 import { ArrowLeftIcon, RotateCwIcon } from 'lucide-react'
 
+import { GuestId } from '@/components/guest-id'
 import { Badge } from '@/components/ui/badge'
 import { Button, buttonVariants } from '@/components/ui/button'
 import { overviewQuery } from '@/lib/queries'
@@ -33,10 +34,8 @@ export function ConsolePage() {
                 >
                     <ArrowLeftIcon />
                 </Link>
-                <h1 className="text-lg font-semibold">{guest?.name ?? `Container ${vmid}`}</h1>
-                <Badge variant="outline" className="font-mono">
-                    LXC {vmid}
-                </Badge>
+                <h1 className="page-title">{guest?.name ?? `Container ${vmid}`}</h1>
+                <GuestId vmid={Number(vmid)} />
                 <StatusBadge status={status} />
                 {status === 'closed' && (
                     <Button variant="outline" size="sm" className="ml-auto" onClick={() => setAttempt(attempt + 1)}>
@@ -58,7 +57,7 @@ export function ConsolePage() {
 
 function StatusBadge({ status }: { status: Status }) {
     if (status === 'open') {
-        return <Badge variant="secondary">connected</Badge>
+        return <Badge variant="success">connected</Badge>
     }
     if (status === 'closed') {
         return <Badge variant="destructive">disconnected</Badge>

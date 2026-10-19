@@ -112,7 +112,7 @@ function StatusDot({ status }: { status: ServiceCheck['status'] }) {
         <span
             className={cn(
                 'size-2.5 shrink-0 rounded-full',
-                status === 'up' && 'bg-emerald-500',
+                status === 'up' && 'bg-success',
                 status === 'down' && 'bg-destructive',
                 status === 'pending' && 'bg-muted-foreground/40',
             )}
@@ -128,7 +128,7 @@ function ServiceState({ service }: { service: ServiceCheck }) {
     if (service.status === 'down') {
         return (
             <span className="block truncate text-sm text-destructive sm:max-w-60">
-                down{service.since ? ` ${formatRelative(service.since)}` : ''} · {service.error}
+                down{service.since ? ` ${formatRelative(service.since)}` : ''}: {service.error}
             </span>
         )
     }

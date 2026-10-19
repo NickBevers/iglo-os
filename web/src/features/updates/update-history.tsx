@@ -11,9 +11,9 @@ import { formatRelative } from '@/lib/format'
 import { updateRunQuery } from '@/lib/queries'
 
 const statusIcons = {
-    succeeded: <CircleCheckIcon className="size-4 text-emerald-500" aria-label="succeeded" />,
+    succeeded: <CircleCheckIcon className="size-4 text-success" aria-label="succeeded" />,
     failed: <CircleXIcon className="size-4 text-destructive" aria-label="failed" />,
-    'rolled-back': <Undo2Icon className="size-4 text-amber-500" aria-label="rolled back" />,
+    'rolled-back': <Undo2Icon className="size-4 text-warning" aria-label="rolled back" />,
 }
 
 export function UpdateHistory({ runs }: { runs: UpdateRun[] }) {

@@ -11,7 +11,7 @@ import {
     AlertDialogHeader,
     AlertDialogTitle,
 } from '@/components/ui/alert-dialog'
-import { Badge } from '@/components/ui/badge'
+import { GuestId } from '@/components/guest-id'
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
 import { Switch } from '@/components/ui/switch'
@@ -128,12 +128,10 @@ function GuestRow({ guest, backups, onBackUp, onConfirm }: GuestRowProps) {
                         )}
                     />
                     <span className="truncate font-medium">{guest.name}</span>
-                    <Badge variant="outline" className="font-mono">
-                        {guest.type === 'lxc' ? 'LXC' : 'VM'} {guest.vmid}
-                    </Badge>
+                    <GuestId vmid={guest.vmid} type={guest.type} />
                     <span className="truncate text-sm text-muted-foreground">
                         {latest
-                            ? `${formatRelative(latest.createdAt)} · ${guest.backups.length} ${guest.backups.length === 1 ? 'backup' : 'backups'}`
+                            ? `${formatRelative(latest.createdAt)}, ${guest.backups.length} ${guest.backups.length === 1 ? 'backup' : 'backups'}`
                             : 'no backups'}
                     </span>
                 </button>

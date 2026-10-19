@@ -41,7 +41,7 @@ function SmartBadge({ disk, className }: { disk: Disk; className?: string }) {
     if (disk.problem) {
         return (
             <Badge variant="destructive" className={className}>
-                {disk.health || 'Problem'}
+                {disk.health ? `SMART ${disk.health.toLowerCase()}` : 'Problem'}
             </Badge>
         )
     }
@@ -54,8 +54,8 @@ function SmartBadge({ disk, className }: { disk: Disk; className?: string }) {
     }
 
     return (
-        <Badge variant="secondary" className={className}>
-            SMART {disk.health}
+        <Badge variant="success" className={className}>
+            SMART {disk.health.toLowerCase()}
         </Badge>
     )
 }

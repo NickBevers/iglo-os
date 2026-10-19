@@ -40,7 +40,7 @@ function SessionCard({ session }: { session: JellyfinNowPlaying }) {
                 <div className="flex items-center gap-2 text-sm text-muted-foreground">
                     {session.paused && <PauseIcon className="size-4" aria-label="paused" />}
                     <span className="truncate">
-                        {session.user} · {session.device}
+                        {session.user} on {session.device}
                     </span>
                 </div>
                 <Progress value={session.progress} aria-label="Progress" />

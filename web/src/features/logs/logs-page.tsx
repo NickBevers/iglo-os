@@ -96,7 +96,7 @@ export function LogsPage() {
         <div className="flex flex-col gap-6">
             <header className="flex flex-wrap items-center justify-between gap-3">
                 <div>
-                    <h1 className="text-lg font-semibold">Logs</h1>
+                    <h1 className="page-title">Logs</h1>
                     <p className="text-sm text-muted-foreground">
                         {logs.data
                             ? `${visible.length} of ${entries.length} lines, newest first`
