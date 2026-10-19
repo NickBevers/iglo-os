@@ -48,6 +48,7 @@ Open http://localhost:5173 and log in with `admin` / `iglo-dev-password`. See [d
 
 ## Docs
 
+- [The plan for Iglo-OS](docs/plan/README.md)
 - [How it works](docs/architecture.md)
 - [Updates and Telegram](docs/updates.md)
 - [Health and alerts](docs/health.md)
