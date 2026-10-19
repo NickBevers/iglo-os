@@ -65,7 +65,7 @@ export function SelfUpdateCard() {
                         onClick={() => check.mutate()}
                         aria-label="Check for a new Iglo-OS version"
                     >
-                        Check now
+                        Check for a release
                     </Button>
                 </CardAction>
             </CardHeader>

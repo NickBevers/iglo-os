@@ -160,7 +160,7 @@ function Summary({ to, title, tone, headline, footer, children }: SummaryProps) 
                     {headline}
                 </p>
                 <div className="min-w-0 text-sm text-muted-foreground">{children}</div>
-                {footer && <p className="text-xs text-muted-foreground/80">{footer}</p>}
+                {footer && <p className="text-xs text-muted-foreground">{footer}</p>}
             </div>
         </Card>
     )

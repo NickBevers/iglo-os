@@ -86,7 +86,8 @@ export function MediaSourceFields({
                         type="button"
                         role="radio"
                         aria-checked={where === choice}
-                        variant={where === choice ? 'secondary' : 'outline'}
+                        variant="outline"
+                        className="aria-checked:border-brand aria-checked:bg-brand-soft aria-checked:text-brand dark:aria-checked:border-brand dark:aria-checked:bg-brand-soft"
                         onClick={() => choose(choice)}
                     >
                         {label}

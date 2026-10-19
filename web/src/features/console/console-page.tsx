@@ -79,7 +79,7 @@ function ConsoleTerminal({ vmid, onStatus }: { vmid: string; onStatus: (status: 
             fontFamily: font,
             fontSize: 13,
             cursorBlink: true,
-            theme: { background: '#0a0a0a', foreground: '#e5e5e5', cursor: '#e5e5e5' },
+            theme: { background: '#0c1520', foreground: '#e4edf5', cursor: '#56c6de', selectionBackground: '#1f3a4d' },
         })
         const fit = new FitAddon()
         terminal.loadAddon(fit)
@@ -138,7 +138,7 @@ function ConsoleTerminal({ vmid, onStatus }: { vmid: string; onStatus: (status: 
     }, [vmid, onStatus])
 
     return (
-        <div className="h-[70vh] overflow-hidden rounded-lg border bg-[#0a0a0a] p-2">
+        <div className="h-[70vh] overflow-hidden rounded-lg border bg-[#0c1520] p-2">
             <div ref={container} className="size-full" />
         </div>
     )

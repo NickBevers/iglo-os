@@ -90,7 +90,12 @@ function AppCard({ app, defaults }: { app: CatalogApp; defaults: Apps['defaults'
                 <CardDescription className="flex flex-col gap-1">
                     <span>{app.description}</span>
                     {app.hostUrl && (
-                        <a href={app.hostUrl} target="_blank" rel="noreferrer" className="w-fit underline">
+                        <a
+                            href={app.hostUrl}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="w-fit font-medium text-brand hover:underline"
+                        >
                             {app.hostUrl.replace('https://', '')}
                         </a>
                     )}
