@@ -3,10 +3,12 @@ import { useQuery } from '@tanstack/react-query'
 import { Link } from '@tanstack/react-router'
 import { ExternalLinkIcon } from 'lucide-react'
 
+import { BlockMeter } from '@/components/block-meter'
 import { Badge } from '@/components/ui/badge'
 import { Card } from '@/components/ui/card'
 import { Skeleton } from '@/components/ui/skeleton'
-import { api, type CatalogApp, type Jellyfin } from '@/lib/api'
+import { api, type AppStats, type CatalogApp, type Jellyfin } from '@/lib/api'
+import { formatBytes } from '@/lib/format'
 import { appsQuery, jellyfinQuery } from '@/lib/queries'
 import { cn } from '@/lib/utils'
 
@@ -30,8 +32,9 @@ export function AppsPanel() {
     }
 
     return (
+        // Two columns on wide screens. The 1px gaps over the border color are the hairlines.
         <Card className="gap-0 py-0">
-            <ul className="divide-y">
+            <ul className="grid gap-px bg-border lg:grid-cols-2">
                 {data.apps.map((app) => (
                     <AppRow key={app.id} app={app} jellyfin={jellyfin} />
                 ))}
@@ -47,13 +50,15 @@ function AppRow({ app, jellyfin }: { app: CatalogApp; jellyfin?: Jellyfin }) {
     const state = busy
         ? `${actionNames[app.operation?.action ?? 'install'] ?? 'Working'}…`
         : !app.installed
-          ? 'Not installed'
+          ? app.planned
+              ? 'Comes in a later version'
+              : 'Not installed'
           : app.status === 'running'
             ? 'Running'
             : (app.status ?? 'Stopped')
 
     return (
-        <li className="flex flex-col gap-2 px-4 py-3">
+        <li className="flex flex-col gap-2 bg-card px-4 py-3">
             <div className="flex flex-wrap items-center gap-x-2.5 gap-y-1">
                 <span
                     className={cn(
@@ -83,13 +88,15 @@ function AppRow({ app, jellyfin }: { app: CatalogApp; jellyfin?: Jellyfin }) {
                             <ExternalLinkIcon className="size-3.5" aria-hidden="true" />
                         </a>
                     )}
-                    <Link
-                        to={app.id === 'jellyfin' && app.installed ? '/jellyfin' : '/apps'}
-                        className="rounded-md px-2 py-1 text-sm text-muted-foreground hover:bg-accent hover:text-foreground"
-                    >
-                        {app.installed ? 'Manage' : 'Install'}
-                        <span className="sr-only"> {app.name}</span>
-                    </Link>
+                    {(app.installed || !app.planned) && (
+                        <Link
+                            to={app.id === 'jellyfin' && app.installed ? '/jellyfin' : '/apps'}
+                            className="rounded-md px-2 py-1 text-sm text-muted-foreground hover:bg-accent hover:text-foreground"
+                        >
+                            {app.installed ? 'Manage' : 'Install'}
+                            <span className="sr-only"> {app.name}</span>
+                        </Link>
+                    )}
                 </div>
             </div>
             {app.installed && <AppFacts app={app} running={running} jellyfin={jellyfin} />}
@@ -98,6 +105,12 @@ function AppRow({ app, jellyfin }: { app: CatalogApp; jellyfin?: Jellyfin }) {
 }
 
 function AppFacts({ app, running, jellyfin }: { app: CatalogApp; running: boolean; jellyfin?: Jellyfin }) {
+    if (app.stats) {
+        return <StatsFacts stats={app.stats} />
+    }
+    if (app.planned) {
+        return <Facts>{running ? 'It reports nothing yet.' : 'It is not running.'}</Facts>
+    }
     if (app.id === 'jellyfin') {
         if (!jellyfin?.configured) {
             return <Facts>Connect it on the Jellyfin page to see the library.</Facts>
@@ -166,6 +179,46 @@ function MinecraftFacts({ app, running }: { app: CatalogApp; running: boolean })
             {players &&
                 `${players.whitelist.length} ${players.whitelist.length === 1 ? 'player' : 'players'} on the whitelist.`}
         </Facts>
+    )
+}
+
+// StatsFacts are the figures of an app in one line, and what it does now.
+function StatsFacts({ stats }: { stats: AppStats }) {
+    return (
+        <div className="flex flex-col gap-2.5 pl-[18px]">
+            <p className="text-sm text-muted-foreground">
+                {stats.figures
+                    .map((figure) =>
+                        figure.unit === 'bytes'
+                            ? `${formatBytes(figure.value)} ${figure.label.toLowerCase()}`
+                            : `${numbers.format(figure.value)} ${figure.label.toLowerCase()}`,
+                    )
+                    .join(', ')}
+            </p>
+            {stats.activity.length > 0 && (
+                <ul className="flex flex-col gap-2">
+                    {stats.activity.map((activity) => (
+                        <li key={activity.title} className="flex flex-col gap-1">
+                            <div className="flex min-w-0 items-baseline gap-2 text-sm">
+                                <span className="truncate font-medium">{activity.title}</span>
+                                <span className="truncate text-xs text-muted-foreground">{activity.detail}</span>
+                                {activity.progress >= 0 && (
+                                    <span className="ml-auto shrink-0 text-xs tabular-nums">{activity.progress}%</span>
+                                )}
+                            </div>
+                            {activity.progress >= 0 && (
+                                <BlockMeter
+                                    kind="progress"
+                                    value={activity.progress}
+                                    label={`Progress of ${activity.title}`}
+                                    size="sm"
+                                />
+                            )}
+                        </li>
+                    ))}
+                </ul>
+            )}
+        </div>
     )
 }
 

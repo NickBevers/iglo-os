@@ -112,6 +112,7 @@ function NowPlaying({ jellyfin }: { jellyfin: Jellyfin }) {
                                 {session.transcode ? ', transcoding' : ''}
                             </span>
                             <BlockMeter
+                                kind="progress"
                                 value={session.progress}
                                 label={`Progress of ${session.title}`}
                                 size="sm"

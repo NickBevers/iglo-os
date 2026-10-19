@@ -59,22 +59,21 @@ export function OverviewPage() {
 
             <Summaries />
 
-            {/* Apps and the library on the left, the storage next to them. */}
+            <section className="flex flex-col gap-2.5" aria-labelledby="apps-title">
+                <h2 id="apps-title" className="section-title">
+                    Apps
+                </h2>
+                <AppsPanel />
+            </section>
+
+            {/* The library next to the storage it lives on. */}
             <div className="grid gap-6 lg:grid-cols-5">
-                <div className="flex flex-col gap-6 lg:col-span-3">
-                    <section className="flex flex-col gap-2.5" aria-labelledby="apps-title">
-                        <h2 id="apps-title" className="section-title">
-                            Apps
-                        </h2>
-                        <AppsPanel />
-                    </section>
-                    <section className="flex flex-col gap-2.5" aria-labelledby="library-title">
-                        <h2 id="library-title" className="section-title">
-                            Library
-                        </h2>
-                        <LibraryPanel />
-                    </section>
-                </div>
+                <section className="flex flex-col gap-2.5 lg:col-span-3" aria-labelledby="library-title">
+                    <h2 id="library-title" className="section-title">
+                        Library
+                    </h2>
+                    <LibraryPanel />
+                </section>
                 <section className="flex flex-col gap-2.5 lg:col-span-2" aria-labelledby="storage-title">
                     <h2 id="storage-title" className="section-title">
                         Storage

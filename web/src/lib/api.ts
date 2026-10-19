@@ -372,6 +372,13 @@ export type SavedAnswers = {
     until: string
 }
 
+// AppStats are what an app holds and does right now. A figure with the unit
+// bytes is a size. An activity has a progress of 0 to 100, or -1 for none.
+export type AppStats = {
+    figures: { label: string; value: number; unit?: 'bytes' }[]
+    activity: { title: string; detail?: string; progress: number }[]
+}
+
 export type CatalogApp = {
     id: string
     name: string
@@ -381,6 +388,9 @@ export type CatalogApp = {
     installed: boolean
     // managed is set when Iglo-OS installed the container, so it can update and remove it.
     managed: boolean
+    // planned is set for an app that Iglo-OS can't install yet.
+    planned: boolean
+    stats?: AppStats
     version?: string
     updateAvailable: boolean
     hostUrl?: string

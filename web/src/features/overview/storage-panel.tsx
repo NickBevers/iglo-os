@@ -72,14 +72,15 @@ export function StoragePanel() {
         <Card className="gap-0 py-0">
             <ul className="divide-y">
                 {list.map((space) => (
-                    <li key={space.key} className="flex flex-col gap-1.5 px-4 py-3">
-                        <div className="flex items-baseline gap-3">
-                            <span className="min-w-0 truncate font-medium">{space.name}</span>
-                            <span className="ml-auto text-sm whitespace-nowrap tabular-nums">
+                    <li key={space.key} className="flex flex-col gap-1.5 px-4 py-2.5">
+                        {/* Name, kind and amount on one line, so the list stays short. */}
+                        <div className="flex min-w-0 items-baseline gap-2">
+                            <span className="shrink-0 font-medium">{space.name}</span>
+                            <span className="min-w-0 truncate text-xs text-muted-foreground">{space.detail}</span>
+                            <span className="ml-auto shrink-0 text-sm whitespace-nowrap tabular-nums">
                                 {space.total > 0 ? `${formatBytes(space.used)} / ${formatBytes(space.total)}` : ''}
                             </span>
                         </div>
-                        <span className="truncate text-xs text-muted-foreground">{space.detail}</span>
                         {space.total > 0 && (
                             <BlockMeter
                                 value={percentage(space.used, space.total)}

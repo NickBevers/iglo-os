@@ -85,7 +85,7 @@ function AppCard({ app, defaults }: { app: CatalogApp; defaults: Apps['defaults'
                     {app.installed && (
                         <Badge variant={app.status === 'running' ? 'success' : 'outline'}>{app.status}</Badge>
                     )}
-                    {app.updateAvailable && !running && <Badge>Update available</Badge>}
+                    {app.updateAvailable && !running && <Badge variant="warning">Update available</Badge>}
                 </CardTitle>
                 <CardDescription className="flex flex-col gap-1">
                     <span>{app.description}</span>
@@ -100,12 +100,17 @@ function AppCard({ app, defaults }: { app: CatalogApp; defaults: Apps['defaults'
                         </a>
                     )}
                 </CardDescription>
-                {app.installed && app.managed && !running && (
+                {app.installed && app.managed && !app.planned && !running && (
                     <CardAction className={actionClass}>
                         <AppActions app={app} />
                     </CardAction>
                 )}
-                {!app.installed && !running && (
+                {!app.installed && app.planned && (
+                    <CardAction className={actionClass}>
+                        <Badge variant="outline">Comes in a later version</Badge>
+                    </CardAction>
+                )}
+                {!app.installed && !app.planned && !running && (
                     <CardAction className={actionClass}>
                         {saved ? (
                             <>
@@ -126,6 +131,11 @@ function AppCard({ app, defaults }: { app: CatalogApp; defaults: Apps['defaults'
 
             <CardContent className="flex flex-col gap-4">
                 {operation && <OperationProgress operation={operation} rollback={app.rollback} />}
+                {app.installed && app.planned && (
+                    <p className="text-xs text-muted-foreground">
+                        Iglo-OS can't install, update or remove this app yet. That comes in a later version.
+                    </p>
+                )}
                 {app.installed && !app.managed && (
                     <p className="text-xs text-muted-foreground">
                         Iglo-OS did not install this container, so it can't update or remove it here. Update it on the
