@@ -34,7 +34,7 @@ The hardware is in [hardware.md](hardware.md), the files and backups in [storage
 
 ## Order
 
-1. **Rename and restart.** Done locally. Still to do: the GitHub repo, the signing key, and a first release v0.1.0.
+1. **Rename and restart.** Done. Still to do: a first release v0.1.0.
 2. **The Umbrel over SMB.** A mount for the media and photo folders, and Proxmox backups on the Umbrel.
 3. **Video with anime.**
 4. **Playback on the TV.**
@@ -54,16 +54,16 @@ Done:
 - `LICENSE` keeps the copyright line of Dries Heyninck, as MIT asks, and adds Nick Bevers.
 - Versions start again at v0.1.0.
 - `make test` passes.
-
-Still to do:
-
-- Create the GitHub repo `NickBevers/iglo-os`. It is public, so self-update reads the releases without a token.
-- Make a new signing key. `internal/release/signing.pub` is still the key of Dries, so this build can't install updates yet. The private key goes straight into the `IGLO_SIGNING_KEY` secret of the repo:
+- The repo is [NickBevers/iglo-os](https://github.com/NickBevers/iglo-os). It is public, so self-update reads the releases without a token.
+- A new signing key, made on 19 October 2026. The public key is in `internal/release/signing.pub`. The private key went straight into the `IGLO_SIGNING_KEY` secret of the repo, and is nowhere else. To replace it, run:
 
   ```sh
   go run ./cmd/iglo-release keygen -public internal/release/signing.pub | gh secret set IGLO_SIGNING_KEY
   ```
 
+Still to do:
+
+- A first release: push the tag `v0.1.0`. The install command in the main README already says v0.1.0.
 - The test fixtures still use names like `Dries_H`. They are only sample data.
 
 ## Open questions
