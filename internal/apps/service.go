@@ -25,6 +25,7 @@ var (
 	ErrNotInstalled = errors.New("this app is not installed")
 	ErrNotManaged   = errors.New("Iglo-OS did not install this container, so it can't update or remove it. Update it on the Updates page")
 	ErrNotRunning   = errors.New("the container of this app is not running, start it first")
+	ErrPlanned      = errors.New("this app comes in a later version of Iglo-OS")
 )
 
 // snapshotPrefix is the prefix of the Updates page too, which keeps the newest 3 of these snapshots.
@@ -48,6 +49,7 @@ type Agent interface {
 	ChangeVPN(ctx context.Context, vmid int, settings agent.VPNSettings) error
 	MinecraftPlayers(ctx context.Context, vmid int) (agent.MinecraftPlayers, error)
 	ChangeMinecraftPlayers(ctx context.Context, vmid int, players agent.MinecraftPlayers) error
+	AppStats(ctx context.Context, app string, vmid int) (agent.AppStats, error)
 	AppInstallStatus(ctx context.Context) (agent.AppInstallStatus, error)
 	Mounts(ctx context.Context) ([]agent.Mount, error)
 	MediaFolders(ctx context.Context) ([]agent.MediaFolder, error)
@@ -85,7 +87,12 @@ type App struct {
 	// Subdomain is the name that Iglo-OS forwards to the app, like seerr in seerr.iglo.local.
 	Subdomain string `json:"-"`
 	// Stack is set when a Iglo-OS release can change the app, like the compose.yaml of the media stack.
-	Stack bool   `json:"-"`
+	Stack bool `json:"-"`
+	// Planned is set for an app that Iglo-OS can't install yet. It already
+	// shows on the Apps page and the dashboard, so its place is clear.
+	Planned bool `json:"planned"`
+	// Stats is set when the host agent reports AppStats for the app.
+	Stats bool   `json:"-"`
 	Links []Link `json:"links"`
 }
 
@@ -119,6 +126,30 @@ var Catalog = []App{{
 	Tag:         "minecraft",
 	Stack:       true,
 	Links:       []Link{{Name: "Minecraft", Description: "On your network", Port: 25565, Address: true}},
+}, {
+	ID:          "music",
+	Name:        "Music",
+	Description: "Downloads songs from YouTube Music with their cover art, for Jellyfin and Finamp. Music videos only when you ask.",
+	Tag:         "music",
+	Planned:     true,
+	Stats:       true,
+	Links:       []Link{},
+}, {
+	ID:          "photos",
+	Name:        "Photos",
+	Description: "Immich: the phones back up their photos to the NAS, with faces and search.",
+	Tag:         "photos",
+	Planned:     true,
+	Stats:       true,
+	Links:       []Link{{Name: "Immich", Description: "Photos", Port: 2283}},
+}, {
+	ID:          "inbox",
+	Name:        "Inbox",
+	Description: "Converts your own videos so every device plays them, then moves them to the Home videos library.",
+	Tag:         "inbox",
+	Planned:     true,
+	Stats:       true,
+	Links:       []Link{{Name: "FileFlows", Description: "Converter", Port: 19200}},
 }}
 
 type AppView struct {
@@ -136,6 +167,8 @@ type AppView struct {
 	PublicAddress string `json:"publicAddress,omitempty"`
 	VMID          int    `json:"vmid,omitempty"`
 	Status        string `json:"status,omitempty"`
+	// Stats are what the app holds and does right now, when it reports them.
+	Stats *agent.AppStats `json:"stats,omitempty"`
 	// Operation is the last install, update or removal of this app, while it runs or when it failed.
 	Operation *agent.AppInstallStatus `json:"operation"`
 	// Rollback says what happened to the container after an update failed.
@@ -276,7 +309,13 @@ func (s *Service) Status(ctx context.Context) (View, error) {
 				s.mu.Unlock()
 			}
 		}
-		if !appView.Installed && install.State != agent.UpgradeRunning {
+		// Stats are best effort: the dashboard shows the app without them.
+		if app.Stats && appView.Installed && appView.Status == "running" {
+			if stats, err := s.Agent.AppStats(ctx, app.ID, appView.VMID); err == nil {
+				appView.Stats = &stats
+			}
+		}
+		if !appView.Installed && !app.Planned && install.State != agent.UpgradeRunning {
 			if saved, err := s.Agent.SavedAppAnswers(ctx, app.ID); err == nil {
 				appView.Saved = saved
 			}
@@ -421,6 +460,10 @@ func (s *Service) guestIP(ctx context.Context, guest proxmox.Resource) string {
 }
 
 func (s *Service) Install(ctx context.Context, background context.Context, id string, request agent.InstallRequest) error {
+	// Before the answers: a planned app has no answers to check.
+	if index := slices.IndexFunc(Catalog, func(app App) bool { return app.ID == id }); index >= 0 && Catalog[index].Planned {
+		return ErrPlanned
+	}
 	// With KeepSecrets, the agent checks the answers after it adds the saved secrets.
 	if !request.KeepSecrets {
 		var answers interface{ Validate() error } = request.MediaStackAnswers
@@ -636,6 +679,9 @@ func (s *Service) start(ctx context.Context, background context.Context, id stri
 		return ErrUnknownApp
 	}
 	app := Catalog[index]
+	if app.Planned {
+		return ErrPlanned
+	}
 
 	resources, err := s.Proxmox.Resources(ctx)
 	if err != nil {

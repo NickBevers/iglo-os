@@ -122,6 +122,10 @@ func run(socketPath string, socketGID int, logger *slog.Logger) error {
 		logger.Info("change of the minecraft players started", "vmid", request.VMID)
 		w.WriteHeader(http.StatusAccepted)
 	})
+	// No app reports stats yet. The music, photo and inbox apps will.
+	mux.HandleFunc("GET /v1/apps/{app}/stats", func(w http.ResponseWriter, r *http.Request) {
+		http.Error(w, agent.ErrNoStats.Error(), http.StatusNotFound)
+	})
 	mux.HandleFunc("GET /v1/apps/{app}/answers", func(w http.ResponseWriter, r *http.Request) {
 		saved, err := apps.Saved(r.PathValue("app"))
 		if err != nil {

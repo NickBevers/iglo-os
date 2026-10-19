@@ -48,6 +48,13 @@ func (f *fakeAgent) MinecraftPlayers(_ context.Context, vmid int) (agent.Minecra
 	return agent.MinecraftPlayers{Whitelist: []string{"Dries_H"}, Operators: []string{"Dries_H"}}, nil
 }
 
+func (f *fakeAgent) AppStats(_ context.Context, app string, vmid int) (agent.AppStats, error) {
+	if app != "music" {
+		return agent.AppStats{}, agent.ErrNoStats
+	}
+	return agent.AppStats{Figures: []agent.Figure{{Label: "Songs", Value: 1534}}, Activity: []agent.Activity{}}, nil
+}
+
 func (f *fakeAgent) ChangeMinecraftPlayers(_ context.Context, vmid int, players agent.MinecraftPlayers) error {
 	f.mu.Lock()
 	defer f.mu.Unlock()
@@ -633,5 +640,43 @@ func TestChangePlayers(t *testing.T) {
 	pve.resources = minecraftResources("iglo;minecraft", "stopped")
 	if _, err := service.Players(ctx, "minecraft"); !errors.Is(err, ErrNotRunning) {
 		t.Fatalf("stopped: %v", err)
+	}
+}
+
+func TestPlannedAppsShowButDoNotInstall(t *testing.T) {
+	fake := &fakeAgent{status: agent.AppInstallStatus{State: agent.UpgradeIdle}}
+	service := New(Options{Agent: fake, Proxmox: &fakeProxmox{resources: baseResources()}, SelfVMID: 100})
+
+	view, err := service.Status(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, id := range []string{"music", "photos", "inbox"} {
+		if app := appByID(t, view, id); !app.Planned || app.Installed || app.Stats != nil || app.Saved != nil {
+			t.Errorf("%s = %+v", id, app)
+		}
+	}
+	if err := service.Install(context.Background(), context.Background(), "music", agent.InstallRequest{}); !errors.Is(err, ErrPlanned) {
+		t.Fatalf("install of a planned app: %v", err)
+	}
+}
+
+func TestStatusHasTheStatsOfARunningApp(t *testing.T) {
+	resources := append(baseResources(),
+		proxmox.Resource{Type: "lxc", Node: "pve", VMID: 160, Name: "music", Status: "running", Tags: "iglo;music"},
+		proxmox.Resource{Type: "lxc", Node: "pve", VMID: 170, Name: "photos", Status: "stopped", Tags: "iglo;photos"},
+	)
+	service := New(Options{Agent: &fakeAgent{status: agent.AppInstallStatus{State: agent.UpgradeIdle}}, Proxmox: &fakeProxmox{resources: resources}, SelfVMID: 100})
+
+	view, err := service.Status(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if music := appByID(t, view, "music"); music.Stats == nil || music.Stats.Figures[0].Value != 1534 {
+		t.Fatalf("music = %+v", music)
+	}
+	// A stopped app has no stats, and an app without stats still shows.
+	if photos := appByID(t, view, "photos"); !photos.Installed || photos.Stats != nil {
+		t.Fatalf("photos = %+v", photos)
 	}
 }
