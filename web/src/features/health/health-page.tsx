@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/skeleton'
 import { api, type Health } from '@/lib/api'
 import { formatRelative } from '@/lib/format'
+import { healthProblems } from '@/lib/health'
 import { healthQuery } from '@/lib/queries'
 import { DiskList, PoolList, ShareList, StorageList } from './disks'
 import { ServiceChecks } from './service-checks'
@@ -45,10 +46,10 @@ export function HealthPage() {
         <div className="flex flex-col gap-8">
             <header className="flex flex-wrap items-center justify-between gap-3">
                 <div>
-                    <h1 className="text-lg font-semibold">Health</h1>
+                    <h1 className="page-title">Health</h1>
                     <p className="text-sm text-muted-foreground">
-                        {data.checkedAt ? `Disks checked ${formatRelative(data.checkedAt)}` : 'Checking disks…'}
-                        {' · '}Alerts go to the Telegram chat from the Updates page.
+                        {data.checkedAt ? `Disks checked ${formatRelative(data.checkedAt)}` : 'Checking disks…'}. Alerts
+                        go to the Telegram chat from the Updates page.
                     </p>
                 </div>
                 <Button variant="outline" disabled={refresh.isPending} onClick={() => refresh.mutate()}>
@@ -60,31 +61,31 @@ export function HealthPage() {
             <Problems health={data} />
 
             <section className="flex flex-col gap-3">
-                <h2 className="text-lg font-semibold">Services</h2>
+                <h2 className="section-title">Services</h2>
                 <ServiceChecks services={data.services} />
             </section>
 
             <section className="flex flex-col gap-3">
-                <h2 className="text-lg font-semibold">Disks</h2>
+                <h2 className="section-title">Disks</h2>
                 <DiskList disks={data.disks} />
             </section>
 
             {data.pools.length > 0 && (
                 <section className="flex flex-col gap-3">
-                    <h2 className="text-lg font-semibold">ZFS pools</h2>
+                    <h2 className="section-title">ZFS pools</h2>
                     <PoolList pools={data.pools} />
                 </section>
             )}
 
             {data.shares.length > 0 && (
                 <section className="flex flex-col gap-3">
-                    <h2 className="text-lg font-semibold">Shares</h2>
+                    <h2 className="section-title">Shares</h2>
                     <ShareList shares={data.shares} />
                 </section>
             )}
 
             <section className="flex flex-col gap-3">
-                <h2 className="text-lg font-semibold">Storage</h2>
+                <h2 className="section-title">Storage</h2>
                 <StorageList storage={data.storage} />
             </section>
         </div>
@@ -92,15 +93,7 @@ export function HealthPage() {
 }
 
 function Problems({ health }: { health: Health }) {
-    const problems = [
-        ...health.services
-            .filter((service) => service.status === 'down')
-            .map((service) => `${service.name} is down: ${service.error}`),
-        ...[...health.disks, ...health.pools, ...health.shares, ...health.storage].flatMap((item) =>
-            item.problem ? [item.problem] : [],
-        ),
-        ...health.errors,
-    ]
+    const problems = healthProblems(health)
 
     if (problems.length === 0) {
         if (!health.checkedAt) {
@@ -109,7 +102,7 @@ function Problems({ health }: { health: Health }) {
 
         return (
             <Alert>
-                <CircleCheckIcon className="text-emerald-600 dark:text-emerald-400" />
+                <CircleCheckIcon className="text-success" />
                 <AlertTitle>Everything looks healthy</AlertTitle>
             </Alert>
         )

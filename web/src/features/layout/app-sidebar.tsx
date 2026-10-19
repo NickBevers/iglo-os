@@ -1,19 +1,11 @@
 import { Fragment } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { getRouteApi, Link, useNavigate, useRouterState } from '@tanstack/react-router'
-import { ChevronsUpDownIcon, LogOutIcon, MonitorIcon, MoonIcon, ServerIcon, SettingsIcon, SunIcon } from 'lucide-react'
+import { ChevronsUpDownIcon, LogOutIcon, SettingsIcon } from 'lucide-react'
 
-import { useTheme } from '@/components/theme-provider'
+import { IgloMark } from '@/components/iglo-mark'
 import { Avatar, AvatarFallback } from '@/components/ui/avatar'
-import {
-    DropdownMenu,
-    DropdownMenuContent,
-    DropdownMenuGroup,
-    DropdownMenuItem,
-    DropdownMenuLabel,
-    DropdownMenuSeparator,
-    DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu'
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
 import {
     Sidebar,
     SidebarContent,
@@ -33,6 +25,7 @@ import {
 import { api } from '@/lib/api'
 import { selfUpdateQuery } from '@/lib/queries'
 import { navigation, type NavItem } from './navigation'
+import { ThemeSwitch } from './theme-switch'
 
 const route = getRouteApi('/_app')
 
@@ -46,10 +39,10 @@ export function AppSidebar() {
                     <SidebarMenuItem>
                         <SidebarMenuButton size="lg" render={<Link to="/" />}>
                             <div className="flex aspect-square size-8 items-center justify-center rounded-md bg-sidebar-primary text-sidebar-primary-foreground">
-                                <ServerIcon className="size-4" />
+                                <IgloMark className="size-5" />
                             </div>
                             <div className="grid flex-1 text-left leading-tight">
-                                <span className="font-semibold">Iglo-OS</span>
+                                <span className="font-semibold wide">Iglo-OS</span>
                                 {selfUpdate && (
                                     <span className="font-mono text-xs text-muted-foreground">
                                         {selfUpdate.version}
@@ -85,6 +78,7 @@ export function AppSidebar() {
             </SidebarContent>
 
             <SidebarFooter>
+                <ThemeSwitch className="mx-2 group-data-[collapsible=icon]:hidden" />
                 <SidebarMenu>
                     <NavLink item={{ to: '/settings', label: 'Settings', icon: SettingsIcon }} />
                     <AccountMenu />
@@ -111,7 +105,7 @@ function NavLink({ item, badge }: { item: NavItem; badge?: boolean }) {
             </SidebarMenuButton>
             {badge && (
                 <SidebarMenuBadge>
-                    <span className="size-2 rounded-full bg-primary" aria-label="Iglo-OS update available" />
+                    <span className="size-2 rounded-full bg-brand" aria-label="Iglo-OS update available" />
                 </SidebarMenuBadge>
             )}
         </SidebarMenuItem>
@@ -120,7 +114,6 @@ function NavLink({ item, badge }: { item: NavItem; badge?: boolean }) {
 
 function AccountMenu() {
     const { session } = route.useRouteContext()
-    const { setTheme } = useTheme()
     const { isMobile } = useSidebar()
     const queryClient = useQueryClient()
     const navigate = useNavigate()
@@ -144,19 +137,6 @@ function AccountMenu() {
                     <ChevronsUpDownIcon className="ml-auto" />
                 </DropdownMenuTrigger>
                 <DropdownMenuContent side={isMobile ? 'top' : 'right'} align="end" className="w-48">
-                    <DropdownMenuGroup>
-                        <DropdownMenuLabel>Theme</DropdownMenuLabel>
-                        <DropdownMenuItem onClick={() => setTheme('light')}>
-                            <SunIcon /> Light
-                        </DropdownMenuItem>
-                        <DropdownMenuItem onClick={() => setTheme('dark')}>
-                            <MoonIcon /> Dark
-                        </DropdownMenuItem>
-                        <DropdownMenuItem onClick={() => setTheme('system')}>
-                            <MonitorIcon /> System
-                        </DropdownMenuItem>
-                    </DropdownMenuGroup>
-                    <DropdownMenuSeparator />
                     <DropdownMenuItem onClick={logout}>
                         <LogOutIcon /> Sign out
                     </DropdownMenuItem>
