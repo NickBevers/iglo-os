@@ -22,6 +22,7 @@ import { JellyfinForm } from './jellyfin-form'
 import { MinecraftForm } from './minecraft-form'
 import { keepSaved } from './keep-saved'
 import { MediaSourceFields } from './media-source'
+import { noMediaSource } from './no-media-source'
 
 type InstallDialogProps = {
     app: CatalogApp
@@ -79,9 +80,7 @@ function MediaStackForm({
     const [answers, setAnswers] = useState<MediaStackAnswers>(
         () =>
             saved?.answers ?? {
-                nasServer: '',
-                nasExport: '',
-                mediaFolder: '',
+                ...noMediaSource,
                 moviesFolder: defaults.moviesFolder,
                 seriesFolder: defaults.seriesFolder,
                 wireguardPrivateKey: '',
@@ -105,7 +104,7 @@ function MediaStackForm({
             api.installApp(
                 app.id,
                 // Media that is already mounted is used as it is.
-                defaults.mediaShare ? { ...answers, nasServer: '', nasExport: '', mediaFolder: '' } : answers,
+                defaults.mediaShare ? { ...answers, ...noMediaSource } : answers,
                 saved !== null,
             ),
         onSuccess: () => {
@@ -127,6 +126,11 @@ function MediaStackForm({
 
     const storages = Object.fromEntries(defaults.storages.map((name) => [name, name]))
     const shortPassword = answers.password.length > 0 && answers.password.length < 12
+    // Like the host agent: only the same SMB user on the same NAS keeps the saved password.
+    const smbPasswordSaved =
+        saved?.hasSmbPassword === true &&
+        answers.smbUsername === saved.answers.smbUsername &&
+        answers.smbServer === saved.answers.smbServer
 
     return (
         <form className="flex flex-col gap-6" onSubmit={handleSubmit}>
@@ -134,6 +138,7 @@ function MediaStackForm({
                 id="media"
                 defaults={defaults}
                 value={answers}
+                smbPasswordSaved={smbPasswordSaved}
                 onChange={(value) => setAnswers((current) => ({ ...current, ...value }))}
                 help="Where your movies and series are. Each gets its own folder in it, and its own library in Jellyfin."
             >

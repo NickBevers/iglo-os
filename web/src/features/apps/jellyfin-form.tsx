@@ -13,6 +13,7 @@ import { appsQuery } from '@/lib/queries'
 import { Field, Section } from './form-parts'
 import { keepSaved } from './keep-saved'
 import { MediaSourceFields } from './media-source'
+import { noMediaSource } from './no-media-source'
 
 type JellyfinFormProps = {
     defaults: Apps['defaults']
@@ -27,9 +28,7 @@ export function JellyfinForm({ defaults, saved, onDone }: JellyfinFormProps) {
     const [answers, setAnswers] = useState<JellyfinAnswers>(
         () =>
             saved?.jellyfin ?? {
-                nasServer: '',
-                nasExport: '',
-                mediaFolder: '',
+                ...noMediaSource,
                 moviesFolder: defaults.moviesFolder,
                 seriesFolder: defaults.seriesFolder,
                 adminUsername: 'admin',
@@ -41,10 +40,7 @@ export function JellyfinForm({ defaults, saved, onDone }: JellyfinFormProps) {
 
     const install = useMutation({
         mutationFn: () =>
-            api.installJellyfin(
-                shareMounted ? { ...answers, nasServer: '', nasExport: '', mediaFolder: '' } : answers,
-                saved !== null,
-            ),
+            api.installJellyfin(shareMounted ? { ...answers, ...noMediaSource } : answers, saved !== null),
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: appsQuery.queryKey })
             toast.success('The install started')
@@ -64,6 +60,11 @@ export function JellyfinForm({ defaults, saved, onDone }: JellyfinFormProps) {
 
     const storages = Object.fromEntries(defaults.storages.map((name) => [name, name]))
     const passwordSaved = saved?.hasJellyfinAdminPassword && answers.adminUsername === saved.jellyfin.adminUsername
+    // Like the host agent: only the same SMB user on the same NAS keeps the saved password.
+    const smbPasswordSaved =
+        saved?.hasSmbPassword === true &&
+        answers.smbUsername === saved.jellyfin.smbUsername &&
+        answers.smbServer === saved.jellyfin.smbServer
 
     return (
         <form className="flex flex-col gap-6" onSubmit={handleSubmit}>
@@ -71,6 +72,7 @@ export function JellyfinForm({ defaults, saved, onDone }: JellyfinFormProps) {
                 id="jf"
                 defaults={defaults}
                 value={answers}
+                smbPasswordSaved={smbPasswordSaved}
                 onChange={(value) => setAnswers((current) => ({ ...current, ...value }))}
                 help="Jellyfin reads your movies and series from here, and never writes to it."
             >

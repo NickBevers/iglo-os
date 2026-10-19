@@ -324,6 +324,10 @@ export type AppOperation = {
 export type JellyfinAnswers = {
     nasServer: string
     nasExport: string
+    smbServer: string
+    smbShare: string
+    smbUsername: string
+    smbPassword: string
     mediaFolder: string
     moviesFolder: string
     seriesFolder: string
@@ -360,6 +364,7 @@ export type SavedAnswers = {
     hasJellyfinApiKey: boolean
     hasJellyfinAdminPassword: boolean
     hasOpenSubtitlesPassword: boolean
+    hasSmbPassword: boolean
     hasPlayitSecretKey: boolean
     until: string
 }
@@ -407,6 +412,10 @@ export type Apps = {
 export type MediaStackAnswers = {
     nasServer: string
     nasExport: string
+    smbServer: string
+    smbShare: string
+    smbUsername: string
+    smbPassword: string
     mediaFolder: string
     moviesFolder: string
     seriesFolder: string
