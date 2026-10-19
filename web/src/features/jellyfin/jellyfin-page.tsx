@@ -38,7 +38,7 @@ export function JellyfinPage() {
     if (!data.configured) {
         return (
             <div className="flex flex-col gap-6">
-                <h1 className="text-lg font-semibold">Jellyfin</h1>
+                <h1 className="page-title">Jellyfin</h1>
                 <JellyfinSettings jellyfin={data} />
             </div>
         )
@@ -48,9 +48,9 @@ export function JellyfinPage() {
         <div className="flex flex-col gap-8">
             <header className="flex flex-wrap items-center justify-between gap-3">
                 <div>
-                    <h1 className="text-lg font-semibold">Jellyfin</h1>
+                    <h1 className="page-title">Jellyfin</h1>
                     <p className="text-sm text-muted-foreground">
-                        {data.serverName ? `${data.serverName} · version ${data.version}` : data.url}
+                        {data.serverName ? `${data.serverName}, version ${data.version}` : data.url}
                     </p>
                 </div>
                 <a href={data.url} target="_blank" rel="noreferrer" className={buttonVariants({ variant: 'outline' })}>
@@ -74,14 +74,14 @@ export function JellyfinPage() {
                     </div>
 
                     <section className="flex flex-col gap-3">
-                        <h2 className="text-lg font-semibold">Now playing</h2>
+                        <h2 className="section-title">Now playing</h2>
                         <NowPlaying sessions={data.nowPlaying} />
                     </section>
 
                     <ThemeCard jellyfin={data} />
 
                     <section className="flex flex-col gap-3">
-                        <h2 className="text-lg font-semibold">Recently added</h2>
+                        <h2 className="section-title">Recently added</h2>
                         <RecentlyAdded items={data.recent} />
                     </section>
                 </>
@@ -151,7 +151,7 @@ function RecentlyAdded({ items }: { items: Jellyfin['recent'] }) {
                     <p className="mt-2 truncate text-sm font-medium">{item.name}</p>
                     <p className="text-xs text-muted-foreground">
                         {item.type === 'Series' ? 'Show' : 'Movie'}
-                        {item.year ? ` · ${item.year}` : ''}
+                        {item.year ? `, ${item.year}` : ''}
                     </p>
                 </li>
             ))}

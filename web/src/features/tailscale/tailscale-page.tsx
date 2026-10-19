@@ -35,7 +35,7 @@ export function TailscalePage() {
     return (
         <div className="flex flex-col gap-8">
             <header>
-                <h1 className="text-lg font-semibold">Tailscale</h1>
+                <h1 className="page-title">Tailscale</h1>
                 <p className="text-sm text-muted-foreground">
                     Open Iglo-OS and your home network from anywhere, without opening ports on your router.
                 </p>
@@ -59,7 +59,7 @@ export function TailscalePage() {
                     </div>
                     <ServicesCard tailscale={data} />
                     <section className="flex flex-col gap-3">
-                        <h2 className="text-lg font-semibold">Devices</h2>
+                        <h2 className="section-title">Devices</h2>
                         <DeviceList peers={data.peers} />
                     </section>
                 </>

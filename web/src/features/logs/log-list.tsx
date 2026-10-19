@@ -8,8 +8,8 @@ const levelStyles: Record<number, { label: string; className: string }> = {
     1: { label: 'ALERT', className: 'text-destructive' },
     2: { label: 'CRIT', className: 'text-destructive' },
     3: { label: 'ERROR', className: 'text-destructive' },
-    4: { label: 'WARN', className: 'text-amber-600 dark:text-amber-400' },
-    5: { label: 'NOTE', className: 'text-sky-600 dark:text-sky-400' },
+    4: { label: 'WARN', className: 'text-warning' },
+    5: { label: 'NOTE', className: 'text-brand' },
     6: { label: 'INFO', className: 'text-muted-foreground' },
     7: { label: 'DEBUG', className: 'text-muted-foreground/60' },
 }

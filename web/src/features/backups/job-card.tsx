@@ -42,7 +42,7 @@ export function JobCard({ backups }: { backups: Backups }) {
     const storages = Object.fromEntries(
         backups.storages.map((item) => [
             item.name,
-            item.total > 0 ? `${item.name} · ${formatBytes(item.total - item.used)} free` : item.name,
+            item.total > 0 ? `${item.name}, ${formatBytes(item.total - item.used)} free` : item.name,
         ]),
     )
 

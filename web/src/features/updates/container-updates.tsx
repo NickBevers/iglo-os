@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { ChevronRightIcon } from 'lucide-react'
 
+import { GuestId } from '@/components/guest-id'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
@@ -58,9 +59,7 @@ function ContainerRow({ guest, updates }: { guest: GuestUpdates; updates: Update
                         )}
                     />
                     <span className="truncate font-medium">{guest.name}</span>
-                    <Badge variant="outline" className="font-mono">
-                        LXC {guest.vmid}
-                    </Badge>
+                    <GuestId vmid={guest.vmid} />
                     <GuestState guest={guest} count={count} />
                 </button>
 
@@ -96,7 +95,9 @@ function GuestState({ guest, count }: { guest: GuestUpdates; count: number }) {
     }
 
     return (
-        <span className="truncate text-sm text-muted-foreground">up to date · {formatRelative(guest.checkedAt)}</span>
+        <span className="truncate text-sm text-muted-foreground">
+            up to date, checked {formatRelative(guest.checkedAt)}
+        </span>
     )
 }
 

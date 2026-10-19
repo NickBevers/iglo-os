@@ -39,7 +39,7 @@ export function BackupsPage() {
         <div className="flex flex-col gap-8">
             <header className="flex flex-wrap items-center justify-between gap-3">
                 <div>
-                    <h1 className="text-lg font-semibold">Backups</h1>
+                    <h1 className="page-title">Backups</h1>
                     <p className="text-sm text-muted-foreground">
                         {!job.exists
                             ? 'No backup schedule yet'
@@ -59,14 +59,14 @@ export function BackupsPage() {
             </header>
 
             <section className="flex flex-col gap-3">
-                <h2 className="text-lg font-semibold">Containers and VMs</h2>
+                <h2 className="section-title">Containers and VMs</h2>
                 <GuestBackups backups={data} />
             </section>
 
             <JobCard key={JSON.stringify(job)} backups={data} />
 
             <section className="flex flex-col gap-3">
-                <h2 className="text-lg font-semibold">History</h2>
+                <h2 className="section-title">History</h2>
                 <BackupHistory runs={data.history} />
             </section>
         </div>
@@ -88,7 +88,7 @@ function BackupHistory({ runs }: { runs: BackupRun[] }) {
                 {runs.map((run) => (
                     <li key={run.id} className="flex items-center gap-3 px-4 py-3 text-sm">
                         {run.succeeded ? (
-                            <CircleCheckIcon className="size-4 shrink-0 text-emerald-500" aria-label="succeeded" />
+                            <CircleCheckIcon className="size-4 shrink-0 text-success" aria-label="succeeded" />
                         ) : (
                             <CircleXIcon className="size-4 shrink-0 text-destructive" aria-label="failed" />
                         )}

@@ -204,7 +204,7 @@ function UsageChart({ title, points, series, timeframe, format, max, syncId }: C
                             name={item.label}
                             type="monotone"
                             stroke={item.color}
-                            strokeWidth={2}
+                            strokeWidth={1.5}
                             fill={item.color}
                             fillOpacity={0.1}
                             dot={false}

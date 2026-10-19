@@ -1,5 +1,4 @@
-import { Progress, ProgressLabel } from '@/components/ui/progress'
-import { cn } from '@/lib/utils'
+import { BlockMeter } from '@/components/block-meter'
 
 type UsageBarProps = {
     label: string
@@ -9,9 +8,12 @@ type UsageBarProps = {
 
 export function UsageBar({ label, value, detail }: UsageBarProps) {
     return (
-        <Progress value={value} className={cn(value >= 90 && '[&_[data-slot=progress-indicator]]:bg-destructive')}>
-            <ProgressLabel className="text-muted-foreground">{label}</ProgressLabel>
-            <span className="ml-auto text-sm tabular-nums">{detail}</span>
-        </Progress>
+        <div className="flex flex-col gap-1.5">
+            <div className="flex items-baseline gap-3 text-sm">
+                <span className="text-muted-foreground">{label}</span>
+                <span className="ml-auto tabular-nums">{detail}</span>
+            </div>
+            <BlockMeter value={value} label={label} />
+        </div>
     )
 }

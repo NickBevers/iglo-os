@@ -56,7 +56,7 @@ export function SelfUpdateCard() {
                 </CardTitle>
                 <CardDescription>
                     {data.checkedAt ? `Checked ${formatRelative(data.checkedAt)}` : 'Not checked yet'}
-                    {data.autoInstall ? ' · installs new versions automatically' : ''}
+                    {data.autoInstall ? ', installs new versions automatically' : ''}
                 </CardDescription>
                 <CardAction>
                     <Button
@@ -65,7 +65,7 @@ export function SelfUpdateCard() {
                         onClick={() => check.mutate()}
                         aria-label="Check for a new Iglo-OS version"
                     >
-                        Check now
+                        Check for a release
                     </Button>
                 </CardAction>
             </CardHeader>

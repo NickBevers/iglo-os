@@ -18,7 +18,9 @@ Open http://localhost:5173 and log in with `admin` / `iglo-dev-password` and the
 - A fake `tailscale` CLI (`dev/bin/tailscale`) logs in 5 seconds after you click Connect.
 - The console opens a shell on your own computer, not in a container.
 - Everything you change stays in `.dev/`. Delete that folder to start again.
-- Jellyfin and the self-update check need the real services.
+- A fake Jellyfin on `http://127.0.0.1:18096` has a library, two things playing and recent items. The manager is connected to it on the first start. Images are not faked.
+- The self-update check needs the real GitHub.
+- The apps that Iglo-OS can't install yet (Music, Photos and Inbox) have fake containers with fake stats, so the dashboard shows them. To hide them, run `touch .dev/no-planned-apps`.
 
 ## Against a real Proxmox
 

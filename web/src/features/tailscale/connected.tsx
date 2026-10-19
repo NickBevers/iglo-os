@@ -34,7 +34,7 @@ export function ConnectedCard({ tailscale }: { tailscale: Tailscale }) {
         <Card>
             <CardHeader>
                 <CardTitle className="flex items-center gap-2">
-                    <span className="size-2.5 rounded-full bg-emerald-500" aria-hidden />
+                    <span className="size-2.5 rounded-full bg-success" aria-hidden />
                     Connected as {tailscale.name}
                 </CardTitle>
                 <CardDescription>
@@ -198,7 +198,7 @@ export function SubnetCard({ tailscale }: { tailscale: Tailscale }) {
                     </div>
                     {shared &&
                         (tailscale.subnetApproved ? (
-                            <Badge variant="secondary">Approved in Tailscale</Badge>
+                            <Badge variant="success">Approved in Tailscale</Badge>
                         ) : (
                             <p className="text-sm text-muted-foreground">
                                 Approve the route in the{' '}
@@ -236,7 +236,7 @@ export function DeviceList({ peers }: { peers: Tailscale['peers'] }) {
                         <span
                             className={cn(
                                 'size-2.5 shrink-0 rounded-full',
-                                peer.online ? 'bg-emerald-500' : 'bg-muted-foreground/40',
+                                peer.online ? 'bg-success' : 'bg-muted-foreground/40',
                             )}
                             aria-label={peer.online ? 'online' : 'offline'}
                         />

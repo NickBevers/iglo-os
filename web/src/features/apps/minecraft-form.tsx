@@ -15,7 +15,7 @@ import { Field, Section } from './form-parts'
 import { keepSaved } from './keep-saved'
 import { names } from './minecraft-names'
 
-const memories = { '2': '2 GB · 2 to 4 players', '4': '4 GB · up to 10 players', '6': '6 GB', '8': '8 GB' }
+const memories = { '2': '2 GB, for 2 to 4 players', '4': '4 GB, for up to 10 players', '6': '6 GB', '8': '8 GB' }
 const difficulties = { peaceful: 'Peaceful', easy: 'Easy', normal: 'Normal', hard: 'Hard' }
 const modes = { survival: 'Survival', creative: 'Creative', adventure: 'Adventure' }
 

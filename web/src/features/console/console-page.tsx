@@ -6,6 +6,7 @@ import { Terminal } from '@xterm/xterm'
 import '@xterm/xterm/css/xterm.css'
 import { ArrowLeftIcon, RotateCwIcon } from 'lucide-react'
 
+import { GuestId } from '@/components/guest-id'
 import { Badge } from '@/components/ui/badge'
 import { Button, buttonVariants } from '@/components/ui/button'
 import { overviewQuery } from '@/lib/queries'
@@ -33,10 +34,8 @@ export function ConsolePage() {
                 >
                     <ArrowLeftIcon />
                 </Link>
-                <h1 className="text-lg font-semibold">{guest?.name ?? `Container ${vmid}`}</h1>
-                <Badge variant="outline" className="font-mono">
-                    LXC {vmid}
-                </Badge>
+                <h1 className="page-title">{guest?.name ?? `Container ${vmid}`}</h1>
+                <GuestId vmid={Number(vmid)} />
                 <StatusBadge status={status} />
                 {status === 'closed' && (
                     <Button variant="outline" size="sm" className="ml-auto" onClick={() => setAttempt(attempt + 1)}>
@@ -58,7 +57,7 @@ export function ConsolePage() {
 
 function StatusBadge({ status }: { status: Status }) {
     if (status === 'open') {
-        return <Badge variant="secondary">connected</Badge>
+        return <Badge variant="success">connected</Badge>
     }
     if (status === 'closed') {
         return <Badge variant="destructive">disconnected</Badge>
@@ -80,7 +79,7 @@ function ConsoleTerminal({ vmid, onStatus }: { vmid: string; onStatus: (status: 
             fontFamily: font,
             fontSize: 13,
             cursorBlink: true,
-            theme: { background: '#0a0a0a', foreground: '#e5e5e5', cursor: '#e5e5e5' },
+            theme: { background: '#0c1520', foreground: '#e4edf5', cursor: '#56c6de', selectionBackground: '#1f3a4d' },
         })
         const fit = new FitAddon()
         terminal.loadAddon(fit)
@@ -139,7 +138,7 @@ function ConsoleTerminal({ vmid, onStatus }: { vmid: string; onStatus: (status: 
     }, [vmid, onStatus])
 
     return (
-        <div className="h-[70vh] overflow-hidden rounded-lg border bg-[#0a0a0a] p-2">
+        <div className="h-[70vh] overflow-hidden rounded-lg border bg-[#0c1520] p-2">
             <div ref={container} className="size-full" />
         </div>
     )

@@ -148,6 +148,9 @@ type View struct {
 	Movies       int          `json:"movies"`
 	Series       int          `json:"series"`
 	Episodes     int          `json:"episodes"`
+	Albums       int          `json:"albums"`
+	Songs        int          `json:"songs"`
+	MusicVideos  int          `json:"musicVideos"`
 	NowPlaying   []NowPlaying `json:"nowPlaying"`
 	Recent       []RecentItem `json:"recent"`
 }
@@ -178,6 +181,7 @@ func (s *Service) Status(ctx context.Context) View {
 	}
 	if counts, err := client.Counts(ctx); err == nil {
 		view.Movies, view.Series, view.Episodes = counts.MovieCount, counts.SeriesCount, counts.EpisodeCount
+		view.Albums, view.Songs, view.MusicVideos = counts.AlbumCount, counts.SongCount, counts.MusicVideoCount
 	}
 	if sessions, err := client.Playing(ctx); err == nil {
 		for _, session := range sessions {
@@ -208,7 +212,7 @@ func nowPlaying(session Session) NowPlaying {
 	if item.Type == "Episode" {
 		// Show the series as the title, and the episode below it.
 		playing.Title = item.SeriesName
-		playing.Subtitle = fmt.Sprintf("S%d:E%d · %s", item.SeasonNumber, item.EpisodeNumber, item.Name)
+		playing.Subtitle = fmt.Sprintf("S%d:E%d, %s", item.SeasonNumber, item.EpisodeNumber, item.Name)
 		if item.SeriesID != "" {
 			playing.ItemID = item.SeriesID
 		}

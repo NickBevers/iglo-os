@@ -5,7 +5,14 @@ import { toast } from 'sonner'
 
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
-import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
+import {
+    Dialog,
+    DialogContent,
+    DialogDescription,
+    DialogFooter,
+    DialogHeader,
+    DialogTitle,
+} from '@/components/ui/dialog'
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -112,7 +119,7 @@ function StatusDot({ status }: { status: ServiceCheck['status'] }) {
         <span
             className={cn(
                 'size-2.5 shrink-0 rounded-full',
-                status === 'up' && 'bg-emerald-500',
+                status === 'up' && 'bg-success',
                 status === 'down' && 'bg-destructive',
                 status === 'pending' && 'bg-muted-foreground/40',
             )}
@@ -128,7 +135,7 @@ function ServiceState({ service }: { service: ServiceCheck }) {
     if (service.status === 'down') {
         return (
             <span className="block truncate text-sm text-destructive sm:max-w-60">
-                down{service.since ? ` ${formatRelative(service.since)}` : ''} · {service.error}
+                down{service.since ? ` ${formatRelative(service.since)}` : ''}: {service.error}
             </span>
         )
     }
@@ -167,6 +174,9 @@ function CheckForm({ check, onDone }: { check: ServiceCheck | null; onDone: () =
         <form onSubmit={handleSubmit} className="flex flex-col gap-4">
             <DialogHeader>
                 <DialogTitle>{check ? `Edit ${check.name}` : 'Add service'}</DialogTitle>
+                <DialogDescription>
+                    Iglo-OS checks it every minute, and sends a Telegram alert after two failed checks in a row.
+                </DialogDescription>
             </DialogHeader>
 
             <div className="flex flex-col gap-2">

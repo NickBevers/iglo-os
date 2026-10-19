@@ -3,6 +3,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { CopyIcon, ExternalLinkIcon, Loader2Icon, RotateCwIcon, TriangleAlertIcon } from 'lucide-react'
 import { toast } from 'sonner'
 
+import { GuestId } from '@/components/guest-id'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -24,7 +25,7 @@ export function AppsPage() {
     return (
         <div className="flex flex-col gap-6">
             <header>
-                <h1 className="text-lg font-semibold">Apps</h1>
+                <h1 className="page-title">Apps</h1>
                 <p className="text-sm text-muted-foreground">
                     Each app gets its own container on this host, with its own backups and updates.
                 </p>
@@ -80,30 +81,36 @@ function AppCard({ app, defaults }: { app: CatalogApp; defaults: Apps['defaults'
             <CardHeader className="max-sm:has-data-[slot=card-action]:grid-cols-1">
                 <CardTitle className="flex flex-wrap items-center gap-2">
                     {app.name}
+                    {app.installed && app.vmid !== undefined && <GuestId vmid={app.vmid} />}
                     {app.installed && (
-                        <Badge variant="outline" className="font-mono">
-                            CT {app.vmid}
-                        </Badge>
+                        <Badge variant={app.status === 'running' ? 'success' : 'outline'}>{app.status}</Badge>
                     )}
-                    {app.installed && (
-                        <Badge variant={app.status === 'running' ? 'secondary' : 'outline'}>{app.status}</Badge>
-                    )}
-                    {app.updateAvailable && !running && <Badge>Update available</Badge>}
+                    {app.updateAvailable && !running && <Badge variant="warning">Update available</Badge>}
                 </CardTitle>
                 <CardDescription className="flex flex-col gap-1">
                     <span>{app.description}</span>
                     {app.hostUrl && (
-                        <a href={app.hostUrl} target="_blank" rel="noreferrer" className="w-fit underline">
+                        <a
+                            href={app.hostUrl}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="w-fit font-medium text-brand hover:underline"
+                        >
                             {app.hostUrl.replace('https://', '')}
                         </a>
                     )}
                 </CardDescription>
-                {app.installed && app.managed && !running && (
+                {app.installed && app.managed && !app.planned && !running && (
                     <CardAction className={actionClass}>
                         <AppActions app={app} />
                     </CardAction>
                 )}
-                {!app.installed && !running && (
+                {!app.installed && app.planned && (
+                    <CardAction className={actionClass}>
+                        <Badge variant="outline">Comes in a later version</Badge>
+                    </CardAction>
+                )}
+                {!app.installed && !app.planned && !running && (
                     <CardAction className={actionClass}>
                         {saved ? (
                             <>
@@ -124,6 +131,11 @@ function AppCard({ app, defaults }: { app: CatalogApp; defaults: Apps['defaults'
 
             <CardContent className="flex flex-col gap-4">
                 {operation && <OperationProgress operation={operation} rollback={app.rollback} />}
+                {app.installed && app.planned && (
+                    <p className="text-xs text-muted-foreground">
+                        Iglo-OS can't install, update or remove this app yet. That comes in a later version.
+                    </p>
+                )}
                 {app.installed && !app.managed && (
                     <p className="text-xs text-muted-foreground">
                         Iglo-OS did not install this container, so it can't update or remove it here. Update it on the
@@ -156,16 +168,16 @@ function AppCard({ app, defaults }: { app: CatalogApp; defaults: Apps['defaults'
                                     rel="noreferrer"
                                     className="flex items-center justify-between gap-2 rounded-lg border px-3 py-2 text-sm hover:bg-muted/50"
                                 >
-                                    <span>
-                                        <span className="font-medium">{link.name}</span>
-                                        <span className="text-muted-foreground"> · {link.description}</span>
+                                    <span className="min-w-0">
+                                        <span className="block font-medium">{link.name}</span>
+                                        <span className="block text-xs text-muted-foreground">{link.description}</span>
                                     </span>
                                     <ExternalLinkIcon className="size-4 text-muted-foreground" />
                                 </a>
                             ) : (
                                 <div className="rounded-lg border border-dashed px-3 py-2 text-sm text-muted-foreground">
-                                    <span className="font-medium text-foreground">{link.name}</span> ·{' '}
-                                    {link.description}
+                                    <span className="block font-medium text-foreground">{link.name}</span>
+                                    <span className="block text-xs">{link.description}</span>
                                 </div>
                             )}
                         </li>
@@ -305,8 +317,8 @@ function AddressItem({ name, description, address }: { name: string; description
     return (
         <div className="flex items-center justify-between gap-2 rounded-lg border px-3 py-2 text-sm">
             <span className="min-w-0">
-                <span className="font-medium">{name}</span>
-                <span className="text-muted-foreground"> · {description}</span>
+                <span className="block font-medium">{name}</span>
+                <span className="block text-xs text-muted-foreground">{description}</span>
                 <span className="block truncate font-mono text-xs select-all">{address}</span>
             </span>
             <Button variant="ghost" size="icon-sm" aria-label={`Copy ${address}`} onClick={copy}>
