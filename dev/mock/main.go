@@ -51,15 +51,19 @@ func main() {
 	if err != nil {
 		log.Fatal(err)
 	}
+	if err := ensureJellyfin(); err != nil {
+		log.Fatal(err)
+	}
 
 	fmt.Printf(`
-  Fake Proxmox on http://%s and a fake host agent on %s.
+  Fake Proxmox on http://%s, a fake Jellyfin on http://%s and a fake host agent on %s.
   Log in with %s / %s.
   Login code: run "make dev-code", or add this secret to an authenticator app: %s
 
-`, proxmoxAddr, agentSocket, devUsername, devPassword, secret)
+`, proxmoxAddr, jellyfinAddr, agentSocket, devUsername, devPassword, secret)
 
 	go func() { log.Fatal(http.ListenAndServe(proxmoxAddr, newProxmox())) }()
+	go func() { log.Fatal(http.ListenAndServe(jellyfinAddr, newJellyfin())) }()
 	log.Fatal(serveAgent(agentSocket))
 }
 
