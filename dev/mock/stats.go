@@ -59,7 +59,7 @@ func fakeStats(app string) (agent.AppStats, bool) {
 				{Label: "Saved", Value: 41_000_000_000, Unit: "bytes"},
 			},
 			Activity: []agent.Activity{
-				{Title: "family-2009.avi", Detail: "Converting to HEVC on the GPU", Progress: moving(60*time.Second, 0)},
+				{Title: "family-2009.avi", Detail: "Converting to HEVC", Progress: moving(60*time.Second, 0)},
 				{Title: "behind-the-scenes.mov", Detail: "Next", Progress: -1},
 			},
 		}, true

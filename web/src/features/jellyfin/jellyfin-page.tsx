@@ -67,10 +67,13 @@ export function JellyfinPage() {
                 </Alert>
             ) : (
                 <>
-                    <div className="grid grid-cols-3 gap-4">
+                    <div className="grid grid-cols-3 gap-4 lg:grid-cols-6">
                         <Stat label="Movies" value={data.movies} />
-                        <Stat label="Shows" value={data.series} />
+                        <Stat label="Series" value={data.series} />
                         <Stat label="Episodes" value={data.episodes} />
+                        <Stat label="Albums" value={data.albums} />
+                        <Stat label="Songs" value={data.songs} />
+                        <Stat label="Music videos" value={data.musicVideos} />
                     </div>
 
                     <section className="flex flex-col gap-3">
@@ -135,22 +138,26 @@ function ThemeCard({ jellyfin }: { jellyfin: Jellyfin }) {
 
 function RecentlyAdded({ items }: { items: Jellyfin['recent'] }) {
     if (items.length === 0) {
-        return <Card className="p-6 text-center text-sm text-muted-foreground">No movies or shows yet.</Card>
+        return <Card className="p-6 text-center text-sm text-muted-foreground">No movies or series yet.</Card>
     }
 
     return (
         <ul className="flex gap-4 overflow-x-auto pb-2">
             {items.map((item) => (
                 <li key={item.id} className="w-32 shrink-0">
-                    <img
-                        src={jellyfinImage(item.id, 'Primary')}
-                        alt=""
-                        loading="lazy"
-                        className="aspect-2/3 w-full rounded-md bg-muted object-cover"
-                    />
+                    {/* Without a poster, the empty frame stays. */}
+                    <div className="aspect-2/3 w-full overflow-hidden rounded-md bg-muted">
+                        <img
+                            src={jellyfinImage(item.id, 'Primary')}
+                            alt=""
+                            loading="lazy"
+                            className="size-full object-cover"
+                            onError={(event) => (event.currentTarget.style.display = 'none')}
+                        />
+                    </div>
                     <p className="mt-2 truncate text-sm font-medium">{item.name}</p>
                     <p className="text-xs text-muted-foreground">
-                        {item.type === 'Series' ? 'Show' : 'Movie'}
+                        {item.type === 'Series' ? 'Series' : 'Movie'}
                         {item.year ? `, ${item.year}` : ''}
                     </p>
                 </li>

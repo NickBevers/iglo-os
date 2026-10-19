@@ -22,6 +22,19 @@ Open http://localhost:5173 and log in with `admin` / `iglo-dev-password` and the
 - The self-update check needs the real GitHub.
 - The apps that Iglo-OS can't install yet (Music, Photos and Inbox) have fake containers with fake stats, so the dashboard shows them. To hide them, run `touch .dev/no-planned-apps`.
 
+## A demo for a review
+
+The demo build runs the web app without a server. Every answer of the API comes from sample data in `web/src/demo/fixtures.json`. Buttons that change something show a message instead, and a banner says it is a demo.
+
+```sh
+cd web
+npm run build:demo    # the demo in web/dist
+```
+
+`web/vercel.json` builds the demo on Vercel: run `vercel deploy --prod` in the `web` folder. The normal build leaves the demo code and the sample data out.
+
+To record the sample data again, run `node scripts/record-demo.mjs` in the `web` folder while `make dev` runs. It only takes data from the dev mock.
+
 ## Against a real Proxmox
 
 The API only reads from Proxmox, except for the actions you click. Use a token with the role from [architecture.md](architecture.md).
