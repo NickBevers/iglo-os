@@ -78,9 +78,9 @@
     --muted-foreground: #5b6b7c;
     --accent: #e7eef4;
     --accent-foreground: #0f1d2b;
-    --destructive: #c2412d;
-    --success: #1f8a5b;
-    --warning: #b7791f;
+    --destructive: #bc3f2c;
+    --success: #1b784f;
+    --warning: #8d5d18;
     --brand: #0b7a95;
     --brand-soft: #dff0f4;
     --border: #dde4eb;
@@ -118,7 +118,7 @@
     --muted-foreground: #8b9cad;
     --accent: #1a2a3a;
     --accent-foreground: #e4edf5;
-    --destructive: #f0705a;
+    --destructive: #f17d69;
     --success: #4cc38a;
     --warning: #e3a740;
     --brand: #56c6de;
@@ -194,6 +194,23 @@
     samp,
     pre {
         font-feature-settings: 'calt' 0;
+    }
+    /* Mona Sans has a heavy underline of its own, which breaks into bars around descenders. */
+    a,
+    .underline,
+    [class*='hover:underline'] {
+        text-decoration-thickness: 1px;
+        text-underline-offset: 0.2em;
+    }
+    /* Numbers are typed, not clicked up and down. */
+    input[type='number'] {
+        appearance: textfield;
+        -moz-appearance: textfield;
+    }
+    input[type='number']::-webkit-inner-spin-button,
+    input[type='number']::-webkit-outer-spin-button {
+        -webkit-appearance: none;
+        margin: 0;
     }
     @media (prefers-reduced-motion: reduce) {
         *,
