@@ -31,13 +31,13 @@ SMB 3.1.1 is the newest version, and the Linux CIFS client supports it well. The
 
 ### Share only what Iglo-OS needs
 
-Today the Mac sees the whole Home folder, `Documents` included. That is fine for the Mac. For the mini PC, share only the folders Iglo-OS uses: `Videos`, `Music`, `Photos`, `Inbox` and `Backups`. Then the mini PC can't touch `Documents` or `Downloads`, even when something on it goes wrong.
+Decided on 19 October 2026: the mini PC gets only the folders Iglo-OS uses, `Videos`, `Music`, `Photos`, `Inbox` and `Backups`, each as its own share. Not the whole Home folder. Then the mini PC can't touch `Documents` or `Downloads`, even when something on it goes wrong. The Mac keeps its share of the whole Home folder.
 
-It also avoids a small problem. The name `Nick's Umbrel` has a quote and a space, and a systemd mount unit needs those escaped. A share named after a single folder, like `Videos`, has neither.
+It also avoids a small problem. The name `Nick's Umbrel` has a quote and a space, and a systemd mount unit needs those escaped. Iglo-OS only accepts a share name without spaces or slashes, like `Videos`.
 
 Check on the Umbrel that a folder share gets the name of its folder.
 
-Give the Umbrel a fixed IP in the router (a DHCP reservation). Iglo-OS mounts the shares by IP. Then the mount doesn't depend on mDNS on the Proxmox host.
+Give the Umbrel a fixed IP in the router (a DHCP reservation). Iglo-OS mounts the shares by IP. A test mount showed that `mount.cifs` must resolve the name itself, and a Proxmox host can't look up `.local` names like `umbrel.local`.
 
 ## Folders on the Umbrel
 
@@ -51,27 +51,38 @@ The plan uses the folders that umbrelOS already has. Files then also show up in 
 | `Videos/Anime-Movies` | anime movies | Radarr, Jellyfin |
 | `Music/Library` | songs, as Artist/Album | yt-dlp, later Lidarr, Jellyfin |
 | `Music/Videos` | music videos, only when you ask for one | yt-dlp, Jellyfin |
+| `Videos/Home` | your own videos, converted: old videos, behind the scenes, family videos | FileFlows, Jellyfin |
 | `Photos/Immich` | photos and videos from the phones | Immich |
 | `Inbox` | your own files, before they are converted | FileFlows |
 | `Backups` | Proxmox backups of the containers | Proxmox |
 
-`Inbox` and `Backups` are new. The install forms ask for the folders, like they ask for the movies and series folders today.
+`Inbox`, `Backups` and `Videos/Home` are new. The install forms ask for the folders, like they ask for the movies and series folders today.
 
 Files that are already on the Umbrel:
 
 - **`Videos`** already has some videos. Jellyfin only reads the subfolders above, so loose files in `Videos` stay out of the libraries. Move them to `Inbox` to convert and sort them.
 - **`Photos`** may already hold photos. Immich writes new photos to `Photos/Immich`. It can show the older ones as an external library, which it only reads and never changes.
 
-## What changes in Iglo-OS
+## SMB in Iglo-OS
 
-Today the media folder is on an NFS share or on a disk of the host. See [media-folder.md](../media-folder.md). The Umbrel speaks SMB, so Iglo-OS needs an SMB mount:
+Done on 19 October 2026. The Jellyfin and media stack forms have a third choice next to NFS and a folder on the host: **SMB share**. See [media-folder.md](../media-folder.md#on-a-nas-smb).
 
-- The host mounts the share with a systemd `.mount` unit, like `mnt-iglo-media.mount` today, with the type `cifs`.
-- The password goes in a file that only root can read, like `/etc/iglo/umbrel.credentials`. It is never written in the unit.
-- The containers are unprivileged, so the files must belong to user 101000 on the host. The mount sets that with `uid=101000,gid=101000`.
-- The Health page already shows shares with their free space. It also has to understand the SMB mount.
+- The host mounts the share with `mnt-iglo-media.mount`, with the type `cifs`.
+- The password goes in `/etc/iglo-media.credentials`, a file that only root can read. The unit only names it. A failed install keeps it in the saved answers on the host for 24 hours, like the other secrets. It never goes back to the browser.
+- The containers are unprivileged, so the mount gives every file to user 101000 on the host, with `uid=101000,gid=101000`. Files are `0644` and folders `0755`, so Jellyfin reads and the media stack writes.
+- The installer makes the movies and series folders on the share when they are missing.
+- The Health page shows the share with its free space, like an NFS share.
 
-The code lives in `internal/agent/mediafolders.go`, `internal/agent/mounts.go` and `deploy/lib.sh`.
+How it was tested:
+
+- unit tests for the answers, the saved password and the mount list;
+- the real `deploy/lib.sh` in a Debian container, with a fake `systemctl` (29 checks);
+- a real CIFS mount of a Samba share, with the exact options of the unit: SMB 3.1.1, the container user can write, another user can only read;
+- an install through the dev mock, with a failed try first and then "Change answers" with the saved password.
+
+Not tested yet: a mount of the Umbrel itself from a Proxmox host. That waits for the mini PC.
+
+There is one media mount today, for `Videos`. Music and photos need their own shares and mounts. They come with the music and photo steps of the plan.
 
 ## Downloads stay on the mini PC
 
@@ -87,12 +98,12 @@ Proxmox does not back up the media, music or photos folders. A backup of a conta
 
 ## A second copy of the photos
 
-Media and music can be downloaded again. Photos can't. As long as the Umbrel holds the only copy, one broken disk loses them.
+Media and music can be downloaded again. Photos can't, and neither can your own family videos in `Videos/Home`.
 
-Before you delete photos from your phone, make a second copy. The options:
+The Umbrel has 3 disks of 4 TB. It uses one of them for redundancy, so one broken disk loses nothing. That leaves the 8 TB. But redundancy is not a backup. A deleted folder, a broken Umbrel or ransomware still takes every copy with it.
 
-- an external disk on the mini PC, with a nightly copy;
-- an offsite bucket, like Backblaze B2, with restic or rclone;
-- both.
+Decided: the second copy goes to an external backup hard disk. Nick gets one.
 
-This is still open. Also check how many disks the Umbrel has, and whether it mirrors them.
+- It holds `Photos` and `Videos/Home`.
+- A nightly copy keeps it up to date. Where the disk plugs in, and which tool copies (rsync, restic or the Umbrel itself), is still open.
+- Delete photos from the phone only after the first full copy is on that disk.

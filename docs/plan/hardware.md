@@ -7,10 +7,10 @@
 | CPU | Intel Core i7-12700T: 8 P-cores with Hyper-Threading and 4 E-cores, so 20 threads. 35 W base power, up to 4.7 GHz. |
 | GPU | Intel UHD 770, inside the CPU. |
 | Memory | 32 GB DDR5, as two modules of 16 GB. |
-| SSD | 1 TB NVMe. |
+| SSD | 512 GB or 1 TB NVMe, whichever the mini PC comes with. |
 | Network | Wired. |
 
-The mini PC is not bought yet. The memory and the SSD are still open: 16 or 32 GB, 512 GB or 1 TB.
+The mini PC is not bought yet. Nick aims for 32 GB of memory. The SSD comes with the mini PC, 512 GB or 1 TB, and can't be chosen.
 
 ## CPU
 
@@ -72,7 +72,9 @@ The SSD holds what must be fast or must stay local:
 - downloads that are not finished yet, and torrents that still seed;
 - the temporary files of transcodes.
 
-A season of anime or one 4K movie can be 20 to 80 GB, so downloads fill 512 GB quickly. Get 1 TB. The movies, series, music and photos themselves go to the Umbrel. See [storage.md](storage.md).
+A season of anime or one 4K movie can be 20 to 80 GB, so downloads fill 512 GB quickly. The movies, series, music and photos themselves go to the Umbrel. See [storage.md](storage.md).
+
+With 512 GB, keep the downloads disk of the media stack small, around 200 GB, and set a seeding limit in qBittorrent. A second SSD or an external SSD can come later, as a Proxmox storage for the downloads.
 
 Proxmox backups also go to the Umbrel, not to the SSD. Then a broken SSD does not take the backups with it.
 

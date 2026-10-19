@@ -21,7 +21,9 @@ The hardware is in [hardware.md](hardware.md), the files and backups in [storage
 | --- | --- |
 | Name | Iglo-OS. Identifiers use `iglo`: the Go module, `iglo.local`, `IGLO_*`, `iglo@pve`. |
 | Git | Fresh history, in a new repo `NickBevers/iglo-os`. |
-| Storage | Everything that matters lives on the Umbrel, over SMB. The Umbrel runs no apps for us. |
+| Storage | Everything that matters lives on the Umbrel, over SMB. The Umbrel runs no apps for us. The mini PC only gets the folders it needs, each as its own share. |
+| Second copy | Photos and family videos also go to an external backup disk. The Umbrel itself survives one broken disk out of three. |
+| Own media | Converted, then moved to `Videos/Home`. The original goes away after a working conversion. |
 | Apps | All apps run on the mini PC, in containers that Iglo-OS makes. |
 | Music source | yt-dlp first. Lidarr with torrents later. |
 | Transcoding | Jellyfin transcodes live with Intel Quick Sync. FileFlows makes your own files TV-safe once. |
@@ -35,7 +37,7 @@ The hardware is in [hardware.md](hardware.md), the files and backups in [storage
 ## Order
 
 1. **Rename and restart.** Done. Still to do: a first release v0.1.0.
-2. **The Umbrel over SMB.** A mount for the media and photo folders, and Proxmox backups on the Umbrel.
+2. **The Umbrel over SMB.** The SMB mount for the media is done, and tested up to a real Samba share. Still to do: a test on the mini PC with the Umbrel, and Proxmox backups on the Umbrel.
 3. **Video with anime.**
 4. **Playback on the TV.**
 5. **Photos with Immich.**
@@ -68,7 +70,4 @@ Still to do:
 
 ## Open questions
 
-- Share only the folders Iglo-OS needs, instead of the whole Home folder? See [storage.md](storage.md#share-only-what-iglo-os-needs).
-- 16 or 32 GB memory, 512 GB or 1 TB SSD? We advise 32 GB and 1 TB. See [hardware.md](hardware.md).
-- What happens to the original of a file you drop in the inbox? See [own-media.md](own-media.md#open-questions).
-- Where does the second copy of the photos go? See [storage.md](storage.md#a-second-copy-of-the-photos).
+- Where does the external backup disk plug in, and which tool makes the nightly copy? See [storage.md](storage.md#a-second-copy-of-the-photos).
