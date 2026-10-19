@@ -1,0 +1,151 @@
+import { useState } from 'react'
+import { useMutation, useQueryClient } from '@tanstack/react-query'
+import { ArrowUpCircleIcon, Loader2Icon, ShieldIcon, Trash2Icon, UsersIcon } from 'lucide-react'
+import { toast } from 'sonner'
+
+import {
+    AlertDialog,
+    AlertDialogAction,
+    AlertDialogCancel,
+    AlertDialogContent,
+    AlertDialogDescription,
+    AlertDialogFooter,
+    AlertDialogHeader,
+    AlertDialogTitle,
+} from '@/components/ui/alert-dialog'
+import { Button } from '@/components/ui/button'
+import { api, type CatalogApp } from '@/lib/api'
+import { appsQuery } from '@/lib/queries'
+import { PlayersDialog } from './players-dialog'
+import { VpnDialog } from './vpn-dialog'
+
+const updateText: Record<string, string> = {
+    media: 'Iglo-OS makes a snapshot, updates the packages, copies the stack of this Iglo-OS release, and downloads the new images. The apps restart, so they are offline for a few minutes. Your settings in the apps stay.',
+    jellyfin:
+        'Iglo-OS makes a snapshot, then updates Jellyfin and the other packages. Jellyfin restarts, so it is offline for a minute. Your settings, users and libraries stay.',
+    minecraft:
+        'Iglo-OS makes a snapshot, updates the packages and the images, and restarts the server. When a newer stable Paper is out, the server starts with it. The world and the players stay. A world can not go back to an older Minecraft version.',
+}
+
+const removeText: Record<string, string> = {
+    media: 'The downloads disk goes with it, so downloads that did not finish are lost. Your movies and series stay in the media folder, and Jellyfin keeps its libraries.',
+    jellyfin:
+        'Its settings, users and watch history go with it, and the Jellyfin page disconnects. Your movies and series stay in the media folder.',
+    minecraft: 'The world goes with it, unless you restore it from a backup.',
+}
+
+// AppActions are the buttons of an app that Iglo-OS installed: VPN (media stack only), Update and Remove.
+export function AppActions({ app }: { app: CatalogApp }) {
+    const queryClient = useQueryClient()
+    const [confirm, setConfirm] = useState<'update' | 'remove' | null>(null)
+    const [vpnOpen, setVpnOpen] = useState(false)
+    const [playersOpen, setPlayersOpen] = useState(false)
+
+    const refresh = () => queryClient.invalidateQueries({ queryKey: appsQuery.queryKey })
+    const update = useMutation({
+        mutationFn: () => api.updateApp(app.id),
+        onSuccess: refresh,
+        onError: (error) => toast.error(`Could not update ${app.name}`, { description: error.message }),
+    })
+    const remove = useMutation({
+        mutationFn: () => api.removeApp(app.id),
+        onSuccess: refresh,
+        onError: (error) => toast.error(`Could not remove ${app.name}`, { description: error.message }),
+    })
+    const busy = update.isPending || remove.isPending
+
+    return (
+        <>
+            {app.id === 'media' && (
+                <Button variant="outline" disabled={busy || app.status !== 'running'} onClick={() => setVpnOpen(true)}>
+                    <ShieldIcon />
+                    VPN
+                </Button>
+            )}
+            {app.id === 'minecraft' && (
+                <Button
+                    variant="outline"
+                    disabled={busy || app.status !== 'running'}
+                    onClick={() => setPlayersOpen(true)}
+                >
+                    <UsersIcon />
+                    Players
+                </Button>
+            )}
+            <Button
+                variant={app.updateAvailable ? 'default' : 'outline'}
+                disabled={busy || app.status !== 'running'}
+                onClick={() => setConfirm('update')}
+            >
+                {update.isPending ? <Loader2Icon className="animate-spin" /> : <ArrowUpCircleIcon />}
+                Update
+            </Button>
+            <Button variant="destructive" disabled={busy} onClick={() => setConfirm('remove')}>
+                {remove.isPending ? <Loader2Icon className="animate-spin" /> : <Trash2Icon />}
+                Remove
+            </Button>
+
+            <VpnDialog app={app} open={vpnOpen} onOpenChange={setVpnOpen} />
+            {app.id === 'minecraft' && <PlayersDialog open={playersOpen} onOpenChange={setPlayersOpen} />}
+
+            <AlertDialog open={confirm === 'update'} onOpenChange={(open) => !open && setConfirm(null)}>
+                <AlertDialogContent>
+                    <AlertDialogHeader>
+                        <AlertDialogTitle>Update {app.name}?</AlertDialogTitle>
+                        <AlertDialogDescription className="flex flex-col gap-2">
+                            <span>{updateText[app.id]}</span>
+                            {app.updateAvailable && (
+                                <span>
+                                    The stack in the container is from{' '}
+                                    {app.version ? `Iglo-OS ${app.version}` : 'an older Iglo-OS release'}.
+                                </span>
+                            )}
+                            <span>If the update fails, Iglo-OS rolls the container back to the snapshot.</span>
+                        </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                        <AlertDialogCancel>Cancel</AlertDialogCancel>
+                        <AlertDialogAction
+                            onClick={() => {
+                                setConfirm(null)
+                                update.mutate()
+                            }}
+                        >
+                            Update
+                        </AlertDialogAction>
+                    </AlertDialogFooter>
+                </AlertDialogContent>
+            </AlertDialog>
+
+            <AlertDialog open={confirm === 'remove'} onOpenChange={(open) => !open && setConfirm(null)}>
+                <AlertDialogContent>
+                    <AlertDialogHeader>
+                        <AlertDialogTitle>Remove {app.name}?</AlertDialogTitle>
+                        <AlertDialogDescription className="flex flex-col gap-2">
+                            <span>
+                                This removes container {app.vmid} with its disks and snapshots. {removeText[app.id]}
+                            </span>
+                            <span>
+                                The backups of the container stay, so you can restore it on the Backups page.
+                                {app.id !== 'minecraft' &&
+                                    ' When no other container uses the media folder, Iglo-OS also removes its mount on the host. The files stay.'}
+                            </span>
+                        </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                        <AlertDialogCancel>Cancel</AlertDialogCancel>
+                        <AlertDialogAction
+                            variant="destructive"
+                            onClick={() => {
+                                setConfirm(null)
+                                remove.mutate()
+                            }}
+                        >
+                            Remove
+                        </AlertDialogAction>
+                    </AlertDialogFooter>
+                </AlertDialogContent>
+            </AlertDialog>
+        </>
+    )
+}

@@ -1,0 +1,13 @@
+[Unit]
+Description=Iglo-OS host agent
+After=network.target
+# The manager LXC bind-mounts the socket directory, so start before guests.
+Before=pve-guests.service
+
+[Service]
+ExecStart=/usr/local/bin/iglo-agent --socket /var/lib/iglo-agent/socket/agent.sock --socket-gid @SOCKET_GID@
+Restart=on-failure
+PrivateTmp=yes
+
+[Install]
+WantedBy=multi-user.target

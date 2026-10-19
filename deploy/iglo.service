@@ -1,0 +1,22 @@
+[Unit]
+Description=Iglo-OS manager
+After=network-online.target avahi-daemon.service
+Wants=network-online.target
+
+[Service]
+User=iglo
+Group=iglo
+EnvironmentFile=/etc/iglo/iglo.env
+ExecStart=/usr/local/bin/iglo serve
+Restart=on-failure
+
+AmbientCapabilities=CAP_NET_BIND_SERVICE
+CapabilityBoundingSet=CAP_NET_BIND_SERVICE
+NoNewPrivileges=yes
+ProtectSystem=strict
+ProtectHome=yes
+PrivateTmp=yes
+ReadWritePaths=/var/lib/iglo
+
+[Install]
+WantedBy=multi-user.target

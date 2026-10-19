@@ -1,0 +1,375 @@
+// iglo-agent runs on the Proxmox host and does the few things the Proxmox
+// API can't, like apt upgrades and running commands inside containers.
+// It only listens on a Unix socket that is shared with the manager LXC.
+package main
+
+import (
+	"context"
+	"encoding/json"
+	"errors"
+	"flag"
+	"log/slog"
+	"net"
+	"net/http"
+	"os"
+	"os/signal"
+	"strconv"
+	"syscall"
+	"time"
+
+	"iglo/internal/agent"
+)
+
+var version = "dev"
+
+func main() {
+	socketPath := flag.String("socket", "/var/lib/iglo-agent/socket/agent.sock", "Unix socket to listen on")
+	socketGID := flag.Int("socket-gid", -1, "host group ID that may use the socket (the manager's group, shifted by the LXC ID map)")
+	flag.Parse()
+
+	logger := slog.New(slog.NewTextHandler(os.Stdout, nil))
+
+	if err := run(*socketPath, *socketGID, logger); err != nil {
+		logger.Error("agent stopped", "error", err)
+		os.Exit(1)
+	}
+}
+
+func run(socketPath string, socketGID int, logger *slog.Logger) error {
+	if err := os.Remove(socketPath); err != nil && !errors.Is(err, os.ErrNotExist) {
+		return err
+	}
+
+	listener, err := net.Listen("unix", socketPath)
+	if err != nil {
+		return err
+	}
+	defer listener.Close()
+
+	if socketGID >= 0 {
+		if err := os.Chown(socketPath, 0, socketGID); err != nil {
+			return err
+		}
+	}
+	if err := os.Chmod(socketPath, 0o660); err != nil {
+		return err
+	}
+
+	runner := agent.NewRunner()
+
+	mux := http.NewServeMux()
+	mux.HandleFunc("GET /v1/health", health)
+	mux.HandleFunc("POST /v1/jobs", startJob(runner, logger))
+	mux.HandleFunc("GET /v1/jobs/{id}", getJob(runner))
+	mux.HandleFunc("GET /v1/mounts", listMounts(agent.NewMounts()))
+	mux.HandleFunc("GET /v1/media-folders", func(w http.ResponseWriter, r *http.Request) {
+		writeJSON(w, http.StatusOK, agent.MediaFolders(agent.ProxmoxStorageConfig))
+	})
+	mux.HandleFunc("PUT /v1/backup-job", saveBackupJob(logger))
+	mux.Handle("GET /v1/console/{vmid}", agent.NewConsoles(logger))
+	logs := agent.NewLogs()
+	mux.HandleFunc("GET /v1/logs/journal", journalLogs(logs))
+	mux.HandleFunc("GET /v1/logs/docker", dockerLogs(logs))
+	upgrader := agent.NewUpgrader(version)
+	mux.HandleFunc("POST /v1/upgrade", startUpgrade(upgrader, logger))
+	mux.HandleFunc("GET /v1/upgrade", upgradeStatus(upgrader))
+	apps := agent.NewAppInstaller()
+	mux.HandleFunc("POST /v1/apps/{app}/install", installApp(apps, logger))
+	mux.HandleFunc("POST /v1/apps/{app}/retry", retryApp(apps, logger))
+	mux.HandleFunc("POST /v1/apps/{app}/update", appOnContainer(apps.Update, "app update started", logger))
+	mux.HandleFunc("POST /v1/apps/{app}/remove", appOnContainer(apps.Remove, "app removal started", logger))
+	mux.HandleFunc("GET /v1/apps/media/vpn", func(w http.ResponseWriter, r *http.Request) {
+		vmid, _ := strconv.Atoi(r.URL.Query().Get("vmid"))
+		countries, err := apps.VPNCountries(r.Context(), vmid)
+		if err != nil {
+			writeAppError(w, logger, agent.MediaStackApp, err)
+			return
+		}
+		writeJSON(w, http.StatusOK, agent.VPNSettings{Countries: countries})
+	})
+	mux.HandleFunc("PUT /v1/apps/media/vpn", func(w http.ResponseWriter, r *http.Request) {
+		var request agent.VPNRequest
+		if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, 1024)).Decode(&request); err != nil {
+			http.Error(w, "invalid request body", http.StatusBadRequest)
+			return
+		}
+		if err := apps.ChangeVPN(request.VMID, request.VPNSettings); err != nil {
+			writeAppError(w, logger, agent.MediaStackApp, err)
+			return
+		}
+		logger.Info("vpn change started", "vmid", request.VMID)
+		w.WriteHeader(http.StatusAccepted)
+	})
+	mux.HandleFunc("GET /v1/apps/minecraft/players", func(w http.ResponseWriter, r *http.Request) {
+		vmid, _ := strconv.Atoi(r.URL.Query().Get("vmid"))
+		players, err := apps.Players(r.Context(), vmid)
+		if err != nil {
+			writeAppError(w, logger, agent.MinecraftApp, err)
+			return
+		}
+		writeJSON(w, http.StatusOK, players)
+	})
+	mux.HandleFunc("PUT /v1/apps/minecraft/players", func(w http.ResponseWriter, r *http.Request) {
+		var request agent.PlayersRequest
+		if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, 8192)).Decode(&request); err != nil {
+			http.Error(w, "invalid request body", http.StatusBadRequest)
+			return
+		}
+		if err := apps.ChangePlayers(request.VMID, request.MinecraftPlayers); err != nil {
+			writeAppError(w, logger, agent.MinecraftApp, err)
+			return
+		}
+		logger.Info("change of the minecraft players started", "vmid", request.VMID)
+		w.WriteHeader(http.StatusAccepted)
+	})
+	mux.HandleFunc("GET /v1/apps/{app}/answers", func(w http.ResponseWriter, r *http.Request) {
+		saved, err := apps.Saved(r.PathValue("app"))
+		if err != nil {
+			writeAppError(w, logger, r.PathValue("app"), err)
+			return
+		}
+		writeJSON(w, http.StatusOK, saved)
+	})
+	mux.HandleFunc("DELETE /v1/apps/{app}/answers", func(w http.ResponseWriter, r *http.Request) {
+		if err := apps.Forget(r.PathValue("app")); err != nil {
+			writeAppError(w, logger, r.PathValue("app"), err)
+			return
+		}
+		w.WriteHeader(http.StatusNoContent)
+	})
+	mux.HandleFunc("GET /v1/apps/install", func(w http.ResponseWriter, r *http.Request) {
+		writeJSON(w, http.StatusOK, apps.Status())
+	})
+
+	srv := &http.Server{Handler: mux, ReadHeaderTimeout: 10 * time.Second}
+
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer stop()
+
+	go func() {
+		<-ctx.Done()
+		srv.Shutdown(context.Background())
+	}()
+
+	logger.Info("listening", "socket", socketPath, "version", version)
+
+	if err := srv.Serve(listener); !errors.Is(err, http.ErrServerClosed) {
+		return err
+	}
+
+	return nil
+}
+
+func health(w http.ResponseWriter, r *http.Request) {
+	hostname, _ := os.Hostname()
+
+	writeJSON(w, http.StatusOK, agent.Health{Status: "ok", Hostname: hostname, Version: version})
+}
+
+func startJob(runner *agent.Runner, logger *slog.Logger) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		var request agent.JobRequest
+		if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, 1024)).Decode(&request); err != nil {
+			http.Error(w, "invalid request body", http.StatusBadRequest)
+			return
+		}
+
+		job, err := runner.Start(request)
+		switch {
+		case errors.Is(err, agent.ErrInvalidJob):
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		case errors.Is(err, agent.ErrBusy):
+			http.Error(w, err.Error(), http.StatusConflict)
+			return
+		case err != nil:
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+
+		logger.Info("job started", "id", job.ID, "kind", job.Kind, "vmid", job.VMID)
+		writeJSON(w, http.StatusAccepted, job)
+	}
+}
+
+func getJob(runner *agent.Runner) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		job, err := runner.Get(r.PathValue("id"))
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusNotFound)
+			return
+		}
+
+		writeJSON(w, http.StatusOK, job)
+	}
+}
+
+func listMounts(mounts *agent.Mounts) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		writeJSON(w, http.StatusOK, mounts.List())
+	}
+}
+
+func startUpgrade(upgrader *agent.Upgrader, logger *slog.Logger) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		signature, err := agent.DecodeSignatureHeader(r.Header.Get(agent.SignatureHeader))
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+
+		err = upgrader.Start(r.Body, signature)
+		switch {
+		case errors.Is(err, agent.ErrInvalidBundle):
+			logger.Warn("upgrade refused", "version", signature.Version, "error", err)
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		case errors.Is(err, agent.ErrUpgradeRunning):
+			http.Error(w, err.Error(), http.StatusConflict)
+			return
+		case err != nil:
+			logger.Error("upgrade failed to start", "error", err)
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+
+		logger.Info("upgrade started", "version", signature.Version)
+		writeJSON(w, http.StatusAccepted, upgrader.Status())
+	}
+}
+
+func upgradeStatus(upgrader *agent.Upgrader) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		writeJSON(w, http.StatusOK, upgrader.Status())
+	}
+}
+
+func installApp(apps *agent.AppInstaller, logger *slog.Logger) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		var request agent.InstallRequest
+		if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, 8192)).Decode(&request); err != nil {
+			http.Error(w, "invalid request body", http.StatusBadRequest)
+			return
+		}
+
+		app := r.PathValue("app")
+		if err := apps.Install(app, request); err != nil {
+			writeAppError(w, logger, app, err)
+			return
+		}
+
+		logger.Info("app install started", "app", app)
+		w.WriteHeader(http.StatusAccepted)
+	}
+}
+
+func retryApp(apps *agent.AppInstaller, logger *slog.Logger) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		app := r.PathValue("app")
+		if err := apps.Retry(app); err != nil {
+			writeAppError(w, logger, app, err)
+			return
+		}
+
+		logger.Info("app install started again", "app", app)
+		w.WriteHeader(http.StatusAccepted)
+	}
+}
+
+// appOnContainer runs an update or a removal of the app in container vmid.
+func appOnContainer(run func(app string, vmid int) error, message string, logger *slog.Logger) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		var request agent.AppContainerRequest
+		if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, 1024)).Decode(&request); err != nil {
+			http.Error(w, "invalid request body", http.StatusBadRequest)
+			return
+		}
+
+		app := r.PathValue("app")
+		if err := run(app, request.VMID); err != nil {
+			writeAppError(w, logger, app, err)
+			return
+		}
+
+		logger.Info(message, "app", app, "vmid", request.VMID)
+		w.WriteHeader(http.StatusAccepted)
+	}
+}
+
+func writeAppError(w http.ResponseWriter, logger *slog.Logger, app string, err error) {
+	switch {
+	case errors.Is(err, agent.ErrInvalidAnswers), errors.Is(err, agent.ErrUnknownApp), errors.Is(err, agent.ErrNoSavedAnswers),
+		errors.Is(err, agent.ErrInvalidContainer):
+		http.Error(w, err.Error(), http.StatusBadRequest)
+	case errors.Is(err, agent.ErrAppInstallRunning):
+		http.Error(w, err.Error(), http.StatusConflict)
+	case errors.Is(err, agent.ErrAppNotAvailable):
+		http.Error(w, err.Error(), http.StatusNotFound)
+	default:
+		logger.Error("app install", "app", app, "error", err)
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+	}
+}
+
+func saveBackupJob(logger *slog.Logger) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		var job agent.BackupJob
+		if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, 8192)).Decode(&job); err != nil {
+			http.Error(w, "invalid request body", http.StatusBadRequest)
+			return
+		}
+
+		err := agent.SaveBackupJob(r.Context(), job)
+		switch {
+		case errors.Is(err, agent.ErrInvalidBackupJob):
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		case err != nil:
+			logger.Error("save backup job", "error", err)
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+
+		logger.Info("backup job saved", "schedule", job.Schedule(), "storage", job.Storage, "enabled", job.Enabled)
+		w.WriteHeader(http.StatusNoContent)
+	}
+}
+
+func journalLogs(logs *agent.Logs) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		query := r.URL.Query()
+		vmid, _ := strconv.Atoi(query.Get("vmid"))
+		lines, _ := strconv.Atoi(query.Get("lines"))
+		priority, _ := strconv.Atoi(query.Get("priority"))
+
+		entries, err := logs.Journal(r.Context(), agent.JournalQuery{VMID: vmid, Lines: lines, Priority: priority})
+		writeLogs(w, entries, err)
+	}
+}
+
+func dockerLogs(logs *agent.Logs) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		vmid, _ := strconv.Atoi(r.URL.Query().Get("vmid"))
+		lines, _ := strconv.Atoi(r.URL.Query().Get("lines"))
+
+		result, err := logs.Docker(r.Context(), vmid, lines)
+		writeLogs(w, result, err)
+	}
+}
+
+func writeLogs(w http.ResponseWriter, result any, err error) {
+	switch {
+	case errors.Is(err, agent.ErrInvalidLogQuery):
+		http.Error(w, err.Error(), http.StatusBadRequest)
+	case err != nil:
+		http.Error(w, err.Error(), http.StatusBadGateway)
+	default:
+		writeJSON(w, http.StatusOK, result)
+	}
+}
+
+func writeJSON(w http.ResponseWriter, status int, value any) {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(status)
+	json.NewEncoder(w).Encode(value)
+}

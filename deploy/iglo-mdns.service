@@ -1,0 +1,15 @@
+[Unit]
+Description=Iglo-OS app names on the LAN (mDNS)
+Requires=avahi-daemon.service
+After=avahi-daemon.service network-online.target
+Wants=network-online.target
+
+[Service]
+User=iglo
+EnvironmentFile=/etc/iglo/iglo.env
+ExecStart=/usr/local/bin/iglo-mdns
+Restart=always
+RestartSec=10
+
+[Install]
+WantedBy=multi-user.target
