@@ -251,7 +251,10 @@ func mediaMount() []agent.Mount {
 	if data, err := os.ReadFile(statePath("media-source")); err == nil {
 		source = strings.TrimSpace(string(data))
 	}
-	if strings.HasPrefix(source, "/") {
+	switch {
+	case strings.HasPrefix(source, "//"):
+		fsType = "cifs"
+	case strings.HasPrefix(source, "/"):
 		fsType = "folder"
 	}
 
@@ -267,7 +270,10 @@ func mountMedia(answers string) {
 	}
 
 	source := values["MEDIA_FOLDER"]
-	if source == "" && values["NAS_SERVER"] != "" {
+	switch {
+	case source == "" && values["SMB_SERVER"] != "":
+		source = "//" + values["SMB_SERVER"] + "/" + values["SMB_SHARE"]
+	case source == "" && values["NAS_SERVER"] != "":
 		source = values["NAS_SERVER"] + ":" + values["NAS_EXPORT"]
 	}
 	if source != "" {
