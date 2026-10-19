@@ -23,6 +23,10 @@ MODE="install"
 NAS_SERVER=""
 NAS_EXPORT=""
 MEDIA_FOLDER=""
+SMB_SERVER=""
+SMB_SHARE=""
+SMB_USERNAME=""
+SMB_PASSWORD=""
 THEME="y"
 GPU=""
 GPU_DEVICE="/dev/dri/renderD128"
@@ -58,14 +62,15 @@ load_answers() {
         [[ -z "$line" ]] && continue
         key="${line%%=*}" value="${line#*=}"
         case "$key" in
-            NAS_SERVER | NAS_EXPORT | MEDIA_FOLDER | MOVIES_FOLDER | SERIES_FOLDER | JELLYFIN_ADMIN_USERNAME | \
+            NAS_SERVER | NAS_EXPORT | SMB_SERVER | SMB_SHARE | SMB_USERNAME | SMB_PASSWORD | MEDIA_FOLDER | \
+                MOVIES_FOLDER | SERIES_FOLDER | JELLYFIN_ADMIN_USERNAME | \
                 JELLYFIN_ADMIN_PASSWORD | THEME | STORAGE)
                 printf -v "$key" '%s' "$value"
                 ;;
             *) die "unknown answer: $key" ;;
         esac
     done <"$ANSWERS"
-    # It holds the admin password.
+    # It holds the admin password and the SMB password.
     rm -f "$ANSWERS"
 }
 

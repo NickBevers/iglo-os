@@ -168,31 +168,41 @@ remove_unused_media_mount() {
 
 remove_media_mount() {
     systemctl disable --now "$MEDIA_MOUNT_UNIT" >/dev/null 2>&1 || true
-    rm -f "/etc/systemd/system/$MEDIA_MOUNT_UNIT"
+    rm -f "/etc/systemd/system/$MEDIA_MOUNT_UNIT" "$MEDIA_CREDENTIALS"
     systemctl daemon-reload || true
 }
 
-# The media on the host: a NAS share, or a folder on a disk of the host. The
-# media stack and Jellyfin both see it as /data/media.
+# The media on the host: an NFS or SMB share on a NAS, or a folder on a disk
+# of the host. The media stack and Jellyfin both see it as /data/media.
 MEDIA_MOUNT="/mnt/iglo/media"
 MEDIA_MOUNT_UNIT="mnt-iglo-media.mount"
+# The login of an SMB share. Only root can read it, and the mount unit only names it.
+MEDIA_CREDENTIALS="/etc/iglo-media.credentials"
 # Unprivileged LXCs shift ids by 100000, and the apps of the media stack run as uid 1000.
 HOST_CONTAINER_UID=101000
 SYSTEM_FOLDERS=" bin boot dev etc lib lib32 lib64 libx32 proc root run sbin sys tmp usr var "
 
-# ask_media_source asks where the media is: on a NAS, or in a folder on this
-# host. It asks nothing when the media is already mounted.
+# ask_media_source asks where the media is: on an SMB or NFS share of a NAS,
+# or in a folder on this host. It asks nothing when the media is already mounted.
 ask_media_source() {
     NAS_SERVER="" NAS_EXPORT="" MEDIA_FOLDER=""
+    SMB_SERVER="" SMB_SHARE="" SMB_USERNAME="" SMB_PASSWORD=""
     if systemctl is-active --quiet "$MEDIA_MOUNT_UNIT"; then
         echo "Using the media at $MEDIA_MOUNT ($(media_source))."
         return 0
     fi
 
     local where
-    ask where "Are your movies and series on a NAS or in a folder on this host? (nas/folder)" "nas"
+    ask where "Are your movies and series on an SMB share, an NFS share or in a folder on this host? (smb/nfs/folder)" "smb"
     case "$where" in
-        nas)
+        smb)
+            echo "Share one folder on the NAS, like Videos. On an Umbrel: Settings > File sharing shows the username and password."
+            ask SMB_SERVER "NAS address (IP or hostname)"
+            ask SMB_SHARE "SMB share"
+            ask SMB_USERNAME "SMB username"
+            ask SMB_PASSWORD "SMB password" "" secret
+            ;;
+        nfs)
             ask NAS_SERVER "NAS address (IP or hostname)"
             ask NAS_EXPORT "NFS export path on the NAS (UGOS shows it, e.g. /volume1/media)"
             ;;
@@ -200,7 +210,7 @@ ask_media_source() {
             echo "For a new disk, make a folder on it first: Proxmox > Disks > Directory (for example /mnt/pve/media)."
             ask MEDIA_FOLDER "Full path of the folder on this host"
             ;;
-        *) die "answer nas or folder" ;;
+        *) die "answer smb, nfs or folder" ;;
     esac
 }
 
@@ -209,30 +219,46 @@ media_source() {
     systemctl show -p What --value "$MEDIA_MOUNT_UNIT"
 }
 
+# media_is_local is true for a folder on this host. An SMB share starts with
+# // and an NFS share has a colon, so neither is a path.
 media_is_local() {
-    [[ "$(media_source)" == /* ]]
+    local source
+    source="$(media_source)"
+    [[ "$source" == /* && "$source" != //* ]]
 }
 
-# mount_media_share mounts the NAS share (NAS_SERVER:NAS_EXPORT) or the folder
-# (MEDIA_FOLDER) at MEDIA_MOUNT. When the same media is already mounted, it
-# keeps that mount, so the apps that use it notice nothing. It sets
-# CREATED_MOUNT when it wrote the mount unit.
+media_is_smb() {
+    [[ "$(media_source)" == //* ]]
+}
+
+# mount_media_share mounts the NFS share (NAS_SERVER:NAS_EXPORT), the SMB
+# share (//SMB_SERVER/SMB_SHARE) or the folder (MEDIA_FOLDER) at MEDIA_MOUNT.
+# When the same media is already mounted, it keeps that mount, so the apps
+# that use it notice nothing. It sets CREATED_MOUNT when it wrote the mount unit.
 mount_media_share() {
-    local what="${NAS_SERVER:-}:${NAS_EXPORT:-}" current
-    [[ -n "${MEDIA_FOLDER:-}" ]] && what="$MEDIA_FOLDER"
+    local what="" current
+    if [[ -n "${MEDIA_FOLDER:-}" ]]; then
+        what="$MEDIA_FOLDER"
+    elif [[ -n "${SMB_SERVER:-}" ]]; then
+        what="//$SMB_SERVER/${SMB_SHARE:-}"
+    elif [[ -n "${NAS_SERVER:-}" ]]; then
+        what="$NAS_SERVER:${NAS_EXPORT:-}"
+    fi
 
     if systemctl is-active --quiet "$MEDIA_MOUNT_UNIT"; then
         current="$(media_source)"
-        if [[ "$what" == ":" || "$current" == "$what" ]]; then
+        if [[ -z "$what" || "$current" == "$what" ]]; then
             log "Using the media that is already mounted at $MEDIA_MOUNT ($current)"
             make_media_folders
             return 0
         fi
-        die "the media is already mounted from $current. Use the same NAS share or folder, or leave them empty"
+        die "the media is already mounted from $current. Use the same share or folder, or leave them empty"
     fi
 
     if [[ -n "${MEDIA_FOLDER:-}" ]]; then
         mount_media_folder
+    elif [[ -n "${SMB_SERVER:-}" ]]; then
+        mount_smb_share
     else
         mount_nas_share
     fi
@@ -240,7 +266,7 @@ mount_media_share() {
 }
 
 mount_nas_share() {
-    [[ -n "${NAS_SERVER:-}" && -n "${NAS_EXPORT:-}" ]] || die "give the NAS address and the NFS export of the media share, or a folder on this host"
+    [[ -n "${NAS_SERVER:-}" && -n "${NAS_EXPORT:-}" ]] || die "give an SMB share, an NFS share (the NAS address and the export) or a folder on this host"
 
     log "Mounting $NAS_SERVER:$NAS_EXPORT at $MEDIA_MOUNT"
     install -d -m 0755 "$MEDIA_MOUNT"
@@ -262,6 +288,44 @@ Options=_netdev,hard,noatime
 WantedBy=remote-fs.target
 EOF
     start_media_mount "could not mount the NAS share, check that NFS is on in UGOS (Control Panel > File Services > NFS) and that the share has an NFS permission rule for this host"
+}
+
+# mount_smb_share mounts an SMB share of a NAS, like a shared folder of an
+# Umbrel. SMB has no owners like Linux has, so the mount gives every file to
+# the user of the containers.
+mount_smb_share() {
+    [[ -n "${SMB_SHARE:-}" && -n "${SMB_USERNAME:-}" && -n "${SMB_PASSWORD:-}" ]] ||
+        die "give the NAS address, the SMB share, the username and the password"
+    # The host agent checks the same. A share name with spaces would need escapes in the unit.
+    [[ "$SMB_SHARE" =~ ^[A-Za-z0-9][A-Za-z0-9._-]{0,79}$ ]] ||
+        die "the SMB share must be one name, like Videos, without spaces or slashes. Share a single folder on the NAS"
+
+    if ! command -v mount.cifs >/dev/null; then
+        log "Installing cifs-utils for SMB"
+        DEBIAN_FRONTEND=noninteractive apt-get install -y -q cifs-utils
+    fi
+
+    log "Mounting //$SMB_SERVER/$SMB_SHARE at $MEDIA_MOUNT"
+    (umask 077 && printf 'username=%s\npassword=%s\n' "$SMB_USERNAME" "$SMB_PASSWORD" >"$MEDIA_CREDENTIALS")
+    install -d -m 0755 "$MEDIA_MOUNT"
+    cat >"/etc/systemd/system/$MEDIA_MOUNT_UNIT" <<EOF
+[Unit]
+Description=Iglo-OS media share on the NAS (SMB)
+After=network-online.target
+Wants=network-online.target
+# Containers bind-mount this folder, so mount it before they start.
+Before=pve-guests.service
+
+[Mount]
+What=//$SMB_SERVER/$SMB_SHARE
+Where=$MEDIA_MOUNT
+Type=cifs
+Options=_netdev,noatime,credentials=$MEDIA_CREDENTIALS,uid=$HOST_CONTAINER_UID,gid=$HOST_CONTAINER_UID,file_mode=0644,dir_mode=0755
+
+[Install]
+WantedBy=remote-fs.target
+EOF
+    start_media_mount "could not mount //$SMB_SERVER/$SMB_SHARE, check the address, the share, the username and the password. On an Umbrel, Settings > File sharing shows them"
 }
 
 # mount_media_folder bind-mounts a folder on a disk of this host at
@@ -316,16 +380,26 @@ check_media_folder() {
 }
 
 # make_media_folders makes the movies and series folders that are missing in
-# a folder on this host, owned by the user of the containers. It never changes
-# folders that exist. On a NAS, the NAS decides who owns what.
+# a folder on this host, owned by the user of the containers, or on an SMB
+# share, where the mount already gives every file to that user. It never
+# changes folders that exist. On an NFS share, the NAS decides who owns what.
 make_media_folders() {
-    media_is_local || return 0
+    local smb=""
+    if media_is_smb; then
+        smb=1
+    elif ! media_is_local; then
+        return 0
+    fi
 
     local folder
     for folder in "$MOVIES_FOLDER" "$SERIES_FOLDER"; do
         if [[ ! -e "$MEDIA_MOUNT/$folder" ]]; then
             log "Making the folder $(media_source)/$folder"
-            install -d -m 0755 -o "$HOST_CONTAINER_UID" -g "$HOST_CONTAINER_UID" "$MEDIA_MOUNT/$folder"
+            if [[ -n "$smb" ]]; then
+                mkdir -m 0755 "$MEDIA_MOUNT/$folder"
+            else
+                install -d -m 0755 -o "$HOST_CONTAINER_UID" -g "$HOST_CONTAINER_UID" "$MEDIA_MOUNT/$folder"
+            fi
         fi
     done
 }
