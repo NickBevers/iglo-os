@@ -125,6 +125,9 @@ export type Jellyfin = {
     movies: number
     series: number
     episodes: number
+    albums: number
+    songs: number
+    musicVideos: number
     nowPlaying: JellyfinNowPlaying[]
     recent: { id: string; name: string; type: string; year?: number }[]
 }

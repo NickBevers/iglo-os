@@ -6,8 +6,11 @@ import { Card } from '@/components/ui/card'
 import { Skeleton } from '@/components/ui/skeleton'
 import { formatUptime } from '@/lib/format'
 import { overviewQuery } from '@/lib/queries'
+import { AppsPanel } from './apps-panel'
 import { GuestList } from './guest-list'
+import { LibraryPanel } from './library-panel'
 import { NodeCard } from './node-card'
+import { StoragePanel } from './storage-panel'
 import { Summaries } from './summaries'
 import { UsageCharts } from './usage-charts'
 
@@ -55,6 +58,30 @@ export function OverviewPage() {
             ))}
 
             <Summaries />
+
+            {/* Apps and the library on the left, the storage next to them. */}
+            <div className="grid gap-6 lg:grid-cols-5">
+                <div className="flex flex-col gap-6 lg:col-span-3">
+                    <section className="flex flex-col gap-2.5" aria-labelledby="apps-title">
+                        <h2 id="apps-title" className="section-title">
+                            Apps
+                        </h2>
+                        <AppsPanel />
+                    </section>
+                    <section className="flex flex-col gap-2.5" aria-labelledby="library-title">
+                        <h2 id="library-title" className="section-title">
+                            Library
+                        </h2>
+                        <LibraryPanel />
+                    </section>
+                </div>
+                <section className="flex flex-col gap-2.5 lg:col-span-2" aria-labelledby="storage-title">
+                    <h2 id="storage-title" className="section-title">
+                        Storage
+                    </h2>
+                    <StoragePanel />
+                </section>
+            </div>
 
             <section className="flex flex-col gap-2.5" aria-labelledby="guests-title">
                 <h2 id="guests-title" className="section-title">
