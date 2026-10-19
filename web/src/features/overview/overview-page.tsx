@@ -2,12 +2,14 @@ import { useQuery } from '@tanstack/react-query'
 import { AlertTriangleIcon } from 'lucide-react'
 
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
-import { Badge } from '@/components/ui/badge'
+import { Card } from '@/components/ui/card'
 import { Skeleton } from '@/components/ui/skeleton'
+import { formatUptime } from '@/lib/format'
 import { overviewQuery } from '@/lib/queries'
-import { cn } from '@/lib/utils'
 import { GuestList } from './guest-list'
 import { NodeCard } from './node-card'
+import { Summaries } from './summaries'
+import { UsageCharts } from './usage-charts'
 
 export function OverviewPage() {
     const { data, error, isPending } = useQuery(overviewQuery)
@@ -15,8 +17,10 @@ export function OverviewPage() {
     if (isPending) {
         return (
             <div className="flex flex-col gap-6">
-                <Skeleton className="h-44 w-full rounded-xl" />
-                <Skeleton className="h-64 w-full rounded-xl" />
+                <Skeleton className="h-8 w-48" />
+                <Skeleton className="h-32 w-full rounded-lg" />
+                <Skeleton className="h-28 w-full rounded-lg" />
+                <Skeleton className="h-64 w-full rounded-lg" />
             </div>
         )
     }
@@ -31,26 +35,41 @@ export function OverviewPage() {
         )
     }
 
-    return (
-        <div className="flex flex-col gap-8">
-            <section className="flex flex-col gap-3">
-                <div className="flex items-center justify-between gap-2">
-                    <h2 className="text-lg font-semibold">Server</h2>
-                    <Badge variant={data.agent.connected ? 'secondary' : 'destructive'}>
-                        Host agent {data.agent.connected ? 'connected' : 'offline'}
-                    </Badge>
-                </div>
-                <div className={cn('grid gap-4', data.nodes.length > 1 && 'md:grid-cols-2')}>
-                    {data.nodes.map((node) => (
-                        <NodeCard key={node.name} node={node} />
-                    ))}
-                </div>
-            </section>
+    const node = data.nodes[0]
+    // pveVersion looks like pve-manager/9.2.0/abcdef.
+    const version = node?.pveVersion.split('/')[1]
 
-            <section className="flex flex-col gap-3">
-                <h2 className="text-lg font-semibold">Containers and VMs</h2>
+    return (
+        <div className="flex flex-col gap-6">
+            <header className="flex flex-col gap-1">
+                <h1 className="page-title">Overview</h1>
+                {node && (
+                    <p className="text-sm text-muted-foreground">
+                        {node.name} runs Proxmox VE {version ?? ''}, and has been up for {formatUptime(node.uptime)}.
+                    </p>
+                )}
+            </header>
+
+            {data.nodes.map((node) => (
+                <NodeCard key={node.name} node={node} guests={data.guests} />
+            ))}
+
+            <Summaries />
+
+            <section className="flex flex-col gap-2.5" aria-labelledby="guests-title">
+                <h2 id="guests-title" className="section-title">
+                    Containers and VMs
+                </h2>
                 <GuestList guests={data.guests} />
             </section>
+
+            {node && (
+                <section className="flex flex-col gap-2.5" aria-label="History of the host">
+                    <Card className="px-4">
+                        <UsageCharts target={{ node: node.name }} />
+                    </Card>
+                </section>
+            )}
         </div>
     )
 }

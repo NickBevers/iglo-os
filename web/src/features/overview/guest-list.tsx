@@ -22,7 +22,7 @@ import {
     AlertDialogHeader,
     AlertDialogTitle,
 } from '@/components/ui/alert-dialog'
-import { Badge } from '@/components/ui/badge'
+import { BlockMeter } from '@/components/block-meter'
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog'
@@ -34,7 +34,7 @@ import {
     DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 import { api, type Guest, type GuestAction } from '@/lib/api'
-import { formatBytes, formatUptime } from '@/lib/format'
+import { formatBytes, formatUptime, percentage } from '@/lib/format'
 import { overviewQuery } from '@/lib/queries'
 import { cn } from '@/lib/utils'
 import { UsageCharts } from './usage-charts'
@@ -48,17 +48,56 @@ const actionLabels: Record<GuestAction, string> = {
 
 export function GuestList({ guests }: { guests: Guest[] }) {
     if (guests.length === 0) {
-        return <Card className="p-6 text-center text-sm text-muted-foreground">No containers or VMs yet.</Card>
+        return (
+            <Card className="p-6 text-center text-sm text-muted-foreground">
+                No containers or VMs yet. Install an app on the Apps page to make one.
+            </Card>
+        )
     }
 
     return (
         <Card className="gap-0 py-0">
-            <ul className="divide-y">
-                {guests.map((guest) => (
-                    <GuestRow key={guest.id} guest={guest} />
-                ))}
-            </ul>
+            <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                    <thead>
+                        <tr className="border-b text-left text-xs text-muted-foreground">
+                            <th scope="col" className="py-2 pr-3 pl-4 font-medium">
+                                Name
+                            </th>
+                            <th scope="col" className="hidden px-3 py-2 font-medium sm:table-cell">
+                                ID
+                            </th>
+                            <th scope="col" className="px-3 py-2 font-medium">
+                                CPU
+                            </th>
+                            <th scope="col" className="hidden px-3 py-2 font-medium md:table-cell">
+                                Memory
+                            </th>
+                            <th scope="col" className="hidden px-3 py-2 font-medium lg:table-cell">
+                                Up for
+                            </th>
+                            <th scope="col" className="py-2 pr-2 pl-3">
+                                <span className="sr-only">Actions</span>
+                            </th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {guests.map((guest) => (
+                            <GuestRow key={guest.id} guest={guest} />
+                        ))}
+                    </tbody>
+                </table>
+            </div>
         </Card>
+    )
+}
+
+function Usage({ value, label, text }: { value: number; label: string; text: string }) {
+    return (
+        <div className="flex items-center gap-2.5">
+            <BlockMeter value={value} label={label} blocks={12} size="sm" className="w-20 shrink-0" />
+            <span className="whitespace-nowrap tabular-nums">{text}</span>
+        </div>
     )
 }
 
@@ -67,6 +106,7 @@ function GuestRow({ guest }: { guest: Guest }) {
     const [confirmStop, setConfirmStop] = useState(false)
     const [showHistory, setShowHistory] = useState(false)
     const running = guest.status === 'running'
+    const cpu = Math.round(guest.cpu * 100)
 
     const action = useMutation({
         mutationFn: (guestAction: GuestAction) => api.guestAction(guest, guestAction),
@@ -81,118 +121,124 @@ function GuestRow({ guest }: { guest: Guest }) {
     })
 
     return (
-        <li className="flex items-center gap-4 px-4 py-3">
-            <span
-                className={cn('size-2 shrink-0 rounded-full', running ? 'bg-emerald-500' : 'bg-muted-foreground/40')}
-                aria-label={guest.status}
-            />
-
-            <div className="min-w-0 flex-1">
-                <div className="flex items-center gap-2">
+        <tr className="border-b last:border-b-0 hover:bg-accent/40">
+            <td className="py-2 pr-3 pl-4">
+                <div className="flex min-w-0 items-center gap-2.5">
+                    <span
+                        className={cn(
+                            'size-2 shrink-0 rounded-full',
+                            running ? 'bg-success' : 'bg-muted-foreground/40',
+                        )}
+                        aria-hidden="true"
+                    />
                     <span className="truncate font-medium">{guest.name}</span>
-                    <Badge variant="outline" className="font-mono">
-                        {guest.type === 'lxc' ? 'LXC' : 'VM'} {guest.vmid}
-                    </Badge>
+                    <span className="sr-only">, {guest.status}</span>
                 </div>
-                <p className="text-sm text-muted-foreground">
-                    {running ? `up ${formatUptime(guest.uptime)}` : guest.status}
-                </p>
-            </div>
-
-            {running && (
-                <dl className="hidden gap-6 text-right text-sm tabular-nums sm:flex">
-                    <div>
-                        <dt className="text-muted-foreground">CPU</dt>
-                        <dd>{Math.round(guest.cpu * 100)}%</dd>
-                    </div>
-                    <div>
-                        <dt className="text-muted-foreground">Memory</dt>
-                        <dd>
-                            {formatBytes(guest.mem)} / {formatBytes(guest.maxMem)}
-                        </dd>
-                    </div>
-                </dl>
-            )}
-
-            <DropdownMenu>
-                <DropdownMenuTrigger
-                    render={<Button variant="ghost" size="icon" disabled={action.isPending} />}
-                    aria-label={`Actions for ${guest.name}`}
-                >
-                    <EllipsisVerticalIcon />
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="end" className="w-40">
-                    <DropdownMenuItem onClick={() => setShowHistory(true)}>
-                        <ChartLineIcon /> History
-                    </DropdownMenuItem>
-                    <DropdownMenuSeparator />
-                    {running ? (
-                        <>
-                            {guest.type === 'lxc' && (
-                                <>
-                                    <DropdownMenuItem
-                                        render={<Link to="/console/$vmid" params={{ vmid: String(guest.vmid) }} />}
-                                    >
-                                        <TerminalIcon /> Console
-                                    </DropdownMenuItem>
-                                    <DropdownMenuSeparator />
-                                </>
-                            )}
-                            <DropdownMenuItem onClick={() => action.mutate('reboot')}>
-                                <RotateCwIcon /> Reboot
-                            </DropdownMenuItem>
-                            <DropdownMenuItem onClick={() => action.mutate('shutdown')}>
-                                <PowerIcon /> Shut down
-                            </DropdownMenuItem>
-                            <DropdownMenuSeparator />
-                            <DropdownMenuItem variant="destructive" onClick={() => setConfirmStop(true)}>
-                                <SquareIcon /> Force stop
-                            </DropdownMenuItem>
-                        </>
-                    ) : (
-                        <DropdownMenuItem onClick={() => action.mutate('start')}>
-                            <PlayIcon /> Start
+            </td>
+            <td className="hidden px-3 py-2 whitespace-nowrap text-muted-foreground sm:table-cell">
+                <span className="font-mono text-xs text-foreground/80">{guest.vmid}</span>{' '}
+                {guest.type === 'lxc' ? 'container' : 'VM'}
+            </td>
+            <td className="px-3 py-2">
+                {running ? (
+                    <Usage value={cpu} label={`CPU of ${guest.name}`} text={`${cpu}%`} />
+                ) : (
+                    <span className="text-muted-foreground">{guest.status}</span>
+                )}
+            </td>
+            <td className="hidden px-3 py-2 md:table-cell">
+                {running && (
+                    <Usage
+                        value={percentage(guest.mem, guest.maxMem)}
+                        label={`Memory of ${guest.name}`}
+                        text={`${formatBytes(guest.mem)} / ${formatBytes(guest.maxMem)}`}
+                    />
+                )}
+            </td>
+            <td className="hidden px-3 py-2 whitespace-nowrap text-muted-foreground tabular-nums lg:table-cell">
+                {running ? formatUptime(guest.uptime) : null}
+            </td>
+            <td className="py-1 pr-2 pl-3 text-right">
+                <DropdownMenu>
+                    <DropdownMenuTrigger
+                        render={<Button variant="ghost" size="icon" disabled={action.isPending} />}
+                        aria-label={`Actions for ${guest.name}`}
+                    >
+                        <EllipsisVerticalIcon />
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end" className="w-40">
+                        <DropdownMenuItem onClick={() => setShowHistory(true)}>
+                            <ChartLineIcon /> History
                         </DropdownMenuItem>
-                    )}
-                </DropdownMenuContent>
-            </DropdownMenu>
+                        <DropdownMenuSeparator />
+                        {running ? (
+                            <>
+                                {guest.type === 'lxc' && (
+                                    <>
+                                        <DropdownMenuItem
+                                            render={<Link to="/console/$vmid" params={{ vmid: String(guest.vmid) }} />}
+                                        >
+                                            <TerminalIcon /> Console
+                                        </DropdownMenuItem>
+                                        <DropdownMenuSeparator />
+                                    </>
+                                )}
+                                <DropdownMenuItem onClick={() => action.mutate('reboot')}>
+                                    <RotateCwIcon /> Reboot
+                                </DropdownMenuItem>
+                                <DropdownMenuItem onClick={() => action.mutate('shutdown')}>
+                                    <PowerIcon /> Shut down
+                                </DropdownMenuItem>
+                                <DropdownMenuSeparator />
+                                <DropdownMenuItem variant="destructive" onClick={() => setConfirmStop(true)}>
+                                    <SquareIcon /> Force stop
+                                </DropdownMenuItem>
+                            </>
+                        ) : (
+                            <DropdownMenuItem onClick={() => action.mutate('start')}>
+                                <PlayIcon /> Start
+                            </DropdownMenuItem>
+                        )}
+                    </DropdownMenuContent>
+                </DropdownMenu>
 
-            <Dialog open={showHistory} onOpenChange={setShowHistory}>
-                <DialogContent className="sm:max-w-2xl">
-                    <DialogHeader>
-                        <DialogTitle>{guest.name}</DialogTitle>
-                        <DialogDescription>
-                            {guest.type === 'lxc' ? 'Container' : 'VM'} {guest.vmid}. CPU is the share of its{' '}
-                            {guest.maxCpu} cores.
-                        </DialogDescription>
-                    </DialogHeader>
-                    {showHistory && <UsageCharts target={guest} />}
-                </DialogContent>
-            </Dialog>
+                <Dialog open={showHistory} onOpenChange={setShowHistory}>
+                    <DialogContent className="sm:max-w-2xl">
+                        <DialogHeader>
+                            <DialogTitle>{guest.name}</DialogTitle>
+                            <DialogDescription>
+                                {guest.type === 'lxc' ? 'Container' : 'VM'} {guest.vmid}. CPU is the share of its{' '}
+                                {guest.maxCpu} cores.
+                            </DialogDescription>
+                        </DialogHeader>
+                        {showHistory && <UsageCharts target={guest} />}
+                    </DialogContent>
+                </Dialog>
 
-            <AlertDialog open={confirmStop} onOpenChange={setConfirmStop}>
-                <AlertDialogContent>
-                    <AlertDialogHeader>
-                        <AlertDialogTitle>Force stop {guest.name}?</AlertDialogTitle>
-                        <AlertDialogDescription>
-                            This is like pulling the power cable. Unsaved data can be lost. Use "Shut down" when you
-                            can.
-                        </AlertDialogDescription>
-                    </AlertDialogHeader>
-                    <AlertDialogFooter>
-                        <AlertDialogCancel>Cancel</AlertDialogCancel>
-                        <AlertDialogAction
-                            variant="destructive"
-                            onClick={() => {
-                                setConfirmStop(false)
-                                action.mutate('stop')
-                            }}
-                        >
-                            Force stop
-                        </AlertDialogAction>
-                    </AlertDialogFooter>
-                </AlertDialogContent>
-            </AlertDialog>
-        </li>
+                <AlertDialog open={confirmStop} onOpenChange={setConfirmStop}>
+                    <AlertDialogContent>
+                        <AlertDialogHeader>
+                            <AlertDialogTitle>Force stop {guest.name}?</AlertDialogTitle>
+                            <AlertDialogDescription>
+                                This is like pulling the power cable. Unsaved data can be lost. Use "Shut down" when you
+                                can.
+                            </AlertDialogDescription>
+                        </AlertDialogHeader>
+                        <AlertDialogFooter>
+                            <AlertDialogCancel>Cancel</AlertDialogCancel>
+                            <AlertDialogAction
+                                variant="destructive"
+                                onClick={() => {
+                                    setConfirmStop(false)
+                                    action.mutate('stop')
+                                }}
+                            >
+                                Force stop
+                            </AlertDialogAction>
+                        </AlertDialogFooter>
+                    </AlertDialogContent>
+                </AlertDialog>
+            </td>
+        </tr>
     )
 }
