@@ -437,6 +437,7 @@ func addAppRoutes(mux *http.ServeMux, installer *agent.AppInstaller) {
 		}
 		w.WriteHeader(http.StatusAccepted)
 	})
+	mux.HandleFunc("GET /v1/apps/{app}/stats", serveStats)
 	mux.HandleFunc("GET /v1/apps/{app}/answers", func(w http.ResponseWriter, r *http.Request) {
 		saved, err := installer.Saved(r.PathValue("app"))
 		if err != nil {
