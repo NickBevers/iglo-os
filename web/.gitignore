@@ -9,6 +9,8 @@ lerna-debug.log*
 
 node_modules
 dist
+# The link of this folder to a Vercel project, made by the Vercel CLI.
+.vercel
 dist-ssr
 *.local
 

@@ -495,6 +495,12 @@ async function restoreDataBackup(file: File, password: string, passphrase: strin
 
 // A string body is sent as it is, for example YAML. Anything else is sent as JSON.
 async function request<T>(method: string, path: string, body?: unknown, contentType = 'application/json'): Promise<T> {
+    // The demo build answers from sample data. Other builds leave this branch and the data out.
+    if (import.meta.env.VITE_DEMO === '1') {
+        const { demoRequest } = await import('@/demo/demo-api')
+        return demoRequest<T>(method, path)
+    }
+
     const response = await fetch(`/api${path}`, {
         method,
         credentials: 'same-origin',
