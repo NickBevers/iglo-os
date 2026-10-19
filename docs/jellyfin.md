@@ -23,7 +23,7 @@ If the media stack already uses a media folder, the form uses that folder and do
 8. Turns on the Netflix theme, if you chose it.
 9. Makes an API key for Iglo-OS and connects the Jellyfin page of Iglo-OS with it. The key never goes to the browser.
 
-The installer takes about 5 minutes. If it fails, it removes the container and the mount it made. Then click **Try again**, or **Change answers** to fix an answer. Your answers stay on the host for 24 hours. The admin password never goes back to the browser.
+The installer takes about 5 minutes. If it fails, it removes the container and the mount it made. Then click **Try again**, or **Change answers** to fix an answer. Your answers stay on the host for 24 hours. The admin password and the SMB password never go back to the browser.
 
 You can also run the installer on the Proxmox host, as root: `bash /usr/local/lib/iglo/stacks/jellyfin/install.sh`. It asks the same questions.
 

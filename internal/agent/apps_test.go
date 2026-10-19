@@ -437,6 +437,52 @@ func TestJellyfinRetryKeepsTheAdminPassword(t *testing.T) {
 	}
 }
 
+func TestSavedAnswersKeepTheSMBPassword(t *testing.T) {
+	installer, unit := newTestInstaller(t)
+	os.MkdirAll(filepath.Join(installer.StacksDir, "jellyfin"), 0o755)
+	os.WriteFile(filepath.Join(installer.StacksDir, "jellyfin", "install.sh"), nil, 0o755)
+	media, jellyfin := smbAnswers()
+
+	for _, test := range []struct {
+		app     string
+		request InstallRequest
+		saved   func(*SavedAnswers) (*string, *string)
+	}{
+		{MediaStackApp, InstallRequest{MediaStackAnswers: media}, func(s *SavedAnswers) (*string, *string) { return &s.Answers.SMBPassword, &s.Answers.SMBUsername }},
+		{JellyfinApp, InstallRequest{Jellyfin: jellyfin}, func(s *SavedAnswers) (*string, *string) { return &s.Jellyfin.SMBPassword, &s.Jellyfin.SMBUsername }},
+	} {
+		if err := installer.Install(test.app, test.request); err != nil {
+			t.Fatalf("%s: %v", test.app, err)
+		}
+		unit.running = false
+
+		saved, err := installer.Saved(test.app)
+		if err != nil || saved == nil {
+			t.Fatalf("%s: saved = %v, err = %v", test.app, saved, err)
+		}
+		password, username := test.saved(saved)
+		if *password != "" || !saved.HasSMBPassword || *username != "umbrel" {
+			t.Fatalf("%s: the view has the SMB password, or misses the user: %+v", test.app, saved)
+		}
+
+		// The same user on the same NAS keeps the saved password.
+		if err := installer.Install(test.app, InstallRequest{MediaStackAnswers: saved.Answers, Jellyfin: saved.Jellyfin, KeepSecrets: true}); err != nil {
+			t.Fatalf("%s: %v", test.app, err)
+		}
+		answers, _ := os.ReadFile(unit.started[len(unit.started)-1])
+		if !strings.Contains(string(answers), "SMB_PASSWORD=smb pass=1\n") {
+			t.Fatalf("%s: the saved SMB password is not used:\n%s", test.app, answers)
+		}
+		unit.running = false
+
+		// Another user needs its own password.
+		*username = "someone"
+		if err := installer.Install(test.app, InstallRequest{MediaStackAnswers: saved.Answers, Jellyfin: saved.Jellyfin, KeepSecrets: true}); !errors.Is(err, ErrInvalidAnswers) {
+			t.Fatalf("%s: another SMB user got the saved password: %v", test.app, err)
+		}
+	}
+}
+
 func TestChangeVPN(t *testing.T) {
 	installer, unit := newTestInstaller(t)
 

@@ -1,8 +1,29 @@
 # Media folder
 
-Jellyfin and the media stack use one media folder for your movies and series. It is on a NAS, or on a disk of the Proxmox host. You choose it in the form of the first app that you install.
+Jellyfin and the media stack use one media folder for your movies and series. It is on a NAS, shared over SMB or NFS, or on a disk of the Proxmox host. You choose it in the form of the first app that you install.
 
 The installer mounts the media folder on the Proxmox host at `/mnt/iglo/media`. Both containers see it as `/data/media`. The second app uses the same media folder, and its form shows which one.
+
+## On a NAS (SMB)
+
+SMB is how most NAS devices share folders, like an Umbrel, a Synology or a Windows share.
+
+1. On the NAS, share one folder for the media, like `Videos`. Share that folder, not your whole home folder. Then the Proxmox host can't touch your other files.
+   - On an Umbrel: open **Settings > File sharing**, or right-click the folder in Files and choose **Share over network**. That page also shows the username and password. They are not your Umbrel login.
+2. Give the NAS a fixed IP in your router (a DHCP reservation).
+3. In the form, choose **SMB share**, and give:
+   - the IP address of the NAS. The Proxmox host can't look up names like `umbrel.local`;
+   - the name of the share, like `Videos`. It can't have spaces or slashes;
+   - the username and the password.
+
+The installer mounts the share with the systemd unit `mnt-iglo-media.mount`, with the type `cifs`. The password goes in `/etc/iglo-media.credentials`, a file that only root can read. The mount unit only names that file. If the host has no `mount.cifs` yet, the installer installs `cifs-utils`.
+
+### Owners on an SMB share
+
+SMB has no owners like Linux. So the mount gives every file and folder to user 101000, the user of the apps of the media stack (see [Owners](#owners)). Files get mode `0644` and folders `0755`, so Jellyfin can read everything but write nothing.
+
+- If the movies or series folder does not exist on the share, the installer makes it.
+- If the media stack can't write to a folder, the NAS refuses the SMB user. Give that user write access to the share on the NAS, then click **Try again**.
 
 ## On a NAS (NFS)
 
@@ -44,4 +65,4 @@ The installer writes the systemd unit `mnt-iglo-media.mount`. This unit bind-mou
 - Proxmox does not back up the media folder with the containers: a backup of a container skips its bind mounts. Back up your media in another way, for example on the NAS.
 - An install that fails removes the mount that it made. The movies and series folders that it made stay.
 - Uninstall keeps the mount and the media.
-- To move the media to another place, first remove the apps. Then, on the host, run `systemctl disable --now mnt-iglo-media.mount` and remove `/etc/systemd/system/mnt-iglo-media.mount`.
+- To move the media to another place, first remove the apps. Then, on the host, run `systemctl disable --now mnt-iglo-media.mount` and remove `/etc/systemd/system/mnt-iglo-media.mount`. For an SMB share, also remove `/etc/iglo-media.credentials`.

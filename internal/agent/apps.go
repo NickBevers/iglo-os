@@ -72,6 +72,9 @@ var (
 	jellyfinUserPattern = regexp.MustCompile(`^[A-Za-z0-9._@-]([A-Za-z0-9 ._@-]{0,62}[A-Za-z0-9._@-])?$`)
 	ansiPattern         = regexp.MustCompile(`\x1b\[[0-9;]*m`)
 	appResultPattern    = regexp.MustCompile(`(?m)^IGLO app (\w+) (\d+) (\S+)$`)
+	// One share name, without spaces or slashes, so it is safe in a mount unit.
+	smbSharePattern = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9._-]{0,79}$`)
+	smbUserPattern  = regexp.MustCompile(`^[A-Za-z0-9._@-]{1,64}$`)
 	// The Jellyfin installer prints the API key it made for Iglo-OS. The
 	// agent takes it out of the log, so the browser never sees it.
 	jellyfinKeyPattern = regexp.MustCompile(`(?m)^IGLO jellyfin-key ([A-Za-z0-9]+)\n?`)
@@ -80,10 +83,15 @@ var (
 // MediaStackAnswers are the questions of stacks/arr/install.sh. Every value
 // is checked, so no line breaks or shell code reach the answers file.
 type MediaStackAnswers struct {
-	// The media is on a NAS (NASServer and NASExport), or in a folder on the
-	// host (MediaFolder). All three are empty when the media is already mounted.
+	// The media is on an NFS share (NASServer and NASExport), on an SMB share
+	// (SMBServer, SMBShare, SMBUsername and SMBPassword), or in a folder on the
+	// host (MediaFolder). All are empty when the media is already mounted.
 	NASServer   string `json:"nasServer"`
 	NASExport   string `json:"nasExport"`
+	SMBServer   string `json:"smbServer"`
+	SMBShare    string `json:"smbShare"`
+	SMBUsername string `json:"smbUsername"`
+	SMBPassword string `json:"smbPassword"`
 	MediaFolder string `json:"mediaFolder"`
 	// MoviesFolder and SeriesFolder are folders in the share. Each gets a Jellyfin library.
 	MoviesFolder        string `json:"moviesFolder"`
@@ -112,7 +120,7 @@ type MediaStackAnswers struct {
 func (a MediaStackAnswers) Validate() error {
 	invalid := func(message string) error { return fmt.Errorf("%w: %s", ErrInvalidAnswers, message) }
 
-	if message := mediaSourceError(a.NASServer, a.NASExport, a.MediaFolder); message != "" {
+	if message := a.mediaSource().error(); message != "" {
 		return invalid(message)
 	}
 
@@ -154,23 +162,70 @@ func (a MediaStackAnswers) Validate() error {
 	return nil
 }
 
-// mediaSourceError checks where the media is: on a NAS, in a folder on the
-// host, or neither when the media is already mounted.
-func mediaSourceError(server, export, folder string) string {
+// mediaSource is where the media of an app is: on an NFS share, on an SMB
+// share, or in a folder on the host. It is empty when the media is already
+// mounted.
+type mediaSource struct {
+	nasServer, nasExport                          string
+	smbServer, smbShare, smbUsername, smbPassword string
+	folder                                        string
+}
+
+func (a MediaStackAnswers) mediaSource() mediaSource {
+	return mediaSource{a.NASServer, a.NASExport, a.SMBServer, a.SMBShare, a.SMBUsername, a.SMBPassword, a.MediaFolder}
+}
+
+func (a JellyfinAnswers) mediaSource() mediaSource {
+	return mediaSource{a.NASServer, a.NASExport, a.SMBServer, a.SMBShare, a.SMBUsername, a.SMBPassword, a.MediaFolder}
+}
+
+// error checks that the media is in one place, with all its answers.
+func (s mediaSource) error() string {
+	nfs := s.nasServer != "" || s.nasExport != ""
+	smb := s.smbServer != "" || s.smbShare != "" || s.smbUsername != "" || s.smbPassword != ""
+	places := 0
+	for _, given := range []bool{nfs, smb, s.folder != ""} {
+		if given {
+			places++
+		}
+	}
+
 	switch {
-	case folder != "" && (server != "" || export != ""):
-		return "give a NAS share or a folder on the host, not both"
-	case folder != "" && !ValidMediaFolder(folder):
+	case places > 1:
+		return "give one place for the media: an NFS share, an SMB share or a folder on the host"
+	case s.folder != "" && !ValidMediaFolder(s.folder):
 		return "the media folder must be a full path on the host, like /mnt/pve/media, outside the system folders"
-	case (server == "") != (export == ""):
+	case nfs && (s.nasServer == "" || s.nasExport == ""):
 		return "give both the NAS address and the NFS export"
-	case server != "" && !hostPattern.MatchString(server):
+	case s.nasServer != "" && !hostPattern.MatchString(s.nasServer):
 		return "the NAS address must be an IP address or a hostname"
-	case export != "" && !exportPattern.MatchString(export):
+	case s.nasExport != "" && !exportPattern.MatchString(s.nasExport):
 		return "the NFS export must be a path, like /volume1/media"
+	case smb && (s.smbServer == "" || s.smbShare == "" || s.smbUsername == "" || s.smbPassword == ""):
+		return "give the NAS address, the SMB share, the username and the password"
+	case s.smbServer != "" && !hostPattern.MatchString(s.smbServer):
+		return "the NAS address must be an IP address or a hostname"
+	case s.smbShare != "" && !smbSharePattern.MatchString(s.smbShare):
+		return "the SMB share must be one name, like Videos, without spaces or slashes"
+	case s.smbUsername != "" && !smbUserPattern.MatchString(s.smbUsername):
+		return "the SMB username can have letters, digits, dots, dashes, underscores and @"
+	case len(s.smbPassword) > 256 || strings.ContainsFunc(s.smbPassword, unicode.IsControl):
+		return "the SMB password can't have line breaks"
 	}
 
 	return ""
+}
+
+func (s mediaSource) lines() []string {
+	return []string{
+		"NAS_SERVER=" + s.nasServer,
+		"NAS_EXPORT=" + s.nasExport,
+		"SMB_SERVER=" + s.smbServer,
+		"SMB_SHARE=" + s.smbShare,
+		"SMB_USERNAME=" + s.smbUsername,
+		"SMB_PASSWORD=" + s.smbPassword,
+		"MEDIA_FOLDER=" + s.folder,
+	}
 }
 
 func validWireGuardKey(key string) bool {
@@ -184,36 +239,38 @@ func (a MediaStackAnswers) file() string {
 		restart = "y"
 	}
 
-	lines := []string{
-		"NAS_SERVER=" + a.NASServer,
-		"NAS_EXPORT=" + a.NASExport,
-		"MEDIA_FOLDER=" + a.MediaFolder,
-		"MOVIES_FOLDER=" + a.MoviesFolder,
-		"SERIES_FOLDER=" + a.SeriesFolder,
-		"WIREGUARD_PRIVATE_KEY=" + a.WireGuardPrivateKey,
-		"VPN_COUNTRIES=" + a.VPNCountries,
-		"SUBTITLE_LANGUAGES=" + a.SubtitleLanguages,
-		"ARR_USERNAME=" + a.Username,
-		"ARR_PASSWORD=" + a.Password,
-		"JELLYFIN_API_KEY=" + a.JellyfinAPIKey,
-		"JELLYFIN_ADMIN_USERNAME=" + a.JellyfinAdminUsername,
-		"JELLYFIN_ADMIN_PASSWORD=" + a.JellyfinAdminPassword,
-		"OPENSUBTITLES_USERNAME=" + a.OpenSubtitlesUsername,
-		"OPENSUBTITLES_PASSWORD=" + a.OpenSubtitlesPassword,
-		"RESTART_JELLYFIN=" + restart,
-		"STORAGE=" + a.Storage,
-		"DOWNLOADS_SIZE=" + strconv.Itoa(a.DownloadsSize),
-	}
+	lines := append(a.mediaSource().lines(),
+		"MOVIES_FOLDER="+a.MoviesFolder,
+		"SERIES_FOLDER="+a.SeriesFolder,
+		"WIREGUARD_PRIVATE_KEY="+a.WireGuardPrivateKey,
+		"VPN_COUNTRIES="+a.VPNCountries,
+		"SUBTITLE_LANGUAGES="+a.SubtitleLanguages,
+		"ARR_USERNAME="+a.Username,
+		"ARR_PASSWORD="+a.Password,
+		"JELLYFIN_API_KEY="+a.JellyfinAPIKey,
+		"JELLYFIN_ADMIN_USERNAME="+a.JellyfinAdminUsername,
+		"JELLYFIN_ADMIN_PASSWORD="+a.JellyfinAdminPassword,
+		"OPENSUBTITLES_USERNAME="+a.OpenSubtitlesUsername,
+		"OPENSUBTITLES_PASSWORD="+a.OpenSubtitlesPassword,
+		"RESTART_JELLYFIN="+restart,
+		"STORAGE="+a.Storage,
+		"DOWNLOADS_SIZE="+strconv.Itoa(a.DownloadsSize),
+	)
 
 	return strings.Join(lines, "\n") + "\n"
 }
 
 // JellyfinAnswers are the questions of stacks/jellyfin/install.sh.
 type JellyfinAnswers struct {
-	// The media is on a NAS (NASServer and NASExport), or in a folder on the
-	// host (MediaFolder). All three are empty when the media is already mounted.
+	// The media is on an NFS share (NASServer and NASExport), on an SMB share
+	// (SMBServer, SMBShare, SMBUsername and SMBPassword), or in a folder on the
+	// host (MediaFolder). All are empty when the media is already mounted.
 	NASServer     string `json:"nasServer"`
 	NASExport     string `json:"nasExport"`
+	SMBServer     string `json:"smbServer"`
+	SMBShare      string `json:"smbShare"`
+	SMBUsername   string `json:"smbUsername"`
+	SMBPassword   string `json:"smbPassword"`
 	MediaFolder   string `json:"mediaFolder"`
 	MoviesFolder  string `json:"moviesFolder"`
 	SeriesFolder  string `json:"seriesFolder"`
@@ -226,7 +283,7 @@ type JellyfinAnswers struct {
 func (a JellyfinAnswers) Validate() error {
 	invalid := func(message string) error { return fmt.Errorf("%w: %s", ErrInvalidAnswers, message) }
 
-	if message := mediaSourceError(a.NASServer, a.NASExport, a.MediaFolder); message != "" {
+	if message := a.mediaSource().error(); message != "" {
 		return invalid(message)
 	}
 
@@ -252,17 +309,14 @@ func (a JellyfinAnswers) file() string {
 		theme = "y"
 	}
 
-	lines := []string{
-		"NAS_SERVER=" + a.NASServer,
-		"NAS_EXPORT=" + a.NASExport,
-		"MEDIA_FOLDER=" + a.MediaFolder,
-		"MOVIES_FOLDER=" + a.MoviesFolder,
-		"SERIES_FOLDER=" + a.SeriesFolder,
-		"JELLYFIN_ADMIN_USERNAME=" + a.AdminUsername,
-		"JELLYFIN_ADMIN_PASSWORD=" + a.AdminPassword,
-		"THEME=" + theme,
-		"STORAGE=" + a.Storage,
-	}
+	lines := append(a.mediaSource().lines(),
+		"MOVIES_FOLDER="+a.MoviesFolder,
+		"SERIES_FOLDER="+a.SeriesFolder,
+		"JELLYFIN_ADMIN_USERNAME="+a.AdminUsername,
+		"JELLYFIN_ADMIN_PASSWORD="+a.AdminPassword,
+		"THEME="+theme,
+		"STORAGE="+a.Storage,
+	)
 
 	return strings.Join(lines, "\n") + "\n"
 }
@@ -316,6 +370,7 @@ type SavedAnswers struct {
 	// HasJellyfinAdminPassword is set when the saved answers have a Jellyfin admin password.
 	HasJellyfinAdminPassword bool             `json:"hasJellyfinAdminPassword"`
 	HasOpenSubtitlesPassword bool             `json:"hasOpenSubtitlesPassword"`
+	HasSMBPassword           bool             `json:"hasSmbPassword"`
 	Minecraft                MinecraftAnswers `json:"minecraft"`
 	HasPlayitSecretKey       bool             `json:"hasPlayitSecretKey"`
 	Until                    time.Time        `json:"until"`
@@ -423,6 +478,10 @@ func (i *AppInstaller) Install(app string, request InstallRequest) error {
 		if request.KeepSecrets && answers.AdminPassword == "" && answers.AdminUsername == saved.Jellyfin.AdminUsername {
 			answers.AdminPassword = saved.Jellyfin.AdminPassword
 		}
+		// Only for the same SMB user on the same NAS.
+		if request.KeepSecrets && answers.SMBPassword == "" && answers.SMBUsername == saved.Jellyfin.SMBUsername && answers.SMBServer == saved.Jellyfin.SMBServer {
+			answers.SMBPassword = saved.Jellyfin.SMBPassword
+		}
 		return i.installLocked(app, savedFile{Jellyfin: answers})
 	}
 
@@ -452,6 +511,10 @@ func (i *AppInstaller) Install(app string, request InstallRequest) error {
 		}
 		if answers.OpenSubtitlesPassword == "" && answers.OpenSubtitlesUsername == saved.OpenSubtitlesUsername {
 			answers.OpenSubtitlesPassword = saved.OpenSubtitlesPassword
+		}
+		// Only for the same SMB user on the same NAS.
+		if answers.SMBPassword == "" && answers.SMBUsername == saved.SMBUsername && answers.SMBServer == saved.SMBServer {
+			answers.SMBPassword = saved.SMBPassword
 		}
 	}
 
@@ -704,12 +767,13 @@ func (i *AppInstaller) Saved(app string) (*SavedAnswers, error) {
 		HasJellyfinAPIKey:        answers.JellyfinAPIKey != "",
 		HasJellyfinAdminPassword: answers.JellyfinAdminPassword != "" || jellyfin.AdminPassword != "",
 		HasOpenSubtitlesPassword: answers.OpenSubtitlesPassword != "",
+		HasSMBPassword:           answers.SMBPassword != "" || jellyfin.SMBPassword != "",
 		HasPlayitSecretKey:       minecraft.PlayitSecretKey != "",
 		Until:                    file.SavedAt.Add(SavedAnswersTTL),
 	}
 	answers.WireGuardPrivateKey, answers.Password, answers.JellyfinAPIKey = "", "", ""
-	answers.JellyfinAdminPassword, answers.OpenSubtitlesPassword = "", ""
-	jellyfin.AdminPassword = ""
+	answers.JellyfinAdminPassword, answers.OpenSubtitlesPassword, answers.SMBPassword = "", "", ""
+	jellyfin.AdminPassword, jellyfin.SMBPassword = "", ""
 	minecraft.PlayitSecretKey = ""
 	view.Answers, view.Jellyfin, view.Minecraft = answers, jellyfin, minecraft
 

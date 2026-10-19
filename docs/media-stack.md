@@ -18,7 +18,7 @@ Install it on the Apps page. The host agent runs the installer from the release 
 If the install fails, it removes the container and the media mount it made. Then:
 
 - **Try again** runs the install again with the same answers.
-- **Change answers** opens the form with your answers. Leave the WireGuard key, the password and the Jellyfin API key empty to keep them.
+- **Change answers** opens the form with your answers. Leave the WireGuard key, the password, the Jellyfin API key and the SMB password empty to keep them. The SMB password only stays for the same SMB user on the same NAS.
 
 The answers stay on the Proxmox host in a file that only root can read, for 24 hours or until the install works. The keys and passwords never go back to the browser. "Remove them now" deletes them at once.
 

@@ -28,6 +28,10 @@ RESTART_JELLYFIN="y"
 NAS_SERVER=""
 NAS_EXPORT=""
 MEDIA_FOLDER=""
+SMB_SERVER=""
+SMB_SHARE=""
+SMB_USERNAME=""
+SMB_PASSWORD=""
 
 while [[ $# -gt 0 ]]; do
     case "$1" in
@@ -71,7 +75,8 @@ load_answers() {
         [[ -z "$line" ]] && continue
         key="${line%%=*}" value="${line#*=}"
         case "$key" in
-            NAS_SERVER | NAS_EXPORT | MEDIA_FOLDER | MOVIES_FOLDER | SERIES_FOLDER | WIREGUARD_PRIVATE_KEY | VPN_COUNTRIES | \
+            NAS_SERVER | NAS_EXPORT | SMB_SERVER | SMB_SHARE | SMB_USERNAME | SMB_PASSWORD | MEDIA_FOLDER | \
+                MOVIES_FOLDER | SERIES_FOLDER | WIREGUARD_PRIVATE_KEY | VPN_COUNTRIES | \
                 SUBTITLE_LANGUAGES | ARR_USERNAME | ARR_PASSWORD | JELLYFIN_API_KEY | JELLYFIN_ADMIN_USERNAME | \
                 JELLYFIN_ADMIN_PASSWORD | OPENSUBTITLES_USERNAME | OPENSUBTITLES_PASSWORD | RESTART_JELLYFIN | \
                 STORAGE | DOWNLOADS_SIZE)
@@ -80,7 +85,7 @@ load_answers() {
             *) die "unknown answer: $key" ;;
         esac
     done <"$ANSWERS"
-    # It holds the VPN key and the password.
+    # It holds the VPN key and the passwords.
     rm -f "$ANSWERS"
 
     ((${#ARR_PASSWORD} >= 12)) || die "password must be at least 12 characters"
@@ -157,6 +162,9 @@ check_writable() {
             if media_is_local; then
                 dir="$(media_source)${dir#"$MEDIA_MOUNT"}"
                 die "containers can't write to $dir. Give them that folder with: chown -R $HOST_CONTAINER_UID:$HOST_CONTAINER_UID '$dir'"
+            fi
+            if media_is_smb; then
+                die "containers can't write to ${dir#"$MEDIA_MOUNT"/} on the SMB share. On the NAS, give the SMB user write access to that share"
             fi
             die "containers can't write to ${dir#"$MEDIA_MOUNT"/}. On the NAS, give the NFS user write access to that folder: set squash to map all users to one NAS user with read/write access, and make sure that the folder itself allows writing"
         fi
