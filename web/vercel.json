@@ -4,5 +4,6 @@
     "buildCommand": "npm run build:demo",
     "outputDirectory": "dist",
     "ignoreCommand": "git diff --quiet HEAD^ HEAD -- .",
+    "git": { "deploymentEnabled": { "**": false, "main": true } },
     "rewrites": [{ "source": "/(.*)", "destination": "/index.html" }]
 }
