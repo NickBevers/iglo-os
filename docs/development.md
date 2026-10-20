@@ -39,7 +39,7 @@ vercel build --prod
 vercel deploy --prebuilt --prod
 ```
 
-This builds on your machine and only uploads the result. `vercel deploy --prod` builds on Vercel instead. A push only starts a build on Vercel when something in `web/` changed. The normal build leaves the demo code and the sample data out.
+This builds on your machine and only uploads the result. `vercel deploy --prod` builds on Vercel instead. Only a push to `main` starts a build on Vercel, and only when something in `web/` changed. Other branches get no preview deploy. The normal build leaves the demo code and the sample data out.
 
 To record the sample data again, run `node scripts/record-demo.mjs` in the `web` folder while `make dev` runs. It only takes data from the dev mock.
 
