@@ -1,4 +1,0 @@
-# Never uploaded to Vercel: secrets from the CLI, and what the build makes again.
-.env*
-node_modules
-dist
