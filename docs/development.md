@@ -31,7 +31,15 @@ cd web
 npm run build:demo    # the demo in web/dist
 ```
 
-`web/vercel.json` builds the demo on Vercel: run `vercel deploy --prod` in the `web` folder. The normal build leaves the demo code and the sample data out.
+`web/vercel.json` builds the demo on Vercel. The Vercel project has `web` as its root directory, so the CLI is linked from the repo root. Deploy from there:
+
+```sh
+vercel pull --yes --environment=production
+vercel build --prod
+vercel deploy --prebuilt --prod
+```
+
+This builds on your machine and only uploads the result. `vercel deploy --prod` builds on Vercel instead. A push only starts a build on Vercel when something in `web/` changed. The normal build leaves the demo code and the sample data out.
 
 To record the sample data again, run `node scripts/record-demo.mjs` in the `web` folder while `make dev` runs. It only takes data from the dev mock.
 
