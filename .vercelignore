@@ -1,6 +1,8 @@
 # Only the web app goes up to Vercel. The project's root directory is web.
 /*
 !/web
+# Builds from git need it to skip commits that leave web alone.
+!/.git
 # Never uploaded: secrets from the CLI, and what the build makes again.
 /web/.env*
 /web/node_modules
