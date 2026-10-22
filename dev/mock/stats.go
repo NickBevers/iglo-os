@@ -74,5 +74,6 @@ func serveStats(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, agent.ErrNoStats.Error(), http.StatusNotFound)
 		return
 	}
+	stats.Sample = true
 	writeJSON(w, stats)
 }

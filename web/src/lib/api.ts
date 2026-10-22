@@ -407,6 +407,7 @@ export type SavedAnswers = {
 // AppStats are what an app holds and does right now. A figure with the unit
 // bytes is a size. An activity has a progress of 0 to 100, or -1 for none.
 export type AppStats = {
+    sample?: boolean
     figures: { label: string; value: number; unit?: 'bytes' }[]
     activity: { title: string; detail?: string; progress: number }[]
 }

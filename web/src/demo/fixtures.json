@@ -601,6 +601,7 @@
                 "vmid": 160,
                 "status": "running",
                 "stats": {
+                    "sample": true,
                     "figures": [
                         {
                             "label": "Songs",
@@ -654,6 +655,7 @@
                 "vmid": 170,
                 "status": "running",
                 "stats": {
+                    "sample": true,
                     "figures": [
                         {
                             "label": "Photos",
@@ -712,6 +714,7 @@
                 "vmid": 180,
                 "status": "running",
                 "stats": {
+                    "sample": true,
                     "figures": [
                         {
                             "label": "Waiting",

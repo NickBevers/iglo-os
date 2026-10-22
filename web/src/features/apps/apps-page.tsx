@@ -81,6 +81,8 @@ function AppCard({ app, defaults }: { app: CatalogApp; defaults: Apps['defaults'
             <CardHeader className="max-sm:has-data-[slot=card-action]:grid-cols-1">
                 <CardTitle className="flex flex-wrap items-center gap-2">
                     {app.name}
+                    {app.planned && <Badge variant="outline">Integration planned</Badge>}
+                    {app.stats?.sample && <Badge variant="outline">Sample data</Badge>}
                     {app.installed && app.vmid !== undefined && <GuestId vmid={app.vmid} />}
                     {app.installed && (
                         <Badge variant={app.status === 'running' ? 'success' : 'outline'}>{app.status}</Badge>
@@ -105,11 +107,6 @@ function AppCard({ app, defaults }: { app: CatalogApp; defaults: Apps['defaults'
                         <AppActions app={app} />
                     </CardAction>
                 )}
-                {!app.installed && app.planned && (
-                    <CardAction className={actionClass}>
-                        <Badge variant="outline">Comes in a later version</Badge>
-                    </CardAction>
-                )}
                 {!app.installed && !app.planned && !running && (
                     <CardAction className={actionClass}>
                         {saved ? (
@@ -131,9 +128,16 @@ function AppCard({ app, defaults }: { app: CatalogApp; defaults: Apps['defaults'
 
             <CardContent className="flex flex-col gap-4">
                 {operation && <OperationProgress operation={operation} rollback={app.rollback} />}
-                {app.installed && app.planned && (
+                {app.planned && (
                     <p className="text-xs text-muted-foreground">
-                        Iglo-OS can't install, update or remove this app yet. That comes in a later version.
+                        This app's Iglo-OS integration is not implemented yet. Installation, updates and removal are
+                        unavailable here.
+                    </p>
+                )}
+                {app.stats?.sample && (
+                    <p className="text-xs text-muted-foreground">
+                        This test preview uses a sample container and statistics. It does not represent an installed app
+                        on your server.
                     </p>
                 )}
                 {app.installed && !app.managed && (
