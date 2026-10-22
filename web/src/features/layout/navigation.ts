@@ -7,6 +7,7 @@ import {
     BlocksIcon,
     NetworkIcon,
     ScrollTextIcon,
+    SlidersHorizontalIcon,
     type LucideIcon,
 } from 'lucide-react'
 
@@ -18,6 +19,7 @@ export const navigation: { label: string; items: NavItem[] }[] = [
         items: [
             { to: '/', label: 'Overview', icon: LayoutDashboardIcon },
             { to: '/health', label: 'Health', icon: HeartPulseIcon },
+            { to: '/workloads', label: 'Background work', icon: SlidersHorizontalIcon },
             { to: '/updates', label: 'Updates', icon: ArrowUpCircleIcon },
             { to: '/backups', label: 'Backups', icon: ArchiveIcon },
             { to: '/logs', label: 'Logs', icon: ScrollTextIcon },

@@ -54,6 +54,38 @@ export type UsageTarget = { node: string; type?: Guest['type']; vmid?: number }
 
 export type Session = { username: string }
 
+export type WorkloadSettings = {
+    enabled: boolean
+    url: string
+    apiKey?: string
+    node: string
+    reserveGiB: number
+    maxQueues: number
+    queues: string[]
+    window: boolean
+    start: string
+    end: string
+    timezone: string
+}
+
+export type Workloads = {
+    settings: WorkloadSettings
+    configured: boolean
+    gamingUntil?: string
+    gamingActive: boolean
+    checkedAt?: string
+    reason: string
+    error?: string
+    freeBytes: number
+    totalBytes: number
+    queues: {
+        name: string
+        isPaused: boolean
+        owned: boolean
+        statistics: { active: number; waiting: number; paused: number; failed: number }
+    }[]
+}
+
 export type GuestAction = 'start' | 'shutdown' | 'reboot' | 'stop'
 
 export type Package = { name: string; from: string; to: string }
@@ -520,6 +552,9 @@ async function request<T>(method: string, path: string, body?: unknown, contentT
 }
 
 export const api = {
+    workloads: () => request<Workloads>('GET', '/workloads'),
+    saveWorkloadSettings: (settings: WorkloadSettings) => request<void>('PUT', '/workloads/settings', settings),
+    protectWorkloads: (minutes: number) => request<void>('PUT', '/workloads/protection', { minutes }),
     me: () => request<Session>('GET', '/auth/me'),
     login: (credentials: { username: string; password: string; code: string }) =>
         request<Session>('POST', '/auth/login', credentials),
