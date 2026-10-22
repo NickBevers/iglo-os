@@ -89,6 +89,9 @@ default; no Intel GPU is passed to this stack yet, leaving the initial GPU test
 to Jellyfin and the gaming proof of concept.
 
 Updates stop FileFlows, archive `/app/Data` on local SSD, then replace the image.
+Scoped Music/Photos/Inbox updates do not automatically rewind guest disks on
+failure: NAS publications cannot be rolled back with those disks. Inspect the
+operation and exported app state before choosing a recovery action.
 Local pre-update archives are included in guest disk backups and need retention;
 they are not a substitute for a separate NAS/off-device backup. Removing the
 guest deletes its flows/database, while NAS sources and outputs remain.

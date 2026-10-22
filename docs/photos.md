@@ -57,6 +57,9 @@ pct exec 170 -- bash /opt/photos/recovery.sh verify
 
 Updates require a successful matched backup first. They do not require a prior
 verification automatically; run Verify recovery before an important upgrade.
+Automatic guest-disk rollback is disabled for scoped apps because it cannot rewind
+NAS originals alongside the database. If an update fails, inspect the failed
+operation and recover deliberately from the matched export.
 Keep another encrypted copy off the NAS: two shares on one Umbrel are still one
 failure domain. The generic Proxmox Backups page covers guest disks, not SMB data.
 

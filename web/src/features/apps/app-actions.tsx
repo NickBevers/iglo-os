@@ -137,7 +137,11 @@ export function AppActions({ app }: { app: CatalogApp }) {
                                     {app.version ? `Iglo-OS ${app.version}` : 'an older Iglo-OS release'}.
                                 </span>
                             )}
-                            <span>If the update fails, Iglo-OS rolls the container back to the snapshot.</span>
+                            <span>
+                                {['photos', 'music', 'inbox'].includes(app.id)
+                                    ? 'Automatic disk rollback is disabled because NAS data is outside the guest. Inspect the operation and application backup before recovering.'
+                                    : 'If the update fails, Iglo-OS rolls the container back to the snapshot.'}
+                            </span>
                         </AlertDialogDescription>
                     </AlertDialogHeader>
                     <AlertDialogFooter>
@@ -164,7 +168,7 @@ export function AppActions({ app }: { app: CatalogApp }) {
                             </span>
                             <span>
                                 The backups of the container stay, so you can restore it on the Backups page.
-                                {app.id !== 'minecraft' &&
+                                {['media', 'jellyfin'].includes(app.id) &&
                                     ' When no other container uses the media folder, Iglo-OS also removes its mount on the host. The files stay.'}
                             </span>
                         </AlertDialogDescription>

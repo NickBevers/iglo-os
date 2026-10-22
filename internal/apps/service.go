@@ -501,8 +501,8 @@ func (s *Service) Forget(ctx context.Context, id string) error {
 	return s.Agent.ForgetAppAnswers(ctx, id)
 }
 
-// Update makes a snapshot, then updates the packages, the stack and the
-// images of the app. When the update fails, it rolls back to the snapshot.
+// Update uses snapshots for legacy stacks. Scoped apps export app data in
+// their installers and require deliberate recovery across guest/NAS boundaries.
 func (s *Service) Update(ctx context.Context, background context.Context, id string) error {
 	app, guest, err := s.managedGuest(ctx, id)
 	if err != nil {
@@ -516,14 +516,19 @@ func (s *Service) Update(ctx context.Context, background context.Context, id str
 	}
 
 	op := operation{app: app, action: agent.ActionUpdate, guest: guest}
-	supported, err := s.Proxmox.SnapshotSupported(ctx, guest.Node, guest.VMID)
-	if err != nil {
-		return fmt.Errorf("could not check snapshot support: %w", err)
-	}
-	if supported {
-		op.snapshot = snapshotPrefix + time.Now().Format("20060102_150405")
-		if err := s.Proxmox.CreateSnapshot(ctx, guest.Node, guest.VMID, op.snapshot, "Before app update by iglo"); err != nil {
-			return fmt.Errorf("could not create a snapshot, so nothing was updated: %w", err)
+	// Scoped apps publish data outside the guest disk. Rewinding only their
+	// local database/queue could lose metadata or repeat already-published jobs.
+	// Their installers export app data before updates; recovery is deliberate.
+	if !agent.ScopedApp(id) {
+		supported, err := s.Proxmox.SnapshotSupported(ctx, guest.Node, guest.VMID)
+		if err != nil {
+			return fmt.Errorf("could not check snapshot support: %w", err)
+		}
+		if supported {
+			op.snapshot = snapshotPrefix + time.Now().Format("20060102_150405")
+			if err := s.Proxmox.CreateSnapshot(ctx, guest.Node, guest.VMID, op.snapshot, "Before app update by iglo"); err != nil {
+				return fmt.Errorf("could not create a snapshot, so nothing was updated: %w", err)
+			}
 		}
 	}
 
@@ -830,6 +835,9 @@ func (s *Service) finishUpdate(ctx context.Context, op operation, status agent.A
 	}
 
 	rollback := "There is no snapshot, because the storage does not support it, so check the container."
+	if agent.ScopedApp(op.app.ID) {
+		rollback = "Automatic disk rollback is disabled because NAS data is outside the guest. Inspect the failed operation and application backup before recovering."
+	}
 	if op.snapshot != "" {
 		rollback = fmt.Sprintf("Iglo-OS rolled the container back to snapshot %s, from before the update.", op.snapshot)
 		if err := s.Proxmox.RollbackSnapshot(ctx, op.guest.Node, vmid, op.snapshot); err != nil {
