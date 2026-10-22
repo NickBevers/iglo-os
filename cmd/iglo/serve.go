@@ -33,6 +33,7 @@ import (
 	"iglo/internal/tailscale"
 	"iglo/internal/tlsca"
 	"iglo/internal/updates"
+	"iglo/internal/workloads"
 	"iglo/web"
 )
 
@@ -76,6 +77,11 @@ func serve() error {
 	restartCtx := ctx
 
 	agentClient := agent.NewClient(cfg.AgentSocket)
+	workloadService, err := workloads.New(workloads.Options{DataDir: cfg.DataDir, Proxmox: pve})
+	if err != nil {
+		return err
+	}
+	go workloadService.Run(ctx)
 	updateService, err := updates.New(updates.Options{
 		DataDir:  cfg.DataDir,
 		Proxmox:  pve,
@@ -195,6 +201,7 @@ func serve() error {
 		Logs:       agentClient,
 		Console:    agentClient,
 		Apps:       appsService,
+		Workloads:  workloadService,
 		SettingsFile: &settingsfile.Service{
 			Updates:    updateService,
 			Health:     healthService,

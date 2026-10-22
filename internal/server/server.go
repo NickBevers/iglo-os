@@ -22,6 +22,7 @@ import (
 	"iglo/internal/settingsfile"
 	"iglo/internal/tailscale"
 	"iglo/internal/updates"
+	"iglo/internal/workloads"
 )
 
 const sessionCookie = "iglo_session"
@@ -124,6 +125,12 @@ type SettingsFile interface {
 	Import(ctx context.Context, data []byte, apply bool) (settingsfile.Result, error)
 }
 
+type Workloads interface {
+	Status() workloads.View
+	SaveSettings(workloads.Settings) error
+	Protect(minutes int) error
+}
+
 type Options struct {
 	Auth       *auth.Service
 	Proxmox    Proxmox
@@ -137,6 +144,7 @@ type Options struct {
 	Logs       Logs
 	Console    Console
 	Apps       Apps
+	Workloads  Workloads
 	// SettingsFile exports and imports iglo.yaml.
 	SettingsFile SettingsFile
 	// DataDir is the folder that a data backup copies.
@@ -165,6 +173,9 @@ func New(options Options) http.Handler {
 	mux.HandleFunc("POST /api/auth/logout", s.logout)
 	mux.Handle("GET /api/auth/me", s.requireSession(http.HandlerFunc(s.me)))
 	mux.Handle("GET /api/overview", s.requireSession(http.HandlerFunc(s.overview)))
+	mux.Handle("GET /api/workloads", s.requireSession(http.HandlerFunc(s.workloadsStatus)))
+	mux.Handle("PUT /api/workloads/settings", s.requireSession(http.HandlerFunc(s.workloadsSettings)))
+	mux.Handle("PUT /api/workloads/protection", s.requireSession(http.HandlerFunc(s.workloadsProtection)))
 	mux.Handle("POST /api/guests/{node}/{type}/{vmid}/{action}", s.requireSession(http.HandlerFunc(s.guestAction)))
 	mux.Handle("GET /api/usage/{node}", s.requireSession(http.HandlerFunc(s.nodeUsage)))
 	mux.Handle("GET /api/usage/{node}/{type}/{vmid}", s.requireSession(http.HandlerFunc(s.guestUsage)))
