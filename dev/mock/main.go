@@ -64,6 +64,7 @@ func main() {
 
 	go func() { log.Fatal(http.ListenAndServe(proxmoxAddr, newProxmox())) }()
 	go func() { log.Fatal(http.ListenAndServe(jellyfinAddr, newJellyfin())) }()
+	go func() { log.Fatal(http.ListenAndServe(immichAddr, newImmich())) }()
 	log.Fatal(serveAgent(agentSocket))
 }
 

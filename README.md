@@ -53,6 +53,7 @@ Open http://localhost:5173 and log in with `admin` / `iglo-dev-password`. See [d
 - [Updates and Telegram](docs/updates.md)
 - [Health and alerts](docs/health.md)
 - [Backups and restoring the manager](docs/backups.md)
+- [Background work and resource protection](docs/background-work.md)
 - [Logs and console](docs/logs-and-console.md)
 - [Jellyfin: install and the Jellyfin page](docs/jellyfin.md)
 - [Tailscale](docs/tailscale.md)
