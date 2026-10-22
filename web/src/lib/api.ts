@@ -53,6 +53,15 @@ export type UsagePoint = {
 export type UsageTarget = { node: string; type?: Guest['type']; vmid?: number }
 
 export type Session = { username: string }
+export type ScopedAnswers = {
+    storage: string
+    libraryBinding: string
+    outputBinding: string
+    backupBinding: string
+    cores: number
+    memoryMiB: number
+    diskGB: number
+}
 
 export type BindingInput = {
     id: string
@@ -365,7 +374,7 @@ export type DockerLogs = {
 
 export type AppOperation = {
     app?: string
-    action?: 'install' | 'update' | 'remove' | 'vpn' | 'players'
+    action?: 'install' | 'update' | 'remove' | 'vpn' | 'players' | 'backup' | 'verify'
     state: 'idle' | 'running' | 'succeeded' | 'failed'
     message?: string
     startedAt?: string
@@ -412,6 +421,7 @@ export type MinecraftAnswers = {
 export type MinecraftPlayers = { whitelist: string[]; operators: string[] }
 
 export type SavedAnswers = {
+    scoped: ScopedAnswers
     answers: MediaStackAnswers
     jellyfin: JellyfinAnswers
     minecraft: MinecraftAnswers
@@ -572,6 +582,8 @@ async function request<T>(method: string, path: string, body?: unknown, contentT
 }
 
 export const api = {
+    photosRecovery: (action: 'backup' | 'verify') => request<void>('POST', `/photos/recovery/${action}`),
+    installScopedApp: (id: string, scoped: ScopedAnswers) => request<void>('POST', `/apps/${id}/install`, { scoped }),
     storageBindings: () => request<{ bindings: StorageBinding[]; sample: boolean }>('GET', '/storage/bindings'),
     createBinding: (input: BindingInput) => request<void>('POST', '/storage/bindings', input),
     deleteBinding: (id: string) => request<void>('DELETE', `/storage/bindings/${encodeURIComponent(id)}`),

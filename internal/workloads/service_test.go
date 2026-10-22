@@ -21,6 +21,25 @@ type fakeHost struct {
 	err  error
 }
 
+func TestDiscoveryDoesNotReplaceConfiguredServer(t *testing.T) {
+	s, err := New(Options{DataDir: t.TempDir(), Proxmox: &fakeHost{free: 8 << 30}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err = s.Discover("http://photos:2283"); err != nil {
+		t.Fatal(err)
+	}
+	if s.Status().Settings.URL != "http://photos:2283" || s.Status().Configured || s.Status().Settings.Enabled {
+		t.Fatal("discovery enabled an unconfigured controller")
+	}
+	if err = s.Discover("http://another:2283"); err != nil {
+		t.Fatal(err)
+	}
+	if s.Status().Settings.URL != "http://photos:2283" {
+		t.Fatal("overwrote existing connection")
+	}
+}
+
 func (h *fakeHost) Resources(context.Context) ([]proxmox.Resource, error) {
 	return []proxmox.Resource{{Type: "node", Node: "pve", Status: "online", MaxMem: 32 << 30, Mem: (32 << 30) - h.free}}, h.err
 }

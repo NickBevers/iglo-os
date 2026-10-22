@@ -160,6 +160,9 @@ func serve() error {
 		Notify:   updateService.Notify,
 		// A Jellyfin that Iglo-OS installed is connected to the Jellyfin page at once.
 		OnInstalled: func(ctx context.Context, app string, status agent.AppInstallStatus) error {
+			if app == agent.PhotosApp {
+				return workloadService.Discover("http://" + status.IP + ":2283")
+			}
 			if app != agent.JellyfinApp || status.APIKey == "" {
 				return nil
 			}

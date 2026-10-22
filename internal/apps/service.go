@@ -139,8 +139,7 @@ var Catalog = []App{{
 	Name:        "Photos",
 	Description: "Immich: the phones back up their photos to the NAS, with faces and search.",
 	Tag:         "photos",
-	Planned:     true,
-	Stats:       true,
+	Stack:       true,
 	Links:       []Link{{Name: "Immich", Description: "Photos", Port: 2283}},
 }, {
 	ID:          "inbox",
@@ -460,6 +459,15 @@ func (s *Service) guestIP(ctx context.Context, guest proxmox.Resource) string {
 }
 
 func (s *Service) Install(ctx context.Context, background context.Context, id string, request agent.InstallRequest) error {
+	if index := slices.IndexFunc(Catalog, func(app App) bool { return app.ID == id }); index >= 0 && Catalog[index].Planned {
+		return ErrPlanned
+	}
+	if agent.ScopedApp(id) {
+		if err := request.Scoped.ValidateFor(id); err != nil {
+			return err
+		}
+		return s.start(ctx, background, id, func(app App) error { return s.Agent.InstallApp(ctx, app.ID, request) })
+	}
 	// Before the answers: a planned app has no answers to check.
 	if index := slices.IndexFunc(Catalog, func(app App) bool { return app.ID == id }); index >= 0 && Catalog[index].Planned {
 		return ErrPlanned
@@ -594,6 +602,30 @@ func (s *Service) Players(ctx context.Context, id string) (agent.MinecraftPlayer
 	}
 
 	return s.Agent.MinecraftPlayers(ctx, guest.VMID)
+}
+
+func (s *Service) RecoverPhotos(ctx context.Context, background context.Context, action agent.AppAction) error {
+	if action != agent.ActionBackup && action != agent.ActionVerify {
+		return agent.ErrInvalidAnswers
+	}
+	app, guest, err := s.runningApp(ctx, agent.PhotosApp, agent.PhotosApp)
+	if err != nil {
+		return err
+	}
+	if err = s.checkIdle(ctx); err != nil {
+		return err
+	}
+	a, ok := s.Agent.(interface {
+		RecoverPhotos(context.Context, int, agent.AppAction) error
+	})
+	if !ok {
+		return agent.ErrAppNotAvailable
+	}
+	if err = a.RecoverPhotos(ctx, guest.VMID, action); err != nil {
+		return err
+	}
+	s.watch(background, operation{app: app, action: action, guest: guest})
+	return nil
 }
 
 // ChangePlayers gives the Minecraft server a new whitelist and operators,
@@ -759,6 +791,9 @@ func (s *Service) monitor(ctx context.Context, op operation, generation int) {
 		}
 
 		switch op.action {
+		case agent.ActionBackup, agent.ActionVerify:
+			s.Logger.Info("photos recovery finished", "action", op.action, "state", status.State)
+			s.Notify(ctx, fmt.Sprintf("Photos %s: %s", op.action, status.State))
 		case agent.ActionUpdate:
 			s.finishUpdate(ctx, op, status)
 		case agent.ActionRemove:

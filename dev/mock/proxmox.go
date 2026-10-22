@@ -89,7 +89,9 @@ func (p *fakeProxmox) resources(w http.ResponseWriter, r *http.Request) {
 	}
 	if _, err := os.Stat(statePath("no-planned-apps")); err != nil {
 		for _, app := range plannedApps {
-			resources = append(resources, maps.Clone(app))
+			if _, err := os.Stat(statePath(app["name"].(string) + "-installed")); err == nil {
+				resources = append(resources, maps.Clone(app))
+			}
 		}
 	}
 	for _, resource := range resources {

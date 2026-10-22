@@ -651,7 +651,7 @@ func TestPlannedAppsShowButDoNotInstall(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	for _, id := range []string{"music", "photos", "inbox"} {
+	for _, id := range []string{"music", "inbox"} {
 		if app := appByID(t, view, id); !app.Planned || app.Installed || app.Stats != nil || app.Saved != nil {
 			t.Errorf("%s = %+v", id, app)
 		}

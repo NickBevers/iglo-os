@@ -220,6 +220,7 @@ func New(options Options) http.Handler {
 	mux.Handle("GET /api/logs/tasks/{node}/log", s.requireSession(http.HandlerFunc(s.logsTaskLog)))
 	mux.Handle("GET /api/guests/{vmid}/console", s.requireSession(http.HandlerFunc(s.console)))
 	mux.Handle("GET /api/apps", s.requireSession(http.HandlerFunc(s.appsStatus)))
+	mux.Handle("POST /api/photos/recovery/{action}", s.requireSession(http.HandlerFunc(s.photosRecovery)))
 	mux.Handle("POST /api/apps/{id}/install", s.requireSession(http.HandlerFunc(s.appsInstall)))
 	mux.Handle("POST /api/apps/{id}/retry", s.requireSession(http.HandlerFunc(s.appsRetry)))
 	mux.Handle("DELETE /api/apps/{id}/answers", s.requireSession(http.HandlerFunc(s.appsForget)))

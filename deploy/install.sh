@@ -172,6 +172,12 @@ install_scripts() {
     install -m 0755 "$BUNDLE_DIR/install.sh" "$SCRIPTS_DIR/install.sh.new"
     install -m 0644 "$BUNDLE_DIR/lib.sh" "$BUNDLE_DIR/VERSION" "$SCRIPTS_DIR/"
     install -m 0644 "$BUNDLE_DIR/storage.sh" "$SCRIPTS_DIR/"
+    install -m 0644 "$BUNDLE_DIR/scoped-stack.sh" "$SCRIPTS_DIR/"
+    if [[ -d "$BUNDLE_DIR/stacks/photos" ]]; then
+        install -d -m 0755 "$SCRIPTS_DIR/stacks/photos"
+        install -m 0755 "$BUNDLE_DIR/stacks/photos/install.sh" "$BUNDLE_DIR/stacks/photos/recovery.sh" "$SCRIPTS_DIR/stacks/photos/"
+        install -m 0644 "$BUNDLE_DIR/stacks/photos/compose.yaml" "$BUNDLE_DIR/stacks/photos/compose.override.yaml" "$SCRIPTS_DIR/stacks/photos/"
+    fi
     mv -f "$SCRIPTS_DIR/install.sh.new" "$SCRIPTS_DIR/install.sh"
     # The Apps page installs stacks from here.
     if [[ -d "$BUNDLE_DIR/stacks/arr" ]]; then

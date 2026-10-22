@@ -265,6 +265,33 @@ func (s *Service) SaveSettings(input Settings) error {
 	return nil
 }
 
+// Discover fills an empty connection after an installation. First-login setup
+// and creation of a queue API key still happen in Immich. Existing connections
+// and their pause ownership are never replaced by discovery.
+func (s *Service) Discover(address string) error {
+	s.op.Lock()
+	defer s.op.Unlock()
+	if s.state.Settings.URL != "" || s.state.Settings.APIKey != "" || len(s.state.Owned) > 0 {
+		return nil
+	}
+	old := s.state.Settings
+	s.state.Settings.URL = address
+	s.state.Settings.Enabled = false
+	if err := s.state.Settings.Validate(); err != nil {
+		s.state.Settings = old
+		return err
+	}
+	if err := s.save(); err != nil {
+		s.state.Settings = old
+		return err
+	}
+	view := s.Status()
+	view.Reason = "Create an Immich admin account and queue API key to connect control"
+	s.publish(view)
+	s.signal()
+	return nil
+}
+
 // Gaming protection expires automatically, including across manager restarts.
 func (s *Service) Protect(minutes int) error {
 	if minutes != 0 && (minutes < 15 || minutes > 480) {

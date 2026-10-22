@@ -261,6 +261,13 @@ func (c *Client) RemoveApp(ctx context.Context, app string, vmid int) error {
 	return c.do(ctx, http.MethodPost, "/v1/apps/"+url.PathEscape(app)+"/remove", AppContainerRequest{VMID: vmid}, nil)
 }
 
+func (c *Client) RecoverPhotos(ctx context.Context, vmid int, action AppAction) error {
+	if action != ActionBackup && action != ActionVerify {
+		return ErrInvalidJob
+	}
+	return c.do(ctx, http.MethodPost, "/v1/apps/photos/"+string(action), AppContainerRequest{VMID: vmid}, nil)
+}
+
 // VPNRequest gives the media stack in container VMID new VPN settings.
 type VPNRequest struct {
 	VMID int `json:"vmid"`

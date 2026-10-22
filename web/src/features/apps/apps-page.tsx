@@ -220,6 +220,16 @@ function AppCard({ app, defaults }: { app: CatalogApp; defaults: Apps['defaults'
 }
 
 const operationText = {
+    backup: {
+        running: 'Backing up Photos…',
+        runningDetail: 'Photos is paused while originals and the database are copied. Large libraries can take hours.',
+        failed: 'The Photos backup failed',
+    },
+    verify: {
+        running: 'Checking Photos recovery…',
+        runningDetail: 'Checksums are checked and a disposable database is restored. Live data stays in place.',
+        failed: 'Recovery verification failed',
+    },
     install: {
         running: 'Installing…',
         runningDetail: 'This takes 5 to 15 minutes, mostly to download the images. You can leave this page.',

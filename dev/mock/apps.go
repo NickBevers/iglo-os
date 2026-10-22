@@ -26,7 +26,7 @@ type fakeInstalls struct {
 
 func newAppInstaller() (*agent.AppInstaller, error) {
 	stacks := statePath("stacks")
-	for _, dir := range []string{"arr", "jellyfin", "minecraft"} {
+	for _, dir := range []string{"arr", "jellyfin", "minecraft", "photos", "music", "inbox"} {
 		if err := os.MkdirAll(filepath.Join(stacks, dir), 0o700); err != nil {
 			return nil, err
 		}
@@ -142,7 +142,13 @@ func (f *fakeInstalls) playOnContainer(stack, action, logPath, exitPath string) 
 	}
 	finish := func(code int) { os.WriteFile(exitPath, []byte(fmt.Sprintln(code)), 0o600) }
 
-	installed := map[string]string{"arr": "media-installed", "jellyfin": "jellyfin-installed", "minecraft": "minecraft-installed"}[stack]
+	installed := map[string]string{"arr": "media-installed", "jellyfin": "jellyfin-installed", "minecraft": "minecraft-installed", "photos": "photos-installed", "music": "music-installed", "inbox": "inbox-installed"}[stack]
+	if action == "--backup" || action == "--verify" {
+		write("==> Development simulation: no files copied or database restored")
+		write("==> Simulated Photos recovery finished")
+		finish(0)
+		return
+	}
 	if action == "--remove" {
 		write("==> Shutting down the container")
 		write("==> Removing the container with its disks and snapshots. Its backups stay")
@@ -154,6 +160,8 @@ func (f *fakeInstalls) playOnContainer(stack, action, logPath, exitPath string) 
 
 	write("==> Updating the packages in the container")
 	switch stack {
+	case "photos", "music", "inbox":
+		write("==> Development simulation: scoped app update")
 	case "arr":
 		write("==> Copying the stack of Iglo-OS dev into the container")
 		write("==> Downloading the new images")
@@ -196,6 +204,8 @@ func (f *fakeInstalls) play(stack, answers, logPath, exitPath string) {
 
 	steps := []string{"==> Mounting the media", "==> Downloading Debian 13 template"}
 	switch stack {
+	case "photos", "music", "inbox":
+		steps = []string{"==> Development simulation: no host or NAS changes", "==> Checking scoped storage bindings", "==> Creating isolated app container", "==> Starting the stack"}
 	case "minecraft":
 		steps = []string{"==> Downloading Debian 13 template", "==> Creating container 150 (minecraft) with 5 GB memory", "==> Installing Docker",
 			"==> Copying the stack into the container", "==> Starting the server (the first start downloads Paper and makes the world, this takes a few minutes)",
@@ -221,8 +231,14 @@ func (f *fakeInstalls) play(stack, answers, logPath, exitPath string) {
 		return
 	}
 
-	mountMedia(answers)
+	if stack == "arr" || stack == "jellyfin" {
+		mountMedia(answers)
+	}
 	switch stack {
+	case "photos", "music", "inbox":
+		id := map[string]int{"music": 160, "photos": 170, "inbox": 180}[stack]
+		write(fmt.Sprintf("IGLO app %s %d 192.168.1.%d", stack, id, id))
+		os.WriteFile(statePath(stack+"-installed"), nil, 0600)
 	case "minecraft":
 		savePlayers(answers)
 		write("==> Done")
@@ -356,6 +372,20 @@ func (f *fakeInstalls) playPlayers(answers, logPath, exitPath string) {
 
 // addAppRoutes serves the app routes of the agent with the real installer.
 func addAppRoutes(mux *http.ServeMux, installer *agent.AppInstaller) {
+	for _, action := range []agent.AppAction{agent.ActionBackup, agent.ActionVerify} {
+		mux.HandleFunc("POST /v1/apps/photos/"+string(action), func(w http.ResponseWriter, r *http.Request) {
+			var in agent.AppContainerRequest
+			if json.NewDecoder(r.Body).Decode(&in) != nil {
+				http.Error(w, "invalid request", 400)
+				return
+			}
+			if err := installer.Recover(agent.PhotosApp, in.VMID, action); err != nil {
+				http.Error(w, err.Error(), 400)
+				return
+			}
+			w.WriteHeader(202)
+		})
+	}
 	fail := func(w http.ResponseWriter, err error) {
 		switch {
 		case errors.Is(err, agent.ErrInvalidAnswers), errors.Is(err, agent.ErrUnknownApp), errors.Is(err, agent.ErrNoSavedAnswers):

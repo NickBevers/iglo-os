@@ -20,6 +20,7 @@ import { PlayersDialog } from './players-dialog'
 import { VpnDialog } from './vpn-dialog'
 
 const updateText: Record<string, string> = {
+    photos: 'Iglo-OS pauses Photos while copying the database and originals to Backups, then installs the Immich version bundled with this Iglo-OS release. Large libraries can take a long time. Keep a separate off-device backup too.',
     media: 'Iglo-OS makes a snapshot, updates the packages, copies the stack of this Iglo-OS release, and downloads the new images. The apps restart, so they are offline for a few minutes. Your settings in the apps stay.',
     jellyfin:
         'Iglo-OS makes a snapshot, then updates Jellyfin and the other packages. Jellyfin restarts, so it is offline for a minute. Your settings, users and libraries stay.',
@@ -28,6 +29,7 @@ const updateText: Record<string, string> = {
 }
 
 const removeText: Record<string, string> = {
+    photos: 'The local database is deleted with the container. Export and verify a Photos recovery backup first. Originals and existing backups on the NAS stay in place.',
     media: 'The downloads disk goes with it, so downloads that did not finish are lost. Your movies and series stay in the media folder, and Jellyfin keeps its libraries.',
     jellyfin:
         'Its settings, users and watch history go with it, and the Jellyfin page disconnects. Your movies and series stay in the media folder.',
@@ -54,8 +56,39 @@ export function AppActions({ app }: { app: CatalogApp }) {
     })
     const busy = update.isPending || remove.isPending
 
+    const recovery = useMutation({
+        mutationFn: api.photosRecovery,
+        onSuccess: refresh,
+        onError: (e) => toast.error(e.message),
+    })
+
     return (
         <>
+            {app.id === 'photos' && (
+                <>
+                    <Button
+                        variant="outline"
+                        disabled={busy || recovery.isPending || app.status !== 'running'}
+                        onClick={() => {
+                            if (
+                                window.confirm(
+                                    'Photos will be unavailable while its database and originals are copied to Backups. Start the backup?',
+                                )
+                            )
+                                recovery.mutate('backup')
+                        }}
+                    >
+                        Back up Photos
+                    </Button>
+                    <Button
+                        variant="outline"
+                        disabled={busy || recovery.isPending || app.status !== 'running'}
+                        onClick={() => recovery.mutate('verify')}
+                    >
+                        Verify recovery
+                    </Button>
+                </>
+            )}
             {app.id === 'media' && (
                 <Button variant="outline" disabled={busy || app.status !== 'running'} onClick={() => setVpnOpen(true)}>
                     <ShieldIcon />
