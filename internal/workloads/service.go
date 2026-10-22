@@ -26,6 +26,7 @@ var ErrInvalid = errors.New("invalid background-work settings")
 var HeavyQueues = []string{"videoConversion", "faceDetection", "facialRecognition", "smartSearch", "duplicateDetection", "ocr"}
 
 type Settings struct {
+	Workers    bool     `json:"workers"`
 	Enabled    bool     `json:"enabled"`
 	URL        string   `json:"url"`
 	APIKey     string   `json:"apiKey,omitempty"`
@@ -45,6 +46,9 @@ func DefaultSettings() Settings {
 
 func (s Settings) Validate() error {
 	invalid := func(message string) error { return fmt.Errorf("%w: %s", ErrInvalid, message) }
+	if s.Workers && strings.TrimSpace(s.Node) == "" {
+		return invalid("select a Proxmox node before controlling workers")
+	}
 	if s.URL != "" {
 		u, err := url.Parse(s.URL)
 		if err != nil || (u.Scheme != "http" && u.Scheme != "https") || u.Hostname() == "" || u.User != nil || u.RawQuery != "" || u.Fragment != "" {
@@ -120,6 +124,8 @@ type Queue struct {
 }
 
 type View struct {
+	WorkerReason string    `json:"workerReason,omitempty"`
+	WorkerError  string    `json:"workerError,omitempty"`
 	Settings     Settings  `json:"settings"`
 	Configured   bool      `json:"configured"`
 	GamingUntil  time.Time `json:"gamingUntil,omitzero"`
@@ -145,23 +151,26 @@ type Resources interface {
 }
 
 type Options struct {
-	DataDir string
-	Proxmox Resources
-	HTTP    *http.Client
-	Now     func() time.Time
+	WorkerAdmission func(context.Context, string, int64) error
+	DataDir         string
+	Proxmox         Resources
+	HTTP            *http.Client
+	Now             func() time.Time
 }
 
 type Service struct {
-	op         sync.Mutex
-	mu         sync.Mutex
-	state      diskState // protected by op
-	view       View      // protected by mu; no network calls under mu
-	path       string
-	pve        Resources
-	http       *http.Client
-	now        func() time.Time
-	wake       chan struct{}
-	memoryHeld bool // op; avoid rapid pause/resume around the threshold
+	workers          func(context.Context, string, int64) error
+	workerMemoryHeld bool
+	op               sync.Mutex
+	mu               sync.Mutex
+	state            diskState // protected by op
+	view             View      // protected by mu; no network calls under mu
+	path             string
+	pve              Resources
+	http             *http.Client
+	now              func() time.Time
+	wake             chan struct{}
+	memoryHeld       bool // op; avoid rapid pause/resume around the threshold
 }
 
 func New(opts Options) (*Service, error) {
@@ -174,7 +183,7 @@ func New(opts Options) (*Service, error) {
 	}
 	// Never forward an API key to a redirect target, including same-host HTTP downgrades.
 	client.CheckRedirect = func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }
-	s := &Service{path: filepath.Join(opts.DataDir, "workloads.json"), pve: opts.Proxmox, http: client, now: opts.Now, wake: make(chan struct{}, 1)}
+	s := &Service{path: filepath.Join(opts.DataDir, "workloads.json"), pve: opts.Proxmox, http: client, now: opts.Now, wake: make(chan struct{}, 1), workers: opts.WorkerAdmission}
 	s.state = diskState{Settings: DefaultSettings(), Owned: map[string]bool{}}
 	data, err := os.ReadFile(s.path)
 	if err != nil && !errors.Is(err, os.ErrNotExist) {
@@ -371,6 +380,7 @@ func (s *Service) Reconcile(ctx context.Context) {
 	defer cancel()
 	settings := s.state.Settings
 	view := View{CheckedAt: s.now(), Reason: "Control disabled", Queues: []Queue{}}
+	s.reconcileWorkers(ctx, &view)
 	defer func() {
 		for index := range view.Queues {
 			view.Queues[index].Owned = s.state.Owned[view.Queues[index].Name]

@@ -75,6 +75,10 @@ preflight() {
 
 install_agent() {
     log "Installing host agent"
+    if ! command -v mount.cifs >/dev/null; then
+        apt-get update -q
+        DEBIAN_FRONTEND=noninteractive apt-get install -y -q cifs-utils
+    fi
     install -d -m 0755 /var/lib/iglo-agent
     install -d -m 0750 -o root -g "$HOST_SOCKET_GID" "$AGENT_SOCKET_DIR"
     install -m 0755 "$BUNDLE_DIR/iglo-agent" /usr/local/bin/iglo-agent
@@ -173,6 +177,21 @@ install_scripts() {
     install -m 0644 "$BUNDLE_DIR/lib.sh" "$BUNDLE_DIR/VERSION" "$SCRIPTS_DIR/"
     install -m 0644 "$BUNDLE_DIR/storage.sh" "$SCRIPTS_DIR/"
     install -m 0644 "$BUNDLE_DIR/scoped-stack.sh" "$SCRIPTS_DIR/"
+    if [[ -d "$BUNDLE_DIR/gaming-poc" ]]; then
+        install -d -m 0755 "$SCRIPTS_DIR/gaming-poc"
+        install -m 0755 "$BUNDLE_DIR/gaming-poc/install.sh" "$BUNDLE_DIR/gaming-poc/diagnose.sh" "$SCRIPTS_DIR/gaming-poc/"
+        install -m 0644 "$BUNDLE_DIR/gaming-poc/compose.yaml" "$BUNDLE_DIR/gaming-poc/config.toml" "$SCRIPTS_DIR/gaming-poc/"
+    fi
+    if [[ -d "$BUNDLE_DIR/stacks/music" ]]; then
+        install -d -m 0755 "$SCRIPTS_DIR/stacks/music"
+        install -m 0755 "$BUNDLE_DIR/stacks/music/install.sh" "$BUNDLE_DIR/stacks/music/iglo-music" "$SCRIPTS_DIR/stacks/music/"
+        install -m 0644 "$BUNDLE_DIR/stacks/music/iglo-music.service" "$SCRIPTS_DIR/stacks/music/"
+    fi
+    if [[ -d "$BUNDLE_DIR/stacks/inbox" ]]; then
+        install -d -m 0755 "$SCRIPTS_DIR/stacks/inbox"
+        install -m 0755 "$BUNDLE_DIR/stacks/inbox/install.sh" "$SCRIPTS_DIR/stacks/inbox/"
+        install -m 0644 "$BUNDLE_DIR/stacks/inbox/compose.yaml" "$BUNDLE_DIR/stacks/inbox/pre-execute.cs" "$SCRIPTS_DIR/stacks/inbox/"
+    fi
     if [[ -d "$BUNDLE_DIR/stacks/photos" ]]; then
         install -d -m 0755 "$SCRIPTS_DIR/stacks/photos"
         install -m 0755 "$BUNDLE_DIR/stacks/photos/install.sh" "$BUNDLE_DIR/stacks/photos/recovery.sh" "$SCRIPTS_DIR/stacks/photos/"

@@ -150,6 +150,9 @@ func (f *fakeInstalls) playOnContainer(stack, action, logPath, exitPath string) 
 		return
 	}
 	if action == "--remove" {
+		if id := map[string]string{"photos": "170", "music": "160", "inbox": "180"}[stack]; id != "" {
+			os.Remove(statePath("binding-containers/" + id + ".conf"))
+		}
 		write("==> Shutting down the container")
 		write("==> Removing the container with its disks and snapshots. Its backups stay")
 		os.Remove(statePath(installed))
@@ -237,6 +240,23 @@ func (f *fakeInstalls) play(stack, answers, logPath, exitPath string) {
 	switch stack {
 	case "photos", "music", "inbox":
 		id := map[string]int{"music": 160, "photos": 170, "inbox": 180}[stack]
+		if err := os.MkdirAll(statePath("binding-containers"), 0700); err != nil {
+			finish(1)
+			return
+		}
+		conf := ""
+		n := 0
+		for line := range strings.Lines(answers) {
+			key, value, _ := strings.Cut(line, "=")
+			if (key == "LIBRARY_BINDING" || key == "OUTPUT_BINDING" || key == "BACKUP_BINDING") && value != "" {
+				conf += fmt.Sprintf("mp%d: %s,mp=/data/%s\n", n, statePath("shares/"+value), key)
+				n++
+			}
+		}
+		if err := os.WriteFile(statePath(fmt.Sprintf("binding-containers/%d.conf", id)), []byte(conf), 0600); err != nil {
+			finish(1)
+			return
+		}
 		write(fmt.Sprintf("IGLO app %s %d 192.168.1.%d", stack, id, id))
 		os.WriteFile(statePath(stack+"-installed"), nil, 0600)
 	case "minecraft":

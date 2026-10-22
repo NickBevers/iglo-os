@@ -643,7 +643,7 @@ func TestChangePlayers(t *testing.T) {
 	}
 }
 
-func TestPlannedAppsShowButDoNotInstall(t *testing.T) {
+func TestScopedAppsHaveInstallersAndRequireBindings(t *testing.T) {
 	fake := &fakeAgent{status: agent.AppInstallStatus{State: agent.UpgradeIdle}}
 	service := New(Options{Agent: fake, Proxmox: &fakeProxmox{resources: baseResources()}, SelfVMID: 100})
 
@@ -651,13 +651,13 @@ func TestPlannedAppsShowButDoNotInstall(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	for _, id := range []string{"music", "inbox"} {
-		if app := appByID(t, view, id); !app.Planned || app.Installed || app.Stats != nil || app.Saved != nil {
+	for _, id := range []string{"music", "photos", "inbox"} {
+		if app := appByID(t, view, id); app.Planned || app.Installed || app.Stats != nil || app.Saved != nil {
 			t.Errorf("%s = %+v", id, app)
 		}
 	}
-	if err := service.Install(context.Background(), context.Background(), "music", agent.InstallRequest{}); !errors.Is(err, ErrPlanned) {
-		t.Fatalf("install of a planned app: %v", err)
+	if err := service.Install(context.Background(), context.Background(), "music", agent.InstallRequest{}); !errors.Is(err, agent.ErrInvalidAnswers) {
+		t.Fatalf("missing storage bindings: %v", err)
 	}
 }
 

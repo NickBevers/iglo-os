@@ -1,6 +1,6 @@
 # Background work
 
-The Background work page controls optional Immich queues through its queue API. It keeps the API server and database running while deferring new analysis and video-conversion jobs. It is independent of the app installer: connect an existing compatible Immich server, including one maintained outside the Iglo catalog.
+The Background work page controls optional Immich queues through its queue API and admission leases for the Music/Inbox workers. It keeps the API server and database running while deferring new analysis and video-conversion jobs. Connect an existing compatible Immich server or install [Photos](photos.md) from Apps. The independent Music/Inbox setting needs no Immich key; see [worker setup](workers.md) for FileFlows' required native pre-execute script.
 
 ## Connect and enable
 
@@ -42,9 +42,9 @@ The encrypted manager data backup includes this file. Plain `iglo.yaml` export d
 | --- | --- | --- |
 | Immich analysis and video conversion | Selected queue admission, low concurrency, processing windows; test Intel OpenVINO/Quick Sync where supported | Queue admission implemented here; worker tuning and acceleration remain native configuration. |
 | Jellyfin playback | Prefer direct play; Intel Quick Sync for required transcodes | Existing Jellyfin integration; this controller does not change playback settings. |
-| FileFlows | One conversion runner initially, native processing schedules, supported hardware video acceleration | Configure in FileFlows. External API integration is not implemented; its current API requires a license. |
+| FileFlows | One conversion runner initially, native processing schedules and a short admission lease | Install Inbox, configure the supplied native pre-execute script. Licensed API automation and GPU acceleration are not configured. |
 | Emulation and streaming | Test native graphics backend, resolution and hardware stream encoding; defer background work | Manual timed protection; no GPU reservation or automatic session integration. |
-| Music imports | Bound ffmpeg/download worker concurrency and schedule bulk imports | Future ingestion-worker integration. |
+| Music imports | One native worker, local staging, short admission lease and manual pause | Music installer and Music work page; independent worker control follows gaming/window/headroom policy. |
 | Backups | Separate ordinary backups from expensive verification/pruning and conversion windows | Existing backup scheduler; this controller does not pause backups. |
 | LXC resource controls | CPU weights/quotas and measured memory limits | Native Proxmox configuration; no automatic live memory shrinking. |
 

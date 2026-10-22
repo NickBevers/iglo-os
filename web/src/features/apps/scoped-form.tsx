@@ -116,7 +116,17 @@ export function ScopedForm({
                             id={key}
                             type="number"
                             required
-                            min={key === 'cores' ? 1 : key === 'diskGB' ? 32 : id === 'photos' ? 8192 : 512}
+                            min={
+                                key === 'cores'
+                                    ? 1
+                                    : key === 'diskGB'
+                                      ? 32
+                                      : id === 'photos'
+                                        ? 8192
+                                        : id === 'music'
+                                          ? 1024
+                                          : 512
+                            }
                             max={key === 'cores' ? 4 : key === 'diskGB' ? 2048 : id === 'photos' ? 8192 : 2048}
                             value={answers[key]}
                             onChange={(e) => set({ ...answers, [key]: Number(e.target.value) })}

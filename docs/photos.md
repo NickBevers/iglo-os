@@ -91,3 +91,8 @@ Local Docker validation on 22 October 2026 passed the merged volume configuratio
 and a real SQL dump/restore using the pinned PostgreSQL image, two disposable
 network-isolated databases and a sample record. This was not a complete Immich
 library or phone-backup rehearsal.
+
+The recovery shell also passed a Linux fixture test for failed-dump cleanup,
+matched export and corrupt-file rejection (`bash dev/check-photos-recovery.sh`).
+That fixture simulates Docker/SMB operations and is separate from the real
+PostgreSQL dump/restore check.

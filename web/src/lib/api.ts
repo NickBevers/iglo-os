@@ -53,6 +53,23 @@ export type UsagePoint = {
 export type UsageTarget = { node: string; type?: Guest['type']; vmid?: number }
 
 export type Session = { username: string }
+export type MusicJob = {
+    id: string
+    url: string
+    video: boolean
+    state: string
+    error?: string
+    file?: string
+    createdAt: string
+    finishedAt?: string
+}
+export type MusicQueue = {
+    paused: boolean
+    admitted: boolean
+    storageReady?: boolean
+    jobs: MusicJob[]
+    sample?: boolean
+}
 export type ScopedAnswers = {
     storage: string
     libraryBinding: string
@@ -83,6 +100,7 @@ export type StorageBinding = {
 }
 
 export type WorkloadSettings = {
+    workers?: boolean
     enabled: boolean
     url: string
     apiKey?: string
@@ -97,6 +115,8 @@ export type WorkloadSettings = {
 }
 
 export type Workloads = {
+    workerReason?: string
+    workerError?: string
     settings: WorkloadSettings
     configured: boolean
     gamingUntil?: string
@@ -582,6 +602,9 @@ async function request<T>(method: string, path: string, body?: unknown, contentT
 }
 
 export const api = {
+    musicJobs: () => request<MusicQueue>('GET', '/music/jobs'),
+    submitMusic: (input: { url: string; video: boolean }) => request<MusicJob>('POST', '/music/jobs', input),
+    pauseMusic: (paused: boolean) => request<void>('PUT', '/music/pause', { paused }),
     photosRecovery: (action: 'backup' | 'verify') => request<void>('POST', `/photos/recovery/${action}`),
     installScopedApp: (id: string, scoped: ScopedAnswers) => request<void>('POST', `/apps/${id}/install`, { scoped }),
     storageBindings: () => request<{ bindings: StorageBinding[]; sample: boolean }>('GET', '/storage/bindings'),

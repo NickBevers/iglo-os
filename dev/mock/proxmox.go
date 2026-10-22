@@ -87,7 +87,7 @@ func (p *fakeProxmox) resources(w http.ResponseWriter, r *http.Request) {
 	if _, err := os.Stat(statePath("minecraft-installed")); err == nil {
 		resources = append(resources, map[string]any{"type": "lxc", "node": "pve", "vmid": 150, "name": "minecraft", "status": "running", "tags": "iglo;minecraft", "maxcpu": 4, "maxmem": 5_905_580_032, "uptime": 60})
 	}
-	if _, err := os.Stat(statePath("no-planned-apps")); err != nil {
+	{
 		for _, app := range plannedApps {
 			if _, err := os.Stat(statePath(app["name"].(string) + "-installed")); err == nil {
 				resources = append(resources, maps.Clone(app))

@@ -38,7 +38,7 @@ check_scoped_answers() {
         require_binding "$BACKUP_BINDING" backups rw
         [[ "$LIBRARY_BINDING" != "$BACKUP_BINDING" ]] || die "Backups need a separate binding"
     elif [[ "$APP" == music ]]; then
-        ((MEMORY_MIB >= 512 && MEMORY_MIB <= 2048)) || die "Use 512–2048 MiB"
+        ((MEMORY_MIB >= 1024 && MEMORY_MIB <= 2048)) || die "Use 1024–2048 MiB"
         require_binding "$LIBRARY_BINDING" music rw
     elif [[ "$APP" == inbox ]]; then
         ((MEMORY_MIB >= 512 && MEMORY_MIB <= 2048)) || die "Use 512–2048 MiB"
@@ -77,7 +77,7 @@ scoped_main() {
         remove_binding_dependencies "$CT_ID"
         return
     fi
-    require_docker_lxc
+    [[ "$APP" == music ]] || require_docker_lxc
     if [[ "$MODE" == update ]]; then
         require_app_container "$CT_ID" "$APP";require_running "$CT_ID"
         local saved
@@ -113,7 +113,8 @@ scoped_main() {
         music) bind_share "$CT_ID" 0 "$LIBRARY_BINDING" music rw /data/music;;
         inbox) bind_share "$CT_ID" 0 "$LIBRARY_BINDING" inbox ro /data/inbox;bind_share "$CT_ID" 1 "$OUTPUT_BINDING" videos rw /data/videos;;
     esac
-    pct start "$CT_ID";wait_for_network "$CT_ID";install_docker "$CT_ID"
+    pct start "$CT_ID";wait_for_network "$CT_ID"
+    [[ "$APP" == music ]] || install_docker "$CT_ID"
     pct push "$CT_ID" "$ANSWERS" /etc/iglo-stack.conf --perms 0600
     scoped_files
     install_stack

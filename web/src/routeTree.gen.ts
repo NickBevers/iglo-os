@@ -17,6 +17,7 @@ import { Route as AppBackupsRouteImport } from './routes/_app/backups'
 import { Route as AppHealthRouteImport } from './routes/_app/health'
 import { Route as AppJellyfinRouteImport } from './routes/_app/jellyfin'
 import { Route as AppLogsRouteImport } from './routes/_app/logs'
+import { Route as AppMusicRouteImport } from './routes/_app/music'
 import { Route as AppSettingsRouteImport } from './routes/_app/settings'
 import { Route as AppStorageRouteImport } from './routes/_app/storage'
 import { Route as AppTailscaleRouteImport } from './routes/_app/tailscale'
@@ -63,6 +64,11 @@ const AppLogsRoute = AppLogsRouteImport.update({
   path: '/logs',
   getParentRoute: () => AppRoute,
 } as any)
+const AppMusicRoute = AppMusicRouteImport.update({
+  id: '/music',
+  path: '/music',
+  getParentRoute: () => AppRoute,
+} as any)
 const AppSettingsRoute = AppSettingsRouteImport.update({
   id: '/settings',
   path: '/settings',
@@ -102,6 +108,7 @@ export interface FileRoutesByFullPath {
   '/health': typeof AppHealthRoute
   '/jellyfin': typeof AppJellyfinRoute
   '/logs': typeof AppLogsRoute
+  '/music': typeof AppMusicRoute
   '/settings': typeof AppSettingsRoute
   '/storage': typeof AppStorageRoute
   '/tailscale': typeof AppTailscaleRoute
@@ -116,6 +123,7 @@ export interface FileRoutesByTo {
   '/health': typeof AppHealthRoute
   '/jellyfin': typeof AppJellyfinRoute
   '/logs': typeof AppLogsRoute
+  '/music': typeof AppMusicRoute
   '/settings': typeof AppSettingsRoute
   '/storage': typeof AppStorageRoute
   '/tailscale': typeof AppTailscaleRoute
@@ -133,6 +141,7 @@ export interface FileRoutesById {
   '/_app/health': typeof AppHealthRoute
   '/_app/jellyfin': typeof AppJellyfinRoute
   '/_app/logs': typeof AppLogsRoute
+  '/_app/music': typeof AppMusicRoute
   '/_app/settings': typeof AppSettingsRoute
   '/_app/storage': typeof AppStorageRoute
   '/_app/tailscale': typeof AppTailscaleRoute
@@ -151,6 +160,7 @@ export interface FileRouteTypes {
     | '/health'
     | '/jellyfin'
     | '/logs'
+    | '/music'
     | '/settings'
     | '/storage'
     | '/tailscale'
@@ -165,6 +175,7 @@ export interface FileRouteTypes {
     | '/health'
     | '/jellyfin'
     | '/logs'
+    | '/music'
     | '/settings'
     | '/storage'
     | '/tailscale'
@@ -181,6 +192,7 @@ export interface FileRouteTypes {
     | '/_app/health'
     | '/_app/jellyfin'
     | '/_app/logs'
+    | '/_app/music'
     | '/_app/settings'
     | '/_app/storage'
     | '/_app/tailscale'
@@ -253,6 +265,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppLogsRouteImport
       parentRoute: typeof AppRoute
     }
+    '/_app/music': {
+      id: '/_app/music'
+      path: '/music'
+      fullPath: '/music'
+      preLoaderRoute: typeof AppMusicRouteImport
+      parentRoute: typeof AppRoute
+    }
     '/_app/settings': {
       id: '/_app/settings'
       path: '/settings'
@@ -304,6 +323,7 @@ interface AppRouteChildren {
   AppHealthRoute: typeof AppHealthRoute
   AppJellyfinRoute: typeof AppJellyfinRoute
   AppLogsRoute: typeof AppLogsRoute
+  AppMusicRoute: typeof AppMusicRoute
   AppSettingsRoute: typeof AppSettingsRoute
   AppStorageRoute: typeof AppStorageRoute
   AppTailscaleRoute: typeof AppTailscaleRoute
@@ -319,6 +339,7 @@ const AppRouteChildren: AppRouteChildren = {
   AppHealthRoute: AppHealthRoute,
   AppJellyfinRoute: AppJellyfinRoute,
   AppLogsRoute: AppLogsRoute,
+  AppMusicRoute: AppMusicRoute,
   AppSettingsRoute: AppSettingsRoute,
   AppStorageRoute: AppStorageRoute,
   AppTailscaleRoute: AppTailscaleRoute,

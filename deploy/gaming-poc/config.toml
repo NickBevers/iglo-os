@@ -1,0 +1,35 @@
+# Experimental config v2; replace UUID once for each new host, then keep it.
+hostname = "iglo-retro-poc"
+support_hevc = true
+config_version = 2
+uuid = "IGLO_UUID"
+paired_clients = []
+gstreamer = {}
+
+[[profiles]]
+id = "moonlight-profile-id"
+name = "Shared retro profile"
+
+[[profiles.apps]]
+title = "Retro games"
+start_virtual_compositor = true
+start_audio_server = true
+
+[profiles.apps.runner]
+type = "docker"
+name = "IgloRetro"
+image = "ghcr.io/games-on-whales/es-de:edge@sha256:b718b0a0782a98c6f4a761bc43b2ac984d732f3e2f647ee4614c4986db6b194d"
+mounts = ["/data/games/roms:/ROMs:ro", "/data/games/bios:/bioses:ro"]
+env = ["RUN_SWAY=1", "GOW_REQUIRED_DEVICES=/dev/input/* /dev/dri/*"]
+devices = []
+ports = []
+base_create_json = '''{
+  "HostConfig": {
+    "IpcMode": "host",
+    "Privileged": false,
+    "CapAdd": ["NET_RAW", "MKNOD", "NET_ADMIN"],
+    "DeviceCgroupRules": ["c 13:* rmw", "c 244:* rmw"],
+    "Memory": 5368709120,
+    "NanoCpus": 4000000000
+  }
+}'''

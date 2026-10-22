@@ -46,6 +46,9 @@ func (a ScopedAnswers) ValidateFor(app string) error {
 		return bad("use 1–4 CPU cores and a 32–2048 GB local disk")
 	}
 	minimum, maximum := 512, 2048
+	if app == MusicApp {
+		minimum = 1024
+	}
 	if app == PhotosApp {
 		minimum, maximum = 8192, 8192
 	}

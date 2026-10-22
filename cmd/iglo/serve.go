@@ -12,6 +12,7 @@ import (
 	"os"
 	"os/signal"
 	"path/filepath"
+	"slices"
 	"strings"
 	"syscall"
 	"time"
@@ -77,7 +78,30 @@ func serve() error {
 	restartCtx := ctx
 
 	agentClient := agent.NewClient(cfg.AgentSocket)
-	workloadService, err := workloads.New(workloads.Options{DataDir: cfg.DataDir, Proxmox: pve})
+	workloadService, err := workloads.New(workloads.Options{DataDir: cfg.DataDir, Proxmox: pve, WorkerAdmission: func(ctx context.Context, node string, until int64) error {
+		resources, err := pve.Resources(ctx)
+		if err != nil {
+			return err
+		}
+		var failures []error
+		for _, r := range resources {
+			if r.Type != "lxc" || r.Status != "running" || (until != -1 && r.Node != node) {
+				continue
+			}
+			tags := strings.Split(r.Tags, ";")
+			if !slices.Contains(tags, "iglo") {
+				continue
+			}
+			for _, app := range []string{agent.MusicApp, agent.InboxApp} {
+				if slices.Contains(tags, app) {
+					if err := agentClient.WorkerAdmission(ctx, app, r.VMID, until); err != nil {
+						failures = append(failures, err)
+					}
+				}
+			}
+		}
+		return errors.Join(failures...)
+	}})
 	if err != nil {
 		return err
 	}

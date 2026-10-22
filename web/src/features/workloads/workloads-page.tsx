@@ -49,7 +49,7 @@ export function WorkloadsPage() {
             <header className="flex flex-col gap-1">
                 <h1 className="page-title">Background work</h1>
                 <p className="text-sm text-muted-foreground">
-                    Keep room for playback and gaming by deferring heavy photo jobs.
+                    Keep room for playback and gaming by deferring heavy photo, music and video jobs.
                 </p>
             </header>
             {data.error && (
@@ -76,6 +76,15 @@ export function WorkloadsPage() {
                 </CardHeader>
                 <CardContent className="flex flex-col gap-3">
                     <p className="text-sm text-muted-foreground">
+                        Music and Inbox: {data.workerReason || 'Native and manual worker controls'}. FileFlows needs the
+                        supplied pre-execute script configured in its own interface.
+                    </p>
+                    {data.workerError && (
+                        <p role="alert" className="text-sm text-destructive">
+                            Worker control: {data.workerError}
+                        </p>
+                    )}
+                    <p className="text-sm text-muted-foreground">
                         Selected Immich queues stop accepting new work. Active jobs finish; photo uploads, thumbnails
                         and database backups keep their own settings.
                     </p>
@@ -85,7 +94,10 @@ export function WorkloadsPage() {
                     </p>
                 </CardContent>
                 <CardFooter className="flex flex-wrap gap-2">
-                    <Button disabled={protect.isPending || !data.settings.enabled} onClick={() => protect.mutate(120)}>
+                    <Button
+                        disabled={protect.isPending || (!data.settings.enabled && !data.settings.workers)}
+                        onClick={() => protect.mutate(120)}
+                    >
                         Protect gaming for 2 hours
                     </Button>
                     <Button
@@ -170,13 +182,25 @@ function SettingsForm({ data }: { data: Workloads }) {
         <Card>
             <form className="flex flex-col gap-6" onSubmit={submit}>
                 <CardHeader>
-                    <CardTitle>Immich controls</CardTitle>
+                    <CardTitle>Processing controls</CardTitle>
                     <CardDescription>
                         Use an admin API key with queue read and update access. A blank key keeps the stored key.
                         Disable control to resume queues paused by Iglo-OS.
                     </CardDescription>
                 </CardHeader>
                 <CardContent className="flex flex-col gap-5">
+                    <div className="flex items-center justify-between gap-3">
+                        <Label htmlFor="workers-enabled">Control Music and Inbox admission</Label>
+                        <Switch
+                            id="workers-enabled"
+                            checked={settings.workers ?? false}
+                            onCheckedChange={(value) => set('workers', value)}
+                        />
+                    </div>
+                    <p className="text-xs text-muted-foreground">
+                        Uses the selected host, headroom and daily window below. A missing manager heartbeat defers new
+                        work. This works independently of the Immich connection. Active jobs finish.
+                    </p>
                     <div className="flex items-center justify-between gap-3">
                         <Label htmlFor="workload-enabled">Control heavy queues</Label>
                         <Switch

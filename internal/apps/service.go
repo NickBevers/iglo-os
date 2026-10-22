@@ -131,7 +131,7 @@ var Catalog = []App{{
 	Name:        "Music",
 	Description: "Downloads songs from YouTube Music with their cover art, for Jellyfin and Finamp. Music videos only when you ask.",
 	Tag:         "music",
-	Planned:     true,
+	Stack:       true,
 	Stats:       true,
 	Links:       []Link{},
 }, {
@@ -144,10 +144,9 @@ var Catalog = []App{{
 }, {
 	ID:          "inbox",
 	Name:        "Inbox",
-	Description: "Converts your own videos so every device plays them, then moves them to the Home videos library.",
+	Description: "FileFlows processes your own videos into the Home videos output library. Configure its flow and schedule after installation; sources stay read only.",
 	Tag:         "inbox",
-	Planned:     true,
-	Stats:       true,
+	Stack:       true,
 	Links:       []Link{{Name: "FileFlows", Description: "Converter", Port: 19200}},
 }}
 
@@ -467,10 +466,6 @@ func (s *Service) Install(ctx context.Context, background context.Context, id st
 			return err
 		}
 		return s.start(ctx, background, id, func(app App) error { return s.Agent.InstallApp(ctx, app.ID, request) })
-	}
-	// Before the answers: a planned app has no answers to check.
-	if index := slices.IndexFunc(Catalog, func(app App) bool { return app.ID == id }); index >= 0 && Catalog[index].Planned {
-		return ErrPlanned
 	}
 	// With KeepSecrets, the agent checks the answers after it adds the saved secrets.
 	if !request.KeepSecrets {

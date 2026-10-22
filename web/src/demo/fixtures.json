@@ -8607,5 +8607,16 @@
         "freeBytes": 0,
         "totalBytes": 0,
         "queues": []
+    },
+    "/storage/bindings": {
+        "bindings": [],
+        "sample": true
+    },
+    "/music/jobs": {
+        "paused": false,
+        "admitted": false,
+        "storageReady": true,
+        "jobs": [],
+        "sample": true
     }
 }
