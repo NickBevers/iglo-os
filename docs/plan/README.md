@@ -2,6 +2,17 @@
 
 Iglo-OS started from [DriesH/homelab](https://github.com/DriesH/homelab) v0.10.1. This folder describes what we want it to become, and what we decided along the way. The other files in `docs/` describe what Iglo-OS does today.
 
+## Current implementation versus these planning notes
+
+The original decisions and delivery order below are historical planning material.
+The current branch adds [scoped SMB bindings](../scoped-storage.md),
+[Photos installation and recovery](../photos.md), [Music/FileFlows workers](../workers.md)
+and expanded [background-work controls](../background-work.md). Gaming has an
+[experimental Wolf/ES-DE test path](../gaming-poc.md), not a production installer.
+See the [main README](../../README.md#storage-processing-and-gaming) for the supported
+entry points, manual setup and hardware-validation boundaries. Deployment-specific
+hardware choices and retained workloads belong in the separate setup documentation.
+
 ## What Iglo-OS will do
 
 A mini PC with Proxmox runs all apps. An Umbrel device on the network keeps all files. Iglo-OS manages both from one web app.

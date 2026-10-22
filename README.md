@@ -23,6 +23,27 @@ cd iglo-v0.1.0-linux-amd64
 
 Options: `./install.sh --storage local-lvm --bridge vmbr0 --hostname iglo --ctid 120`.
 
+## Storage, processing and gaming
+
+These capabilities describe this source branch. Use a release built from this
+revision to install them; pushing a branch does not publish a signed release.
+
+| Area | Implemented | Setup and limits |
+| --- | --- | --- |
+| [Scoped SMB storage](docs/scoped-storage.md) | Storage page, folder roles, host-only credentials and consumer-aware disconnect | Configure NAS permissions first. Existing media mounts are not automatically migrated. |
+| [Photos / Immich](docs/photos.md) | Pinned installer, SSD database/derivatives, NAS originals, matched backups and recovery verification | Create the Immich admin/API key after installation. Rehearse a full library restore before relying on backups. |
+| [Music and Inbox](docs/workers.md) | One durable Music worker, Music work page, pinned FileFlows installer and admission leases | FileFlows needs its native flow and supplied pre-execute script configured. Active jobs finish after admission is paused. |
+| [Background work](docs/background-work.md) | Immich queue controls and independent worker controls for gaming holds, windows and host RAM headroom | Admission checks do not reserve RAM/GPU capacity or detect gaming sessions automatically. |
+| [Gaming proof of concept](docs/gaming-poc.md) | Opt-in Wolf/ES-DE scripts, read-only ROM access and persistent emulator profiles | Experimental privileged LXC; hardware streaming, controllers and saves still need acceptance tests. No production gaming catalog installer. |
+
+Scoped Photos/Music/Inbox updates do not automatically roll back guest disks:
+their NAS files cannot be rewound with the local database or queue. Inspect failed
+updates and use the documented application recovery path.
+
+The local preview simulates host installations and labels sample data. Go tests,
+race checks, frontend/build checks and isolated recovery tests do not establish
+performance or recovery on a real Proxmox/NAS installation.
+
 ## Update
 
 Open the Updates page and click "Install v…". Iglo-OS checks GitHub every 6 hours and only installs signed releases. If a new version does not start, the old one comes back.
@@ -44,7 +65,10 @@ make dev        # fake Proxmox and host agent, API and web app
 make dev-code   # the login code, in a second terminal
 ```
 
-Open http://localhost:5173 and log in with `admin` / `iglo-dev-password`. See [docs/development.md](docs/development.md) for tests, a real Proxmox and releases.
+Open the URL printed by Vite (normally http://localhost:5173; it selects another
+port if occupied) and log in with `admin` / `iglo-dev-password`. Use
+`make dev-code` for the current login code. See [docs/development.md](docs/development.md)
+for tests, a real Proxmox and releases.
 
 ## Docs
 
@@ -54,6 +78,10 @@ Open http://localhost:5173 and log in with `admin` / `iglo-dev-password`. See [d
 - [Health and alerts](docs/health.md)
 - [Backups and restoring the manager](docs/backups.md)
 - [Background work and resource protection](docs/background-work.md)
+- [Scoped SMB storage bindings](docs/scoped-storage.md)
+- [Photos: Immich installation, backups and recovery](docs/photos.md)
+- [Music and FileFlows workers](docs/workers.md)
+- [Experimental Wolf / ES-DE gaming setup](docs/gaming-poc.md)
 - [Logs and console](docs/logs-and-console.md)
 - [Jellyfin: install and the Jellyfin page](docs/jellyfin.md)
 - [Tailscale](docs/tailscale.md)
