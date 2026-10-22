@@ -58,6 +58,7 @@ func run(socketPath string, socketGID int, logger *slog.Logger) error {
 	runner := agent.NewRunner()
 
 	mux := http.NewServeMux()
+	agent.NewBindings().Register(mux)
 	mux.HandleFunc("GET /v1/health", health)
 	mux.HandleFunc("POST /v1/jobs", startJob(runner, logger))
 	mux.HandleFunc("GET /v1/jobs/{id}", getJob(runner))

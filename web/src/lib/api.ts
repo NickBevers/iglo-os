@@ -54,6 +54,25 @@ export type UsageTarget = { node: string; type?: Guest['type']; vmid?: number }
 
 export type Session = { username: string }
 
+export type BindingInput = {
+    id: string
+    role: string
+    server: string
+    share: string
+    username: string
+    password: string
+    readOnly: boolean
+}
+export type StorageBinding = {
+    id: string
+    role: string
+    source: string
+    path: string
+    readOnly: boolean
+    mounted: boolean
+    consumers: string[]
+}
+
 export type WorkloadSettings = {
     enabled: boolean
     url: string
@@ -553,6 +572,9 @@ async function request<T>(method: string, path: string, body?: unknown, contentT
 }
 
 export const api = {
+    storageBindings: () => request<{ bindings: StorageBinding[]; sample: boolean }>('GET', '/storage/bindings'),
+    createBinding: (input: BindingInput) => request<void>('POST', '/storage/bindings', input),
+    deleteBinding: (id: string) => request<void>('DELETE', `/storage/bindings/${encodeURIComponent(id)}`),
     workloads: () => request<Workloads>('GET', '/workloads'),
     saveWorkloadSettings: (settings: WorkloadSettings) => request<void>('PUT', '/workloads/settings', settings),
     protectWorkloads: (minutes: number) => request<void>('PUT', '/workloads/protection', { minutes }),

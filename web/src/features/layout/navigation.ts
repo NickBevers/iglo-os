@@ -8,6 +8,7 @@ import {
     NetworkIcon,
     ScrollTextIcon,
     SlidersHorizontalIcon,
+    HardDriveIcon,
     type LucideIcon,
 } from 'lucide-react'
 
@@ -20,6 +21,7 @@ export const navigation: { label: string; items: NavItem[] }[] = [
             { to: '/', label: 'Overview', icon: LayoutDashboardIcon },
             { to: '/health', label: 'Health', icon: HeartPulseIcon },
             { to: '/workloads', label: 'Background work', icon: SlidersHorizontalIcon },
+            { to: '/storage', label: 'Storage', icon: HardDriveIcon },
             { to: '/updates', label: 'Updates', icon: ArrowUpCircleIcon },
             { to: '/backups', label: 'Backups', icon: ArchiveIcon },
             { to: '/logs', label: 'Logs', icon: ScrollTextIcon },
