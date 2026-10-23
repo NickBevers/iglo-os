@@ -45,6 +45,7 @@ for (const path of [
     '/storage/bindings',
     '/music/jobs',
     '/gaming',
+    '/gaming/games',
     '/health',
     '/logs/tasks',
 ]) {

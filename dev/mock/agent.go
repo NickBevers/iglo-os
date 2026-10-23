@@ -47,6 +47,7 @@ func serveAgent(socket string) error {
 		return err
 	}
 	bindings.Register(mux)
+	registerGaming(mux)
 	if err := addMusicRoutes(mux); err != nil {
 		return err
 	}

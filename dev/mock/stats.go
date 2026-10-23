@@ -67,17 +67,7 @@ func fakeStats(app string) (agent.AppStats, bool) {
 		}, true
 	case "gaming":
 		// The library on the Games share, which the host counts even while the container is stopped.
-		return agent.AppStats{
-			Figures: []agent.Figure{
-				{Label: "Game Boy", Value: 42},
-				{Label: "Game Boy Color", Value: 31},
-				{Label: "Game Boy Advance", Value: 58},
-				{Label: "Nintendo 64", Value: 24},
-				{Label: "GameCube", Value: 17},
-				{Label: "Wii", Value: 12},
-			},
-			Activity: []agent.Activity{},
-		}, true
+		return agent.AppStats{Figures: sampleLibrary(), Activity: []agent.Activity{}}, true
 	}
 
 	return agent.AppStats{}, false
