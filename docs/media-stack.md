@@ -79,6 +79,12 @@ Iglo-OS writes the new settings in `/opt/arr/.env` in the container, and restart
 
 The key goes to the container on stdin. It never goes back to the browser.
 
+## VPN kill switch
+
+qBittorrent, Prowlarr and FlareSolverr share Gluetun's network. Gluetun's firewall blocks all their traffic while the VPN is down, so nothing leaks outside the tunnel. When the VPN drops, qBittorrent is also bound to `lo` until the VPN is back. Downloads then go on where they stopped, through the new VPN address.
+
+qBittorrent writes no log file, so torrent names don't stay behind there.
+
 ## Update and remove
 
 The Apps page shows "Update available" when the stack in the container is from an older Iglo-OS release.
