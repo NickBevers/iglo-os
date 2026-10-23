@@ -50,6 +50,22 @@ has in the roms folder. The host counts them on the share, so the library shows
 while the container is stopped. A file or a folder counts as one game; hidden
 files and scraper folders like `media` don't.
 
+The **Library** shows every game with its cover, with a filter per system and a
+search box. Covers come from two places, in this order:
+
+1. **Your own cover** on the Games share, in `covers/<system>/`, named like the
+   game file without its extension. For `roms/gba/Metroid Fusion (USA).gba` that
+   is `covers/gba/Metroid Fusion (USA).png`. PNG, JPEG and WebP work.
+2. **Box art from libretro's thumbnail server**, which needs no account. The
+   manager looks up the full file name first, then the name without its tags
+   like `(USA)`. Standard No-Intro and Redump file names match best. The manager
+   shrinks each cover to a small JPEG once and keeps it in `.covers` in its data
+   folder, which data backups skip. A game without box art is asked again after a
+   week. libretro sees the names of the games that the manager looks up.
+
+A game without either cover shows a placeholder with its title. Keep `covers`
+next to `roms`, not inside a system folder, or ES-DE lists the images as games.
+
 **Play** holds heavy background work for up to 8 hours first, then starts the
 container. Its address then shows: add it as a host in Moonlight. **Stop** shuts
 the container down and ends the hold. Save in the game and quit the emulator
