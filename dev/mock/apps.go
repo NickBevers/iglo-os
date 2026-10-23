@@ -26,7 +26,7 @@ type fakeInstalls struct {
 
 func newAppInstaller() (*agent.AppInstaller, error) {
 	stacks := statePath("stacks")
-	for _, dir := range []string{"arr", "jellyfin", "minecraft", "photos", "music", "inbox"} {
+	for _, dir := range []string{"arr", "jellyfin", "minecraft", "photos", "music", "inbox", "gaming"} {
 		if err := os.MkdirAll(filepath.Join(stacks, dir), 0o700); err != nil {
 			return nil, err
 		}
@@ -142,7 +142,7 @@ func (f *fakeInstalls) playOnContainer(stack, action, logPath, exitPath string) 
 	}
 	finish := func(code int) { os.WriteFile(exitPath, []byte(fmt.Sprintln(code)), 0o600) }
 
-	installed := map[string]string{"arr": "media-installed", "jellyfin": "jellyfin-installed", "minecraft": "minecraft-installed", "photos": "photos-installed", "music": "music-installed", "inbox": "inbox-installed"}[stack]
+	installed := map[string]string{"arr": "media-installed", "jellyfin": "jellyfin-installed", "minecraft": "minecraft-installed", "photos": "photos-installed", "music": "music-installed", "inbox": "inbox-installed", "gaming": "gaming-installed"}[stack]
 	if action == "--backup" || action == "--verify" {
 		write("==> Development simulation: no files copied or database restored")
 		write("==> Simulated Photos recovery finished")
@@ -150,7 +150,7 @@ func (f *fakeInstalls) playOnContainer(stack, action, logPath, exitPath string) 
 		return
 	}
 	if action == "--remove" {
-		if id := map[string]string{"photos": "170", "music": "160", "inbox": "180"}[stack]; id != "" {
+		if id := map[string]string{"photos": "170", "music": "160", "inbox": "180", "gaming": "190"}[stack]; id != "" {
 			os.Remove(statePath("binding-containers/" + id + ".conf"))
 		}
 		write("==> Shutting down the container")
@@ -163,7 +163,7 @@ func (f *fakeInstalls) playOnContainer(stack, action, logPath, exitPath string) 
 
 	write("==> Updating the packages in the container")
 	switch stack {
-	case "photos", "music", "inbox":
+	case "photos", "music", "inbox", "gaming":
 		write("==> Development simulation: scoped app update")
 	case "arr":
 		write("==> Copying the stack of Iglo-OS dev into the container")
@@ -209,6 +209,9 @@ func (f *fakeInstalls) play(stack, answers, logPath, exitPath string) {
 	switch stack {
 	case "photos", "music", "inbox":
 		steps = []string{"==> Development simulation: no host or NAS changes", "==> Checking scoped storage bindings", "==> Creating isolated app container", "==> Starting the stack"}
+	case "gaming":
+		steps = []string{"==> Development simulation: no host or NAS changes", "==> Checking the Games share, GPU and input devices",
+			"==> Creating the privileged gaming container", "==> Installing Docker", "==> Starting Wolf"}
 	case "minecraft":
 		steps = []string{"==> Downloading Debian 13 template", "==> Creating container 150 (minecraft) with 5 GB memory", "==> Installing Docker",
 			"==> Copying the stack into the container", "==> Starting the server (the first start downloads Paper and makes the world, this takes a few minutes)",
@@ -238,8 +241,8 @@ func (f *fakeInstalls) play(stack, answers, logPath, exitPath string) {
 		mountMedia(answers)
 	}
 	switch stack {
-	case "photos", "music", "inbox":
-		id := map[string]int{"music": 160, "photos": 170, "inbox": 180}[stack]
+	case "photos", "music", "inbox", "gaming":
+		id := map[string]int{"music": 160, "photos": 170, "inbox": 180, "gaming": 190}[stack]
 		if err := os.MkdirAll(statePath("binding-containers"), 0700); err != nil {
 			finish(1)
 			return

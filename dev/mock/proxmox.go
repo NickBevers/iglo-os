@@ -90,7 +90,12 @@ func (p *fakeProxmox) resources(w http.ResponseWriter, r *http.Request) {
 	{
 		for _, app := range plannedApps {
 			if _, err := os.Stat(statePath(app["name"].(string) + "-installed")); err == nil {
-				resources = append(resources, maps.Clone(app))
+				resource := maps.Clone(app)
+				// Play and Stop on the Gaming page start and stop the fake container.
+				if _, err := os.Stat(statePath("gaming-running")); err == nil && app["name"] == "gaming" {
+					resource["status"], resource["cpu"], resource["mem"], resource["uptime"] = "running", 0.35, 2_200_000_000, 600
+				}
+				resources = append(resources, resource)
 			}
 		}
 	}
@@ -216,6 +221,11 @@ func (p *fakeProxmox) node(w http.ResponseWriter, r *http.Request) {
 	case len(parts) >= 4 && parts[2] == "snapshot":
 		writeData(w, "UPID:pve:"+parts[len(parts)-1])
 	case r.Method == http.MethodPost && strings.Contains(path, "/status/"):
+		if strings.HasSuffix(path, "lxc/190/status/start") {
+			os.WriteFile(statePath("gaming-running"), nil, 0o600)
+		} else if strings.Contains(path, "lxc/190/status/") {
+			os.Remove(statePath("gaming-running"))
+		}
 		writeData(w, "UPID:pve:action")
 	case path == "rrddata" || strings.HasSuffix(path, "/rrddata"):
 		writeData(w, fakeUsage(parts, r.URL.Query().Get("timeframe")))
