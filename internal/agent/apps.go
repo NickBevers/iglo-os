@@ -351,7 +351,7 @@ type appAnswers interface {
 }
 
 // stackDirs are the folders of the installers in the stacks folder.
-var stackDirs = map[string]string{MediaStackApp: "arr", JellyfinApp: "jellyfin", MinecraftApp: "minecraft", PhotosApp: "photos", MusicApp: "music", InboxApp: "inbox"}
+var stackDirs = map[string]string{MediaStackApp: "arr", JellyfinApp: "jellyfin", MinecraftApp: "minecraft", PhotosApp: "photos", MusicApp: "music", InboxApp: "inbox", GamingApp: "gaming"}
 
 // InstallRequest is what the manager sends: the answers of the media stack,
 // of Jellyfin or of Minecraft. With KeepSecrets, empty secret fields take the

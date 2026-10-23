@@ -127,11 +127,12 @@ func run(socketPath string, socketGID int, logger *slog.Logger) error {
 		logger.Info("change of the minecraft players started", "vmid", request.VMID)
 		w.WriteHeader(http.StatusAccepted)
 	})
-	// No app reports stats yet. The music, photo and inbox apps will.
+	// Music reports its queue and Gaming its library. Photos and Inbox will follow.
 	mux.HandleFunc("GET /v1/apps/{app}/stats", func(w http.ResponseWriter, r *http.Request) {
-		if r.PathValue("app") == agent.MusicApp {
+		report := map[string]func(context.Context, int) (agent.AppStats, error){agent.MusicApp: agent.MusicStats, agent.GamingApp: agent.GamingStats}[r.PathValue("app")]
+		if report != nil {
 			vmid, _ := strconv.Atoi(r.URL.Query().Get("vmid"))
-			stats, err := agent.MusicStats(r.Context(), vmid)
+			stats, err := report(r.Context(), vmid)
 			if err != nil {
 				http.Error(w, err.Error(), 502)
 				return

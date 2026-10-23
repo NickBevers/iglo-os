@@ -1,5 +1,5 @@
 # Experimental config v2; replace UUID once for each new host, then keep it.
-hostname = "iglo-retro-poc"
+hostname = "iglo-gaming"
 support_hevc = true
 config_version = 2
 uuid = "IGLO_UUID"
