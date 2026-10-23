@@ -97,6 +97,34 @@ export type Gaming = {
     protectedUntil?: string
 }
 
+// GameSystem is one system folder on the Games share. A game's name is its
+// file name without the extension; the title drops tags like (USA).
+export type GameSystem = {
+    id: string
+    label: string
+    games: { name: string; title: string; cover: boolean }[]
+}
+
+// libretroSystems are the folders of the libretro thumbnail server, for the demo.
+const libretroSystems: Record<string, string> = {
+    gb: 'Nintendo - Game Boy',
+    gbc: 'Nintendo - Game Boy Color',
+    gba: 'Nintendo - Game Boy Advance',
+    n64: 'Nintendo - Nintendo 64',
+    gc: 'Nintendo - GameCube',
+    wii: 'Nintendo - Wii',
+}
+
+// coverURL is the address of a game's cover. The server tries your own cover
+// first, then libretro. The demo has no server, so it asks libretro directly.
+export function coverURL(system: string, game: GameSystem['games'][number]) {
+    if (import.meta.env.VITE_DEMO === '1') {
+        const name = game.name.replace(/[&*/:`<>?\\|"]/g, '_')
+        return `https://thumbnails.libretro.com/${encodeURIComponent(libretroSystems[system] ?? '')}/Named_Boxarts/${encodeURIComponent(name)}.png`
+    }
+    return `/api/gaming/covers/${encodeURIComponent(system)}/${encodeURIComponent(game.name)}${game.cover ? '?own=1' : ''}`
+}
+
 export type BindingInput = {
     id: string
     role: string
@@ -626,6 +654,7 @@ export const api = {
     installScopedApp: (id: string, scoped: ScopedAnswers) => request<void>('POST', `/apps/${id}/install`, { scoped }),
     gaming: () => request<Gaming>('GET', '/gaming'),
     playGaming: (play: boolean) => request<void>('PUT', '/gaming/play', { play }),
+    gamingGames: () => request<{ systems: GameSystem[] }>('GET', '/gaming/games'),
     storageBindings: () => request<{ bindings: StorageBinding[]; sample: boolean }>('GET', '/storage/bindings'),
     createBinding: (input: BindingInput) => request<void>('POST', '/storage/bindings', input),
     deleteBinding: (id: string) => request<void>('DELETE', `/storage/bindings/${encodeURIComponent(id)}`),
