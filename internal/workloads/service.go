@@ -171,6 +171,7 @@ type Service struct {
 	now              func() time.Time
 	wake             chan struct{}
 	memoryHeld       bool // op; avoid rapid pause/resume around the threshold
+	busy             bool // op; work was admitted, so watch host memory closely
 }
 
 func New(opts Options) (*Service, error) {
@@ -329,15 +330,27 @@ func (s *Service) signal() {
 	}
 }
 
+const (
+	busyInterval = 15 * time.Second
+	idleInterval = time.Minute
+)
+
+// Run checks often while work is admitted, so memory pressure or a closing
+// window stops it quickly, and once a minute while nothing may run. Setting
+// changes and gaming protection wake it right away.
 func (s *Service) Run(ctx context.Context) {
-	ticker := time.NewTicker(15 * time.Second)
-	defer ticker.Stop()
 	for {
 		s.Reconcile(ctx)
+		s.op.Lock()
+		wait := idleInterval
+		if s.busy {
+			wait = busyInterval
+		}
+		s.op.Unlock()
 		select {
 		case <-ctx.Done():
 			return
-		case <-ticker.C:
+		case <-time.After(wait):
 		case <-s.wake:
 		}
 	}
@@ -380,6 +393,7 @@ func (s *Service) Reconcile(ctx context.Context) {
 	defer cancel()
 	settings := s.state.Settings
 	view := View{CheckedAt: s.now(), Reason: "Control disabled", Queues: []Queue{}}
+	s.busy = false
 	s.reconcileWorkers(ctx, &view)
 	defer func() {
 		for index := range view.Queues {
@@ -474,6 +488,9 @@ func (s *Service) Reconcile(ctx context.Context) {
 				}
 			}
 		}
+	}
+	if len(allowed) > 0 {
+		s.busy = true
 	}
 	// Pause first, then resume, so transitions cannot admit two queues at once.
 	for _, pause := range []bool{true, false} {

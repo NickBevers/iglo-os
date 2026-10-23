@@ -25,10 +25,16 @@ func TestWorkerLeasesIndependentOfImmich(t *testing.T) {
 	if lease != now.Add(time.Minute).Unix() {
 		t.Fatalf("lease=%d", lease)
 	}
+	if !s.busy {
+		t.Fatal("a lease must be renewed at the busy pace")
+	}
 	s.Protect(120)
 	s.Reconcile(context.Background())
 	if lease != 0 {
 		t.Fatal("admitted while gaming")
+	}
+	if s.busy {
+		t.Fatal("stayed busy with nothing admitted")
 	}
 	s.Protect(0)
 	host.free = 2 << 30

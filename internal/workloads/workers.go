@@ -46,6 +46,8 @@ func (s *Service) reconcileWorkers(ctx context.Context, view *View) {
 			view.WorkerReason = "Preserving RAM headroom"
 		default:
 			until = s.now().Add(time.Minute).Unix()
+			// The lease lasts a minute, so renew it at the busy pace.
+			s.busy = true
 			view.WorkerReason = "Worker admission allowed"
 		}
 	}

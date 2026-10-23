@@ -15,7 +15,7 @@ The queue API (`GET /api/queues`, `PUT /api/queues/{name}` with `isPaused`) is a
 
 ## Admission policy
 
-Every 15 seconds, and after settings changes, the controller:
+Every 15 seconds while work is admitted, once a minute while nothing may run, and right after settings changes or gaming protection, the controller:
 
 - Defers selected queues during timed gaming protection or outside the configured daily processing window.
 - Checks host headroom from Proxmox. Unknown/offline host memory defers new heavy work. After low headroom, another 512 MiB above the configured threshold is required to resume, reducing repeated pause/resume cycles.
