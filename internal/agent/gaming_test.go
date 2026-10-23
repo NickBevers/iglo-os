@@ -69,3 +69,62 @@ func TestOnlyGamingIsPrivileged(t *testing.T) {
 		t.Error("Gaming with 2 GiB was accepted")
 	}
 }
+
+func TestGamingGamesListsTitlesAndOwnCovers(t *testing.T) {
+	root := t.TempDir()
+	for _, path := range []string{
+		"roms/gba/Metroid Fusion (USA).gba",
+		"roms/gba/Mario Kart - Super Circuit (USA).gba",
+		"roms/wii/Wii Sports (USA)/game.wbfs",
+		"covers/gba/Metroid Fusion (USA).png",
+		"covers/gba/notes.txt",
+	} {
+		os.MkdirAll(filepath.Dir(filepath.Join(root, path)), 0o755)
+		os.WriteFile(filepath.Join(root, path), []byte("x"), 0o644)
+	}
+	systems, err := gamingGames(filepath.Join(root, "roms"), filepath.Join(root, "covers"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	gba, wii := systems[2], systems[5]
+	if gba.ID != "gba" || len(gba.Games) != 2 || wii.ID != "wii" || len(wii.Games) != 1 {
+		t.Fatalf("systems = %+v", systems)
+	}
+	for _, game := range gba.Games {
+		if game.Name == "Metroid Fusion (USA)" && (!game.Cover || game.Title != "Metroid Fusion") {
+			t.Errorf("metroid = %+v", game)
+		}
+		if game.Name == "Mario Kart - Super Circuit (USA)" && game.Cover {
+			t.Errorf("mario kart has no cover of its own: %+v", game)
+		}
+	}
+	if wii.Games[0].Name != "Wii Sports (USA)" {
+		t.Errorf("a disc folder keeps its whole name: %+v", wii.Games[0])
+	}
+
+	data, contentType, err := gamingCover(filepath.Join(root, "covers"), "gba", "Metroid Fusion (USA)")
+	if err != nil || contentType != "image/png" || string(data) != "x" {
+		t.Fatalf("cover = %q, %q, %v", data, contentType, err)
+	}
+	for _, name := range []string{"Mario Kart - Super Circuit (USA)", "../../roms/gba/Metroid Fusion (USA)", "..", ".hidden", "a/b"} {
+		if _, _, err := gamingCover(filepath.Join(root, "covers"), "gba", name); err == nil {
+			t.Errorf("%q gave a cover", name)
+		}
+	}
+	if _, _, err := gamingCover(filepath.Join(root, "covers"), "snes", "Metroid Fusion (USA)"); err == nil {
+		t.Error("an unknown system gave a cover")
+	}
+}
+
+func TestGameTitle(t *testing.T) {
+	for name, want := range map[string]string{
+		"Legend of Zelda, The - Ocarina of Time (USA) (Rev 2)": "Legend of Zelda, The - Ocarina of Time",
+		"Tetris [!]":     "Tetris",
+		"(Unl) Homebrew": "(Unl) Homebrew",
+		"Plain":          "Plain",
+	} {
+		if got := GameTitle(name); got != want {
+			t.Errorf("GameTitle(%q) = %q, want %q", name, got, want)
+		}
+	}
+}
