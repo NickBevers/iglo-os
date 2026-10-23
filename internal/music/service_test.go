@@ -35,6 +35,15 @@ func TestURLAllowlist(t *testing.T) {
 		t.Fatal(url, err)
 	}
 }
+func TestEmptyQueueSkipsShareCheck(t *testing.T) {
+	s := fixture(t)
+	checks := 0
+	s.MountOK = func() bool { checks++; return true }
+	os.WriteFile(filepath.Join(s.Dir, "admit-until"), []byte("-1"), 0644)
+	if s.step(context.Background()) || checks != 0 {
+		t.Fatalf("checked the share %d times with nothing queued", checks)
+	}
+}
 func TestAdmissionPauseAndDurablePublication(t *testing.T) {
 	s := fixture(t)
 	count := 0

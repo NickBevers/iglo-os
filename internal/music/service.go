@@ -207,7 +207,9 @@ func (s *Service) Submit(in Input) (Job, error) {
 	return j, nil
 }
 func (s *Service) Run(ctx context.Context) {
-	ticker := time.NewTicker(2 * time.Second)
+	// New jobs and pausing wake the loop. The ticker only notices a new
+	// admission lease or a share that came back.
+	ticker := time.NewTicker(10 * time.Second)
 	defer ticker.Stop()
 	for {
 		select {
@@ -225,12 +227,10 @@ func (s *Service) Run(ctx context.Context) {
 }
 func (s *Service) step(ctx context.Context) bool {
 	s.mu.Lock()
-	if s.state.Paused || !s.admitted() || !s.MountOK() {
-		s.mu.Unlock()
-		return false
-	}
+	// Look for a job first. The admission and share checks read a file and
+	// start findmnt, which an empty queue does not need.
 	index := slices.IndexFunc(s.state.Jobs, func(j Job) bool { return j.State == "queued" })
-	if index < 0 {
+	if index < 0 || s.state.Paused || !s.admitted() || !s.MountOK() {
 		s.mu.Unlock()
 		return false
 	}
