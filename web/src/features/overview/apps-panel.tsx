@@ -46,6 +46,8 @@ export function AppsPanel() {
 function AppRow({ app, jellyfin }: { app: CatalogApp; jellyfin?: Jellyfin }) {
     const busy = app.operation?.state === 'running'
     const running = app.installed && app.status === 'running'
+    // Gaming only runs while you play, so stopped is its normal state.
+    const resting = app.id === 'gaming' && app.installed && app.status === 'stopped'
 
     const state = busy
         ? `${actionNames[app.operation?.action ?? 'install'] ?? 'Working'}…`
@@ -55,7 +57,9 @@ function AppRow({ app, jellyfin }: { app: CatalogApp; jellyfin?: Jellyfin }) {
               : 'Not installed'
           : app.status === 'running'
             ? 'Running'
-            : (app.status ?? 'Stopped')
+            : resting
+              ? 'Starts when you play'
+              : (app.status ?? 'Stopped')
 
     return (
         <li className="flex flex-col gap-2 bg-card px-4 py-3">
@@ -67,7 +71,7 @@ function AppRow({ app, jellyfin }: { app: CatalogApp; jellyfin?: Jellyfin }) {
                             ? 'animate-pulse bg-brand'
                             : running
                               ? 'bg-success'
-                              : app.installed
+                              : app.installed && !resting
                                 ? 'bg-warning'
                                 : 'bg-muted-foreground/40',
                     )}
@@ -92,7 +96,13 @@ function AppRow({ app, jellyfin }: { app: CatalogApp; jellyfin?: Jellyfin }) {
                     )}
                     {(app.installed || !app.planned) && (
                         <Link
-                            to={app.id === 'jellyfin' && app.installed ? '/jellyfin' : '/apps'}
+                            to={
+                                app.installed && app.id === 'jellyfin'
+                                    ? '/jellyfin'
+                                    : app.installed && app.id === 'gaming'
+                                      ? '/gaming'
+                                      : '/apps'
+                            }
                             className="rounded-md px-2 py-1 text-sm text-muted-foreground hover:bg-accent hover:text-foreground"
                         >
                             {app.planned ? 'Details' : app.installed ? 'Manage' : 'Install'}
@@ -108,7 +118,7 @@ function AppRow({ app, jellyfin }: { app: CatalogApp; jellyfin?: Jellyfin }) {
 
 function AppFacts({ app, running, jellyfin }: { app: CatalogApp; running: boolean; jellyfin?: Jellyfin }) {
     if (app.stats) {
-        return <StatsFacts stats={app.stats} />
+        return <StatsFacts stats={app.stats} names={app.id === 'gaming'} />
     }
     if (app.planned) {
         return <Facts>{running ? 'It reports nothing yet.' : 'It is not running.'}</Facts>
@@ -185,7 +195,8 @@ function MinecraftFacts({ app, running }: { app: CatalogApp; running: boolean })
 }
 
 // StatsFacts are the figures of an app in one line, and what it does now.
-function StatsFacts({ stats }: { stats: AppStats }) {
+// With names, the labels are names like Game Boy and keep their capitals.
+function StatsFacts({ stats, names = false }: { stats: AppStats; names?: boolean }) {
     return (
         <div className="flex flex-col gap-2.5 pl-[18px]">
             <p className="text-sm text-muted-foreground">
@@ -193,7 +204,7 @@ function StatsFacts({ stats }: { stats: AppStats }) {
                     .map((figure) =>
                         figure.unit === 'bytes'
                             ? `${formatBytes(figure.value)} ${figure.label.toLowerCase()}`
-                            : `${numbers.format(figure.value)} ${figure.label.toLowerCase()}`,
+                            : `${numbers.format(figure.value)} ${names ? figure.label : figure.label.toLowerCase()}`,
                     )
                     .join(', ')}
             </p>

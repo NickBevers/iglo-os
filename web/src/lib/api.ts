@@ -78,6 +78,23 @@ export type ScopedAnswers = {
     cores: number
     memoryMiB: number
     diskGB: number
+    // privileged confirms that Gaming may create a privileged container. Only Gaming sets it.
+    privileged?: boolean
+}
+
+// Gaming is the state of the Gaming app. The library counts the games per
+// system on the Games share, also while the container is stopped.
+export type Gaming = {
+    installed: boolean
+    vmid?: number
+    status?: string
+    // address is the IP to add as a host in Moonlight, while the container runs.
+    address?: string
+    library: { label: string; value: number }[]
+    libraryError?: string
+    sample?: boolean
+    protected: boolean
+    protectedUntil?: string
 }
 
 export type BindingInput = {
@@ -607,6 +624,8 @@ export const api = {
     pauseMusic: (paused: boolean) => request<void>('PUT', '/music/pause', { paused }),
     photosRecovery: (action: 'backup' | 'verify') => request<void>('POST', `/photos/recovery/${action}`),
     installScopedApp: (id: string, scoped: ScopedAnswers) => request<void>('POST', `/apps/${id}/install`, { scoped }),
+    gaming: () => request<Gaming>('GET', '/gaming'),
+    playGaming: (play: boolean) => request<void>('PUT', '/gaming/play', { play }),
     storageBindings: () => request<{ bindings: StorageBinding[]; sample: boolean }>('GET', '/storage/bindings'),
     createBinding: (input: BindingInput) => request<void>('POST', '/storage/bindings', input),
     deleteBinding: (id: string) => request<void>('DELETE', `/storage/bindings/${encodeURIComponent(id)}`),
