@@ -76,3 +76,35 @@ func (s *Service) SetGamingPower(ctx context.Context, on bool) error {
 	_, err = actions.RunGuestAction(ctx, guest.Node, proxmox.LXC, guest.VMID, action)
 	return err
 }
+
+type gamingAgent interface {
+	GamingGames(ctx context.Context, vmid int) ([]agent.GameSystem, error)
+	GamingCover(ctx context.Context, vmid int, system, name string) ([]byte, string, error)
+}
+
+// GamingGames lists the games per system on the Games share.
+func (s *Service) GamingGames(ctx context.Context) ([]agent.GameSystem, error) {
+	_, guest, err := s.managedGuest(ctx, agent.GamingApp)
+	if err != nil {
+		return nil, err
+	}
+	a, ok := s.Agent.(gamingAgent)
+	if !ok {
+		return nil, agent.ErrAppNotAvailable
+	}
+	return a.GamingGames(ctx, guest.VMID)
+}
+
+// GamingOwnCover returns the cover that you put on the Games share for a
+// game, or agent.ErrNoCover.
+func (s *Service) GamingOwnCover(ctx context.Context, system, name string) ([]byte, string, error) {
+	_, guest, err := s.managedGuest(ctx, agent.GamingApp)
+	if err != nil {
+		return nil, "", err
+	}
+	a, ok := s.Agent.(gamingAgent)
+	if !ok {
+		return nil, "", agent.ErrNoCover
+	}
+	return a.GamingCover(ctx, guest.VMID, system, name)
+}

@@ -3,9 +3,12 @@ package server
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"net/http"
 
+	"iglo/internal/agent"
 	"iglo/internal/apps"
+	"iglo/internal/covers"
 )
 
 type gamingApps interface {
@@ -73,4 +76,59 @@ func (s *server) gamingPlay(w http.ResponseWriter, r *http.Request) {
 	}
 	s.Logger.Info("gaming session started")
 	w.WriteHeader(http.StatusNoContent)
+}
+
+type gamingLibrary interface {
+	GamingGames(context.Context) ([]agent.GameSystem, error)
+	GamingOwnCover(ctx context.Context, system, name string) ([]byte, string, error)
+}
+
+func (s *server) gamingGames(w http.ResponseWriter, r *http.Request) {
+	a, ok := s.Apps.(gamingLibrary)
+	if !ok {
+		writeError(w, http.StatusServiceUnavailable, "update Iglo-OS to see the game library")
+		return
+	}
+	systems, err := a.GamingGames(r.Context())
+	if err != nil {
+		s.writeAppsResult(w, err, 0)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"systems": systems})
+}
+
+// gamingCover serves your own cover from the Games share, and otherwise the
+// box art from libretro. Without either, the page shows a placeholder. The
+// game list marks own covers, and the page asks for them with own=1, so other
+// covers skip the lookup of the container.
+func (s *server) gamingCover(w http.ResponseWriter, r *http.Request) {
+	system, name := r.PathValue("system"), r.PathValue("name")
+	if !agent.ValidGame(system, name) {
+		writeError(w, http.StatusBadRequest, "invalid game")
+		return
+	}
+	if a, ok := s.Apps.(gamingLibrary); ok && r.URL.Query().Get("own") == "1" {
+		data, contentType, err := a.GamingOwnCover(r.Context(), system, name)
+		if err == nil {
+			writeCover(w, contentType, data)
+			return
+		}
+		if !errors.Is(err, agent.ErrNoCover) {
+			s.Logger.Warn("own game cover", "system", system, "error", err)
+		}
+	}
+	if s.Covers != nil {
+		if data, err := s.Covers.Cover(r.Context(), system, name); err == nil {
+			writeCover(w, covers.ContentType, data)
+			return
+		}
+	}
+	w.WriteHeader(http.StatusNotFound)
+}
+
+func writeCover(w http.ResponseWriter, contentType string, data []byte) {
+	w.Header().Set("Content-Type", contentType)
+	w.Header().Set("Cache-Control", "private, max-age=86400")
+	w.Header().Set("X-Content-Type-Options", "nosniff")
+	w.Write(data)
 }

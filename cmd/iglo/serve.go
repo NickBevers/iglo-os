@@ -26,6 +26,7 @@ import (
 	"iglo/internal/auth"
 	"iglo/internal/backups"
 	"iglo/internal/config"
+	"iglo/internal/covers"
 	"iglo/internal/databackup"
 	"iglo/internal/health"
 	"iglo/internal/jellyfin"
@@ -208,6 +209,8 @@ func serve() error {
 		Console:    agentClient,
 		Apps:       appsService,
 		Workloads:  workloadService,
+		// The box art copies start with a dot, so data backups skip them.
+		Covers: covers.New(filepath.Join(cfg.DataDir, ".covers")),
 		SettingsFile: &settingsfile.Service{
 			Updates:    updateService,
 			Health:     healthService,
