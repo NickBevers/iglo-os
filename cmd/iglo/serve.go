@@ -7,12 +7,14 @@ import (
 	"fmt"
 	"iglo/internal/appproxy"
 	"log/slog"
+	"maps"
 	"net"
 	"net/http"
 	"os"
 	"os/signal"
 	"path/filepath"
 	"slices"
+	"strconv"
 	"strings"
 	"syscall"
 	"time"
@@ -78,30 +80,7 @@ func serve() error {
 	restartCtx := ctx
 
 	agentClient := agent.NewClient(cfg.AgentSocket)
-	workloadService, err := workloads.New(workloads.Options{DataDir: cfg.DataDir, Proxmox: pve, WorkerAdmission: func(ctx context.Context, node string, until int64) error {
-		resources, err := pve.Resources(ctx)
-		if err != nil {
-			return err
-		}
-		var failures []error
-		for _, r := range resources {
-			if r.Type != "lxc" || r.Status != "running" || (until != -1 && r.Node != node) {
-				continue
-			}
-			tags := strings.Split(r.Tags, ";")
-			if !slices.Contains(tags, "iglo") {
-				continue
-			}
-			for _, app := range []string{agent.MusicApp, agent.InboxApp} {
-				if slices.Contains(tags, app) {
-					if err := agentClient.WorkerAdmission(ctx, app, r.VMID, until); err != nil {
-						failures = append(failures, err)
-					}
-				}
-			}
-		}
-		return errors.Join(failures...)
-	}})
+	workloadService, err := workloads.New(workloads.Options{DataDir: cfg.DataDir, Proxmox: pve, WorkerAdmission: admissionSender(pve.Resources, agentClient.WorkerAdmission, time.Now)})
 	if err != nil {
 		return err
 	}
@@ -281,6 +260,58 @@ func serve() error {
 var tailnetApps = []struct{ name, title, addr string }{
 	{"seerr", "Seerr", "127.0.0.1:18081"},
 	{"jellyfin", "Jellyfin", "127.0.0.1:18082"},
+}
+
+// admissionRefresh is how often a worker gets an unchanged answer again, in
+// case it was reinstalled with a fresh answer while it kept the same ID.
+const admissionRefresh = 10 * time.Minute
+
+// admissionSender tells the running worker containers whether they may start
+// new work. Each answer is a pct call on the host, so a fixed answer (-1 or 0)
+// only goes out when it changes. A lease always goes out, because it expires.
+// Only the workloads loop calls it, one call at a time.
+func admissionSender(resources func(context.Context) ([]proxmox.Resource, error), send func(context.Context, string, int, int64) error, now func() time.Time) func(context.Context, string, int64) error {
+	type answer struct {
+		until  int64
+		sentAt time.Time
+	}
+	sent := map[string]answer{}
+	return func(ctx context.Context, node string, until int64) error {
+		all, err := resources(ctx)
+		if err != nil {
+			return err
+		}
+		seen := map[string]bool{}
+		var failures []error
+		for _, r := range all {
+			if r.Type != "lxc" || r.Status != "running" || (until != -1 && r.Node != node) {
+				continue
+			}
+			tags := strings.Split(r.Tags, ";")
+			if !slices.Contains(tags, "iglo") {
+				continue
+			}
+			for _, app := range []string{agent.MusicApp, agent.InboxApp} {
+				if !slices.Contains(tags, app) {
+					continue
+				}
+				key := app + "/" + strconv.Itoa(r.VMID)
+				seen[key] = true
+				if last, ok := sent[key]; ok && until <= 0 && last.until == until && now().Sub(last.sentAt) < admissionRefresh {
+					continue
+				}
+				if err := send(ctx, app, r.VMID, until); err != nil {
+					delete(sent, key)
+					failures = append(failures, err)
+					continue
+				}
+				sent[key] = answer{until: until, sentAt: now()}
+			}
+		}
+		// A worker that stopped gets its answer again when it runs again.
+		maps.DeleteFunc(sent, func(key string, _ answer) bool { return !seen[key] })
+		return errors.Join(failures...)
+	}
 }
 
 func tailnetServices() []tailscale.AppService {

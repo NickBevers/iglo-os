@@ -104,8 +104,10 @@ headroom and the desired window/timezone. A two-hour gaming hold defers new jobs
 Existing jobs finish. Native FileFlows scheduling and manual Music pause also
 apply; an external lease never overrides either one.
 
-The manager refreshes a 60-second admission lease every reconciliation. When
+The manager refreshes a 60-second admission lease every 15 seconds. When
 enabled, unknown memory, a gaming hold or an excluded window writes `0`.
+A fixed answer (`0` or `-1`) is only written when it changes, when a worker
+starts again, or every 10 minutes. Each write is a `pct exec` on the host.
 If the manager disappears, the lease expires and new work is deferred. Disabling
 external control writes `-1` and returns authority to native/manual controls.
 FileFlows only obeys the lease after its pre-execute script is configured.
