@@ -72,7 +72,6 @@ for tests, a real Proxmox and releases.
 
 ## Docs
 
-- [The plan for Iglo-OS](docs/plan/README.md)
 - [How it works](docs/architecture.md)
 - [Updates and Telegram](docs/updates.md)
 - [Health and alerts](docs/health.md)

@@ -73,7 +73,7 @@ share settings and saves. Use **only one active session at a time**. The proof o
 concept does not enforce a single-client limit; simultaneous writes can corrupt
 saves. Save in-game and quit the emulator before disconnecting/switching clients.
 
-## Acceptance before a TV purchase
+## Acceptance tests on the target hardware
 
 Run inside the gaming guest:
 
