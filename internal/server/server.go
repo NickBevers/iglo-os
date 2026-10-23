@@ -125,6 +125,11 @@ type SettingsFile interface {
 	Import(ctx context.Context, data []byte, apply bool) (settingsfile.Result, error)
 }
 
+// Covers finds box art for games that have no cover of their own.
+type Covers interface {
+	Cover(ctx context.Context, system, name string) ([]byte, error)
+}
+
 type Workloads interface {
 	Status() workloads.View
 	SaveSettings(workloads.Settings) error
@@ -145,6 +150,7 @@ type Options struct {
 	Console    Console
 	Apps       Apps
 	Workloads  Workloads
+	Covers     Covers
 	// SettingsFile exports and imports iglo.yaml.
 	SettingsFile SettingsFile
 	// DataDir is the folder that a data backup copies.
@@ -226,6 +232,8 @@ func New(options Options) http.Handler {
 	mux.Handle("PUT /api/music/pause", s.requireSession(http.HandlerFunc(s.musicJobs)))
 	mux.Handle("GET /api/gaming", s.requireSession(http.HandlerFunc(s.gamingStatus)))
 	mux.Handle("PUT /api/gaming/play", s.requireSession(http.HandlerFunc(s.gamingPlay)))
+	mux.Handle("GET /api/gaming/games", s.requireSession(http.HandlerFunc(s.gamingGames)))
+	mux.Handle("GET /api/gaming/covers/{system}/{name}", s.requireSession(http.HandlerFunc(s.gamingCover)))
 	mux.Handle("POST /api/apps/{id}/install", s.requireSession(http.HandlerFunc(s.appsInstall)))
 	mux.Handle("POST /api/apps/{id}/retry", s.requireSession(http.HandlerFunc(s.appsRetry)))
 	mux.Handle("DELETE /api/apps/{id}/answers", s.requireSession(http.HandlerFunc(s.appsForget)))

@@ -8,6 +8,7 @@ import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card'
 import { api } from '@/lib/api'
 import { formatDateTime } from '@/lib/format'
+import { GameLibrary } from './game-library'
 
 export function GamingPage() {
     const query = useQuery({ queryKey: ['gaming'], queryFn: api.gaming, refetchInterval: 5000 })
@@ -103,28 +104,7 @@ export function GamingPage() {
                             )}
                         </CardFooter>
                     </Card>
-                    <Card>
-                        <CardHeader>
-                            <CardTitle>Library</CardTitle>
-                            <CardDescription>Games per system in the roms folder of your Games share.</CardDescription>
-                        </CardHeader>
-                        <CardContent>
-                            {query.data.libraryError ? (
-                                <p role="alert" className="text-sm text-destructive">
-                                    {query.data.libraryError}
-                                </p>
-                            ) : (
-                                <dl className="grid grid-cols-2 gap-4 sm:grid-cols-3">
-                                    {query.data.library.map((system) => (
-                                        <div key={system.label} className="flex flex-col gap-1">
-                                            <dt className="text-sm text-muted-foreground">{system.label}</dt>
-                                            <dd className="text-2xl font-semibold tabular-nums">{system.value}</dd>
-                                        </div>
-                                    ))}
-                                </dl>
-                            )}
-                        </CardContent>
-                    </Card>
+                    <GameLibrary />
                     <Card>
                         <CardHeader>
                             <CardTitle>First time</CardTitle>
