@@ -601,6 +601,7 @@
                 "vmid": 160,
                 "status": "running",
                 "stats": {
+                    "sample": true,
                     "figures": [
                         {
                             "label": "Songs",
@@ -654,6 +655,7 @@
                 "vmid": 170,
                 "status": "running",
                 "stats": {
+                    "sample": true,
                     "figures": [
                         {
                             "label": "Photos",
@@ -712,6 +714,7 @@
                 "vmid": 180,
                 "status": "running",
                 "stats": {
+                    "sample": true,
                     "figures": [
                         {
                             "label": "Waiting",
@@ -8579,5 +8582,41 @@
             "ERROR: Backup of VM 101 failed - no space left on device",
             "INFO: Backup job finished with errors"
         ]
+    },
+    "/workloads": {
+        "settings": {
+            "enabled": false,
+            "url": "",
+            "node": "",
+            "reserveGiB": 4,
+            "maxQueues": 1,
+            "queues": [
+                "videoConversion",
+                "faceDetection",
+                "facialRecognition",
+                "smartSearch"
+            ],
+            "window": false,
+            "start": "02:00",
+            "end": "07:00",
+            "timezone": "UTC"
+        },
+        "configured": false,
+        "gamingActive": false,
+        "reason": "Not connected",
+        "freeBytes": 0,
+        "totalBytes": 0,
+        "queues": []
+    },
+    "/storage/bindings": {
+        "bindings": [],
+        "sample": true
+    },
+    "/music/jobs": {
+        "paused": false,
+        "admitted": false,
+        "storageReady": true,
+        "jobs": [],
+        "sample": true
     }
 }

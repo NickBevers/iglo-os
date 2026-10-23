@@ -25,6 +25,8 @@ services:
       SERVER_COUNTRIES: ${VPN_COUNTRIES}
       PORT_FORWARD_ONLY: "on"
       VPN_PORT_FORWARDING: "on"
+      # The kill switch is Gluetun's firewall, which blocks all traffic outside
+      # the tunnel. When the VPN drops, qBittorrent is also bound to lo until it is back.
       # Tell qBittorrent which port ProtonVPN forwarded (from the Gluetun wiki).
       VPN_PORT_FORWARDING_UP_COMMAND: >-
         /bin/sh -c 'wget -O- -nv --retry-connrefused --post-data

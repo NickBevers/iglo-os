@@ -191,6 +191,17 @@ func TestAPIRequiresSession(t *testing.T) {
 	}
 }
 
+func TestNewWorkRoutesRequireSession(t *testing.T) {
+	server, _ := newTestServer(t)
+	for _, endpoint := range []struct{ method, path string }{{"GET", "/api/storage/bindings"}, {"POST", "/api/storage/bindings"}, {"DELETE", "/api/storage/bindings/photos"}, {"GET", "/api/music/jobs"}, {"POST", "/api/music/jobs"}, {"PUT", "/api/music/pause"}, {"POST", "/api/photos/recovery/backup"}} {
+		response := request(t, endpoint.method, server.URL+endpoint.path, "", nil)
+		response.Body.Close()
+		if response.StatusCode != http.StatusUnauthorized {
+			t.Fatalf("%s %s: %d", endpoint.method, endpoint.path, response.StatusCode)
+		}
+	}
+}
+
 func TestPostWithoutCSRFHeaderIsRejected(t *testing.T) {
 	server, _ := newTestServer(t)
 

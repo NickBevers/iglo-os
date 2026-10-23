@@ -38,6 +38,8 @@ const (
 	ActionUpdate  AppAction = "update"
 	ActionRemove  AppAction = "remove"
 	ActionVPN     AppAction = "vpn"
+	ActionBackup  AppAction = "backup"
+	ActionVerify  AppAction = "verify"
 )
 
 // name is the action in a message, like "the removal stopped".
@@ -349,12 +351,13 @@ type appAnswers interface {
 }
 
 // stackDirs are the folders of the installers in the stacks folder.
-var stackDirs = map[string]string{MediaStackApp: "arr", JellyfinApp: "jellyfin", MinecraftApp: "minecraft"}
+var stackDirs = map[string]string{MediaStackApp: "arr", JellyfinApp: "jellyfin", MinecraftApp: "minecraft", PhotosApp: "photos", MusicApp: "music", InboxApp: "inbox"}
 
 // InstallRequest is what the manager sends: the answers of the media stack,
 // of Jellyfin or of Minecraft. With KeepSecrets, empty secret fields take the
 // values of the saved answers of the last failed install.
 type InstallRequest struct {
+	Scoped ScopedAnswers `json:"scoped"`
 	MediaStackAnswers
 	Jellyfin    JellyfinAnswers  `json:"jellyfin"`
 	Minecraft   MinecraftAnswers `json:"minecraft"`
@@ -364,6 +367,7 @@ type InstallRequest struct {
 // SavedAnswers are the answers of the last failed install, without the
 // secrets. The secrets stay on the host.
 type SavedAnswers struct {
+	Scoped            ScopedAnswers     `json:"scoped"`
 	Answers           MediaStackAnswers `json:"answers"`
 	Jellyfin          JellyfinAnswers   `json:"jellyfin"`
 	HasJellyfinAPIKey bool              `json:"hasJellyfinApiKey"`
@@ -377,6 +381,7 @@ type SavedAnswers struct {
 }
 
 type savedFile struct {
+	Scoped    ScopedAnswers     `json:"scoped"`
 	Answers   MediaStackAnswers `json:"answers"`
 	Jellyfin  JellyfinAnswers   `json:"jellyfin"`
 	Minecraft MinecraftAnswers  `json:"minecraft"`
@@ -384,6 +389,9 @@ type savedFile struct {
 }
 
 func (f savedFile) answersFor(app string) appAnswers {
+	if ScopedApp(app) {
+		return scopedAppAnswers{app, f.Scoped}
+	}
 	switch app {
 	case JellyfinApp:
 		return f.Jellyfin
@@ -484,6 +492,9 @@ func (i *AppInstaller) Install(app string, request InstallRequest) error {
 		}
 		return i.installLocked(app, savedFile{Jellyfin: answers})
 	}
+	if ScopedApp(app) {
+		return i.installLocked(app, savedFile{Scoped: request.Scoped})
+	}
 
 	if app == MinecraftApp {
 		answers := request.Minecraft
@@ -571,6 +582,13 @@ func (i *AppInstaller) Update(app string, vmid int) error {
 // Remove removes the container of an installed app. Its backups stay.
 func (i *AppInstaller) Remove(app string, vmid int) error {
 	return i.runOnContainer(app, ActionRemove, vmid)
+}
+
+func (i *AppInstaller) Recover(app string, vmid int, action AppAction) error {
+	if app != PhotosApp || (action != ActionBackup && action != ActionVerify) {
+		return ErrUnknownApp
+	}
+	return i.runOnContainer(app, action, vmid)
 }
 
 // VPNCountries reads the VPN countries of the media stack in container vmid.
@@ -764,6 +782,7 @@ func (i *AppInstaller) Saved(app string) (*SavedAnswers, error) {
 
 	answers, jellyfin, minecraft := file.Answers, file.Jellyfin, file.Minecraft
 	view := &SavedAnswers{
+		Scoped:                   file.Scoped,
 		HasJellyfinAPIKey:        answers.JellyfinAPIKey != "",
 		HasJellyfinAdminPassword: answers.JellyfinAdminPassword != "" || jellyfin.AdminPassword != "",
 		HasOpenSubtitlesPassword: answers.OpenSubtitlesPassword != "",

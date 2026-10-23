@@ -58,6 +58,8 @@ func run(socketPath string, socketGID int, logger *slog.Logger) error {
 	runner := agent.NewRunner()
 
 	mux := http.NewServeMux()
+	agent.NewBindings().Register(mux)
+	agent.RegisterWorkers(mux)
 	mux.HandleFunc("GET /v1/health", health)
 	mux.HandleFunc("POST /v1/jobs", startJob(runner, logger))
 	mux.HandleFunc("GET /v1/jobs/{id}", getJob(runner))
@@ -74,6 +76,9 @@ func run(socketPath string, socketGID int, logger *slog.Logger) error {
 	mux.HandleFunc("POST /v1/upgrade", startUpgrade(upgrader, logger))
 	mux.HandleFunc("GET /v1/upgrade", upgradeStatus(upgrader))
 	apps := agent.NewAppInstaller()
+	for _, action := range []agent.AppAction{agent.ActionBackup, agent.ActionVerify} {
+		mux.HandleFunc("POST /v1/apps/photos/"+string(action), appOnContainer(func(app string, vmid int) error { return apps.Recover(agent.PhotosApp, vmid, action) }, "photos recovery started", logger))
+	}
 	mux.HandleFunc("POST /v1/apps/{app}/install", installApp(apps, logger))
 	mux.HandleFunc("POST /v1/apps/{app}/retry", retryApp(apps, logger))
 	mux.HandleFunc("POST /v1/apps/{app}/update", appOnContainer(apps.Update, "app update started", logger))
@@ -124,6 +129,16 @@ func run(socketPath string, socketGID int, logger *slog.Logger) error {
 	})
 	// No app reports stats yet. The music, photo and inbox apps will.
 	mux.HandleFunc("GET /v1/apps/{app}/stats", func(w http.ResponseWriter, r *http.Request) {
+		if r.PathValue("app") == agent.MusicApp {
+			vmid, _ := strconv.Atoi(r.URL.Query().Get("vmid"))
+			stats, err := agent.MusicStats(r.Context(), vmid)
+			if err != nil {
+				http.Error(w, err.Error(), 502)
+				return
+			}
+			writeJSON(w, 200, stats)
+			return
+		}
 		http.Error(w, agent.ErrNoStats.Error(), http.StatusNotFound)
 	})
 	mux.HandleFunc("GET /v1/apps/{app}/answers", func(w http.ResponseWriter, r *http.Request) {

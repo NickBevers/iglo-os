@@ -16,11 +16,12 @@ build: web
 	GOOS=linux GOARCH=amd64 CGO_ENABLED=0 go build -trimpath -ldflags "$(LDFLAGS)" -o $(BUNDLE)/iglo-agent ./cmd/iglo-agent
 	GOOS=linux GOARCH=amd64 CGO_ENABLED=0 go build -trimpath -ldflags "$(LDFLAGS)" -o $(BUNDLE)/stacks/arr/iglo-arr ./cmd/iglo-arr
 	GOOS=linux GOARCH=amd64 CGO_ENABLED=0 go build -trimpath -ldflags "$(LDFLAGS)" -o $(BUNDLE)/stacks/jellyfin/iglo-jellyfin ./cmd/iglo-jellyfin
+	GOOS=linux GOARCH=amd64 CGO_ENABLED=0 go build -trimpath -ldflags "$(LDFLAGS)" -o $(BUNDLE)/stacks/music/iglo-music ./cmd/iglo-music
 
 bundle: build
 	echo "$(VERSION)" >$(BUNDLE)/VERSION
 	install -m 0755 deploy/install.sh $(BUNDLE)/install.sh
-	install -m 0644 deploy/lib.sh deploy/iglo.service deploy/iglo-agent.service deploy/iglo-mdns.service $(BUNDLE)/
+	install -m 0644 deploy/lib.sh deploy/storage.sh deploy/scoped-stack.sh deploy/iglo.service deploy/iglo-agent.service deploy/iglo-mdns.service $(BUNDLE)/
 	install -m 0755 deploy/iglo-mdns $(BUNDLE)/iglo-mdns
 	install -m 0755 deploy/stacks/arr/install.sh $(BUNDLE)/stacks/arr/install.sh
 	install -m 0644 deploy/stacks/arr/compose.yaml deploy/stacks/arr/recyclarr.yml $(BUNDLE)/stacks/arr/
@@ -28,6 +29,17 @@ bundle: build
 	mkdir -p $(BUNDLE)/stacks/minecraft
 	install -m 0755 deploy/stacks/minecraft/install.sh $(BUNDLE)/stacks/minecraft/install.sh
 	install -m 0644 deploy/stacks/minecraft/compose.yaml $(BUNDLE)/stacks/minecraft/
+	mkdir -p $(BUNDLE)/stacks/photos
+	install -m 0755 deploy/stacks/photos/install.sh deploy/stacks/photos/recovery.sh $(BUNDLE)/stacks/photos/
+	install -m 0644 deploy/stacks/photos/compose.yaml deploy/stacks/photos/compose.override.yaml $(BUNDLE)/stacks/photos/
+	mkdir -p $(BUNDLE)/stacks/music $(BUNDLE)/stacks/inbox
+	install -m 0755 deploy/stacks/music/install.sh $(BUNDLE)/stacks/music/
+	install -m 0644 deploy/stacks/music/iglo-music.service $(BUNDLE)/stacks/music/
+	install -m 0755 deploy/stacks/inbox/install.sh $(BUNDLE)/stacks/inbox/
+	install -m 0644 deploy/stacks/inbox/compose.yaml deploy/stacks/inbox/pre-execute.cs $(BUNDLE)/stacks/inbox/
+	mkdir -p $(BUNDLE)/gaming-poc
+	install -m 0755 deploy/gaming-poc/install.sh deploy/gaming-poc/diagnose.sh $(BUNDLE)/gaming-poc/
+	install -m 0644 deploy/gaming-poc/compose.yaml deploy/gaming-poc/config.toml $(BUNDLE)/gaming-poc/
 	# COPYFILE_DISABLE stops macOS tar from adding ._ files, which the agent refuses.
 	COPYFILE_DISABLE=1 tar -czf $(BUNDLE).tar.gz -C dist $(notdir $(BUNDLE))
 

@@ -34,6 +34,7 @@ const fixtures = {}
 for (const path of [
     '/auth/me',
     '/overview',
+    '/workloads',
     '/updates',
     '/jellyfin',
     '/self-update',

@@ -37,6 +37,19 @@ func serveAgent(socket string) error {
 		return err
 	}
 	mux := http.NewServeMux()
+	bindings := agent.NewBindings()
+	bindings.Dir = statePath("bindings")
+	bindings.Root = statePath("shares")
+	bindings.Units = statePath("binding-units")
+	bindings.Containers = statePath("binding-containers")
+	bindings.Simulation = true
+	if err := os.MkdirAll(bindings.Units, 0700); err != nil {
+		return err
+	}
+	bindings.Register(mux)
+	if err := addMusicRoutes(mux); err != nil {
+		return err
+	}
 	mux.HandleFunc("GET /v1/health", func(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, agent.Health{Status: "ok", Hostname: "pve", Version: "dev"})
 	})

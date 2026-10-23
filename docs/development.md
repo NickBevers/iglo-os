@@ -12,6 +12,7 @@ make dev-code   # the current login code, in a second terminal
 Open http://localhost:5173 and log in with `admin` / `iglo-dev-password` and the code from `make dev-code`.
 
 - The fake Proxmox has one node, the manager, Jellyfin, a Docker container and a VM, with disks, storage, backups and tasks.
+- Background work can connect to the fake Immich queues at `http://127.0.0.1:18283`, with the sample key `iglo-dev-immich` and node `pve`. This tests the controls, not real Immich performance. The fixture resets its queue state when restarted.
 - The fake host agent answers update checks, logs and backup jobs. App installs use the real installer of the agent, and only play the install script: it takes a few seconds. The password `failfailfail12` makes an install fail.
 - The fake Proxmox has a Jellyfin container. To try the Jellyfin install, run `touch .dev/no-jellyfin` and reload the Apps page.
 - The fake host agent has a NAS share mounted for the apps. To choose the media folder in the install forms, run `touch .dev/no-media-mount`. A working install mounts its answer again.
@@ -20,7 +21,7 @@ Open http://localhost:5173 and log in with `admin` / `iglo-dev-password` and the
 - Everything you change stays in `.dev/`. Delete that folder to start again.
 - A fake Jellyfin on `http://127.0.0.1:18096` has a library, two things playing and recent items. The manager is connected to it on the first start. Images are not faked.
 - The self-update check needs the real GitHub.
-- The apps that Iglo-OS can't install yet (Music, Photos and Inbox) have fake containers with fake stats, so the dashboard shows them. To hide them, run `touch .dev/no-planned-apps`.
+- The apps that Iglo-OS can't install yet (Music, Photos and Inbox) have fake containers with fake stats. Their cards show **Integration planned** and **Sample data**; the preview does not provide working installers. To hide the fake containers and stats, run `touch .dev/no-planned-apps`. The planned catalog entries remain visible.
 
 ## A demo for a review
 

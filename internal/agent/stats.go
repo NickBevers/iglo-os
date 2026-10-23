@@ -15,6 +15,8 @@ var ErrNoStats = errors.New("this app can't report its stats yet")
 // app fills it in its own way: the music app from its downloads, the photo
 // app from Immich, the inbox from FileFlows.
 type AppStats struct {
+	// Sample marks synthetic statistics from the local mock and recorded demo.
+	Sample   bool       `json:"sample,omitempty"`
 	Figures  []Figure   `json:"figures"`
 	Activity []Activity `json:"activity"`
 }

@@ -1,0 +1,21 @@
+[Unit]
+Description=Iglo music worker
+After=network-online.target
+Wants=network-online.target
+RequiresMountsFor=/data/music
+[Service]
+ExecStart=/usr/local/bin/iglo-music
+User=iglo-music
+Group=iglo-music
+Restart=on-failure
+CPUQuota=200%
+MemoryMax=768M
+TasksMax=128
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/var/lib/iglo-music /data/music
+UMask=0002
+[Install]
+WantedBy=multi-user.target

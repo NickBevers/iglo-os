@@ -1,0 +1,23 @@
+# The upstream v3.3.5 compose file is vendored unchanged as compose.yaml.
+# Derivatives and model downloads stay on SSD; managed originals stay on SMB.
+services:
+  immich-server:
+    volumes:
+      - /var/lib/immich/thumbs:/data/thumbs
+      - /var/lib/immich/encoded-video:/data/encoded-video
+    cpus: 2
+    mem_limit: 3g
+  immich-machine-learning:
+    volumes:
+      - /var/lib/immich/model-cache:/cache
+    cpus: 2
+    mem_limit: 2g
+    environment:
+      MACHINE_LEARNING_MODEL_REVISION: v2
+      MACHINE_LEARNING_WORKERS: 1
+  database:
+    cpus: 1
+    mem_limit: 1536m
+  redis:
+    cpus: 0.5
+    mem_limit: 256m

@@ -85,6 +85,26 @@ type Client struct {
 	http *http.Client
 }
 
+type BindingView struct {
+	Bindings []Binding `json:"bindings"`
+	Sample   bool      `json:"sample"`
+}
+
+func (c *Client) StorageBindings(ctx context.Context) (BindingView, error) {
+	var view BindingView
+	err := c.do(ctx, http.MethodGet, "/v1/storage/bindings", nil, &view)
+	return view, err
+}
+func (c *Client) CreateBinding(ctx context.Context, in BindingInput) error {
+	return c.do(ctx, http.MethodPost, "/v1/storage/bindings", in, nil)
+}
+func (c *Client) DeleteBinding(ctx context.Context, id string) error {
+	if !bindingID.MatchString(id) {
+		return ErrInvalidAnswers
+	}
+	return c.do(ctx, http.MethodDelete, "/v1/storage/bindings/"+id, nil, nil)
+}
+
 func NewClient(socketPath string) *Client {
 	transport := &http.Transport{
 		DialContext: func(ctx context.Context, _, _ string) (net.Conn, error) {
@@ -239,6 +259,13 @@ func (c *Client) UpdateApp(ctx context.Context, app string, vmid int) error {
 
 func (c *Client) RemoveApp(ctx context.Context, app string, vmid int) error {
 	return c.do(ctx, http.MethodPost, "/v1/apps/"+url.PathEscape(app)+"/remove", AppContainerRequest{VMID: vmid}, nil)
+}
+
+func (c *Client) RecoverPhotos(ctx context.Context, vmid int, action AppAction) error {
+	if action != ActionBackup && action != ActionVerify {
+		return ErrInvalidJob
+	}
+	return c.do(ctx, http.MethodPost, "/v1/apps/photos/"+string(action), AppContainerRequest{VMID: vmid}, nil)
 }
 
 // VPNRequest gives the media stack in container VMID new VPN settings.

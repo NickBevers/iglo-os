@@ -51,7 +51,7 @@ function AppRow({ app, jellyfin }: { app: CatalogApp; jellyfin?: Jellyfin }) {
         ? `${actionNames[app.operation?.action ?? 'install'] ?? 'Working'}…`
         : !app.installed
           ? app.planned
-              ? 'Comes in a later version'
+              ? 'Integration planned'
               : 'Not installed'
           : app.status === 'running'
             ? 'Running'
@@ -75,6 +75,8 @@ function AppRow({ app, jellyfin }: { app: CatalogApp; jellyfin?: Jellyfin }) {
                 />
                 <span className="font-medium">{app.name}</span>
                 <span className="text-sm text-muted-foreground">{state}</span>
+                {app.installed && app.planned && <Badge variant="outline">Integration planned</Badge>}
+                {app.stats?.sample && <Badge variant="outline">Sample data</Badge>}
                 {app.updateAvailable && !busy && <Badge variant="warning">Update available</Badge>}
                 <div className="ml-auto flex items-center gap-1">
                     {app.hostUrl && running && (
@@ -93,7 +95,7 @@ function AppRow({ app, jellyfin }: { app: CatalogApp; jellyfin?: Jellyfin }) {
                             to={app.id === 'jellyfin' && app.installed ? '/jellyfin' : '/apps'}
                             className="rounded-md px-2 py-1 text-sm text-muted-foreground hover:bg-accent hover:text-foreground"
                         >
-                            {app.installed ? 'Manage' : 'Install'}
+                            {app.planned ? 'Details' : app.installed ? 'Manage' : 'Install'}
                             <span className="sr-only"> {app.name}</span>
                         </Link>
                     )}

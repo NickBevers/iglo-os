@@ -131,7 +131,7 @@ var Catalog = []App{{
 	Name:        "Music",
 	Description: "Downloads songs from YouTube Music with their cover art, for Jellyfin and Finamp. Music videos only when you ask.",
 	Tag:         "music",
-	Planned:     true,
+	Stack:       true,
 	Stats:       true,
 	Links:       []Link{},
 }, {
@@ -139,16 +139,14 @@ var Catalog = []App{{
 	Name:        "Photos",
 	Description: "Immich: the phones back up their photos to the NAS, with faces and search.",
 	Tag:         "photos",
-	Planned:     true,
-	Stats:       true,
+	Stack:       true,
 	Links:       []Link{{Name: "Immich", Description: "Photos", Port: 2283}},
 }, {
 	ID:          "inbox",
 	Name:        "Inbox",
-	Description: "Converts your own videos so every device plays them, then moves them to the Home videos library.",
+	Description: "FileFlows processes your own videos into the Home videos output library. Configure its flow and schedule after installation; sources stay read only.",
 	Tag:         "inbox",
-	Planned:     true,
-	Stats:       true,
+	Stack:       true,
 	Links:       []Link{{Name: "FileFlows", Description: "Converter", Port: 19200}},
 }}
 
@@ -460,9 +458,14 @@ func (s *Service) guestIP(ctx context.Context, guest proxmox.Resource) string {
 }
 
 func (s *Service) Install(ctx context.Context, background context.Context, id string, request agent.InstallRequest) error {
-	// Before the answers: a planned app has no answers to check.
 	if index := slices.IndexFunc(Catalog, func(app App) bool { return app.ID == id }); index >= 0 && Catalog[index].Planned {
 		return ErrPlanned
+	}
+	if agent.ScopedApp(id) {
+		if err := request.Scoped.ValidateFor(id); err != nil {
+			return err
+		}
+		return s.start(ctx, background, id, func(app App) error { return s.Agent.InstallApp(ctx, app.ID, request) })
 	}
 	// With KeepSecrets, the agent checks the answers after it adds the saved secrets.
 	if !request.KeepSecrets {
@@ -498,8 +501,8 @@ func (s *Service) Forget(ctx context.Context, id string) error {
 	return s.Agent.ForgetAppAnswers(ctx, id)
 }
 
-// Update makes a snapshot, then updates the packages, the stack and the
-// images of the app. When the update fails, it rolls back to the snapshot.
+// Update uses snapshots for legacy stacks. Scoped apps export app data in
+// their installers and require deliberate recovery across guest/NAS boundaries.
 func (s *Service) Update(ctx context.Context, background context.Context, id string) error {
 	app, guest, err := s.managedGuest(ctx, id)
 	if err != nil {
@@ -513,14 +516,19 @@ func (s *Service) Update(ctx context.Context, background context.Context, id str
 	}
 
 	op := operation{app: app, action: agent.ActionUpdate, guest: guest}
-	supported, err := s.Proxmox.SnapshotSupported(ctx, guest.Node, guest.VMID)
-	if err != nil {
-		return fmt.Errorf("could not check snapshot support: %w", err)
-	}
-	if supported {
-		op.snapshot = snapshotPrefix + time.Now().Format("20060102_150405")
-		if err := s.Proxmox.CreateSnapshot(ctx, guest.Node, guest.VMID, op.snapshot, "Before app update by iglo"); err != nil {
-			return fmt.Errorf("could not create a snapshot, so nothing was updated: %w", err)
+	// Scoped apps publish data outside the guest disk. Rewinding only their
+	// local database/queue could lose metadata or repeat already-published jobs.
+	// Their installers export app data before updates; recovery is deliberate.
+	if !agent.ScopedApp(id) {
+		supported, err := s.Proxmox.SnapshotSupported(ctx, guest.Node, guest.VMID)
+		if err != nil {
+			return fmt.Errorf("could not check snapshot support: %w", err)
+		}
+		if supported {
+			op.snapshot = snapshotPrefix + time.Now().Format("20060102_150405")
+			if err := s.Proxmox.CreateSnapshot(ctx, guest.Node, guest.VMID, op.snapshot, "Before app update by iglo"); err != nil {
+				return fmt.Errorf("could not create a snapshot, so nothing was updated: %w", err)
+			}
 		}
 	}
 
@@ -594,6 +602,30 @@ func (s *Service) Players(ctx context.Context, id string) (agent.MinecraftPlayer
 	}
 
 	return s.Agent.MinecraftPlayers(ctx, guest.VMID)
+}
+
+func (s *Service) RecoverPhotos(ctx context.Context, background context.Context, action agent.AppAction) error {
+	if action != agent.ActionBackup && action != agent.ActionVerify {
+		return agent.ErrInvalidAnswers
+	}
+	app, guest, err := s.runningApp(ctx, agent.PhotosApp, agent.PhotosApp)
+	if err != nil {
+		return err
+	}
+	if err = s.checkIdle(ctx); err != nil {
+		return err
+	}
+	a, ok := s.Agent.(interface {
+		RecoverPhotos(context.Context, int, agent.AppAction) error
+	})
+	if !ok {
+		return agent.ErrAppNotAvailable
+	}
+	if err = a.RecoverPhotos(ctx, guest.VMID, action); err != nil {
+		return err
+	}
+	s.watch(background, operation{app: app, action: action, guest: guest})
+	return nil
 }
 
 // ChangePlayers gives the Minecraft server a new whitelist and operators,
@@ -759,6 +791,9 @@ func (s *Service) monitor(ctx context.Context, op operation, generation int) {
 		}
 
 		switch op.action {
+		case agent.ActionBackup, agent.ActionVerify:
+			s.Logger.Info("photos recovery finished", "action", op.action, "state", status.State)
+			s.Notify(ctx, fmt.Sprintf("Photos %s: %s", op.action, status.State))
 		case agent.ActionUpdate:
 			s.finishUpdate(ctx, op, status)
 		case agent.ActionRemove:
@@ -800,6 +835,9 @@ func (s *Service) finishUpdate(ctx context.Context, op operation, status agent.A
 	}
 
 	rollback := "There is no snapshot, because the storage does not support it, so check the container."
+	if agent.ScopedApp(op.app.ID) {
+		rollback = "Automatic disk rollback is disabled because NAS data is outside the guest. Inspect the failed operation and application backup before recovering."
+	}
 	if op.snapshot != "" {
 		rollback = fmt.Sprintf("Iglo-OS rolled the container back to snapshot %s, from before the update.", op.snapshot)
 		if err := s.Proxmox.RollbackSnapshot(ctx, op.guest.Node, vmid, op.snapshot); err != nil {

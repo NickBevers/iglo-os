@@ -53,6 +53,86 @@ export type UsagePoint = {
 export type UsageTarget = { node: string; type?: Guest['type']; vmid?: number }
 
 export type Session = { username: string }
+export type MusicJob = {
+    id: string
+    url: string
+    video: boolean
+    state: string
+    error?: string
+    file?: string
+    createdAt: string
+    finishedAt?: string
+}
+export type MusicQueue = {
+    paused: boolean
+    admitted: boolean
+    storageReady?: boolean
+    jobs: MusicJob[]
+    sample?: boolean
+}
+export type ScopedAnswers = {
+    storage: string
+    libraryBinding: string
+    outputBinding: string
+    backupBinding: string
+    cores: number
+    memoryMiB: number
+    diskGB: number
+}
+
+export type BindingInput = {
+    id: string
+    role: string
+    server: string
+    share: string
+    username: string
+    password: string
+    readOnly: boolean
+}
+export type StorageBinding = {
+    id: string
+    role: string
+    source: string
+    path: string
+    readOnly: boolean
+    mounted: boolean
+    consumers: string[]
+}
+
+export type WorkloadSettings = {
+    workers?: boolean
+    enabled: boolean
+    url: string
+    apiKey?: string
+    node: string
+    reserveGiB: number
+    maxQueues: number
+    queues: string[]
+    window: boolean
+    start: string
+    end: string
+    timezone: string
+}
+
+export type Workloads = {
+    workerReason?: string
+    workerError?: string
+    settings: WorkloadSettings
+    configured: boolean
+    gamingUntil?: string
+    gamingActive: boolean
+    checkedAt?: string
+    reason: string
+    error?: string
+    freeBytes: number
+    totalBytes: number
+    queues: {
+        name: string
+        isPaused: boolean
+        owned: boolean
+        statistics: { active: number; waiting: number; paused: number; failed: number }
+    }[]
+}
 
 export type GuestAction = 'start' | 'shutdown' | 'reboot' | 'stop'
 
@@ -314,7 +394,7 @@ export type DockerLogs = {
 
 export type AppOperation = {
     app?: string
-    action?: 'install' | 'update' | 'remove' | 'vpn' | 'players'
+    action?: 'install' | 'update' | 'remove' | 'vpn' | 'players' | 'backup' | 'verify'
     state: 'idle' | 'running' | 'succeeded' | 'failed'
     message?: string
     startedAt?: string
@@ -361,6 +441,7 @@ export type MinecraftAnswers = {
 export type MinecraftPlayers = { whitelist: string[]; operators: string[] }
 
 export type SavedAnswers = {
+    scoped: ScopedAnswers
     answers: MediaStackAnswers
     jellyfin: JellyfinAnswers
     minecraft: MinecraftAnswers
@@ -375,6 +456,7 @@ export type SavedAnswers = {
 // AppStats are what an app holds and does right now. A figure with the unit
 // bytes is a size. An activity has a progress of 0 to 100, or -1 for none.
 export type AppStats = {
+    sample?: boolean
     figures: { label: string; value: number; unit?: 'bytes' }[]
     activity: { title: string; detail?: string; progress: number }[]
 }
@@ -520,6 +602,17 @@ async function request<T>(method: string, path: string, body?: unknown, contentT
 }
 
 export const api = {
+    musicJobs: () => request<MusicQueue>('GET', '/music/jobs'),
+    submitMusic: (input: { url: string; video: boolean }) => request<MusicJob>('POST', '/music/jobs', input),
+    pauseMusic: (paused: boolean) => request<void>('PUT', '/music/pause', { paused }),
+    photosRecovery: (action: 'backup' | 'verify') => request<void>('POST', `/photos/recovery/${action}`),
+    installScopedApp: (id: string, scoped: ScopedAnswers) => request<void>('POST', `/apps/${id}/install`, { scoped }),
+    storageBindings: () => request<{ bindings: StorageBinding[]; sample: boolean }>('GET', '/storage/bindings'),
+    createBinding: (input: BindingInput) => request<void>('POST', '/storage/bindings', input),
+    deleteBinding: (id: string) => request<void>('DELETE', `/storage/bindings/${encodeURIComponent(id)}`),
+    workloads: () => request<Workloads>('GET', '/workloads'),
+    saveWorkloadSettings: (settings: WorkloadSettings) => request<void>('PUT', '/workloads/settings', settings),
+    protectWorkloads: (minutes: number) => request<void>('PUT', '/workloads/protection', { minutes }),
     me: () => request<Session>('GET', '/auth/me'),
     login: (credentials: { username: string; password: string; code: string }) =>
         request<Session>('POST', '/auth/login', credentials),

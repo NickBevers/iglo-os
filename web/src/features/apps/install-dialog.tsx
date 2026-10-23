@@ -19,6 +19,7 @@ import { api, type Apps, type CatalogApp, type MediaStackAnswers, type SavedAnsw
 import { appsQuery } from '@/lib/queries'
 import { Field, Section } from './form-parts'
 import { JellyfinForm } from './jellyfin-form'
+import { ScopedForm } from './scoped-form'
 import { MinecraftForm } from './minecraft-form'
 import { keepSaved } from './keep-saved'
 import { MediaSourceFields } from './media-source'
@@ -34,6 +35,9 @@ type InstallDialogProps = {
 }
 
 const descriptions: Record<string, string> = {
+    photos: 'Install Immich in an isolated container with a local database and scoped access to your Photos and Backups shares.',
+    music: 'Install a music worker with local staging and write access to your Music share.',
+    inbox: 'Install FileFlows with read access to Inbox and write access to the Videos output share.',
     jellyfin: 'Iglo-OS makes a new container for Jellyfin on this host, with read access to your movies and series.',
     media: 'Iglo-OS makes a new container for it on this host. Nothing else changes, except that Jellyfin gets read access to the media folder.',
     minecraft: 'Iglo-OS makes a new container on this host with a Paper server: the Minecraft Java server, but faster.',
@@ -52,13 +56,17 @@ export function InstallDialog({ app, defaults, saved, open, onOpenChange }: Inst
                         <JellyfinForm defaults={defaults} saved={saved} onDone={() => onOpenChange(false)} />
                     ) : app.id === 'minecraft' ? (
                         <MinecraftForm defaults={defaults} saved={saved} onDone={() => onOpenChange(false)} />
-                    ) : (
+                    ) : ['photos', 'music', 'inbox'].includes(app.id) ? (
+                        <ScopedForm id={app.id} defaults={defaults} saved={saved} onDone={() => onOpenChange(false)} />
+                    ) : app.id === 'media' ? (
                         <MediaStackForm
                             app={app}
                             defaults={defaults}
                             saved={saved}
                             onDone={() => onOpenChange(false)}
                         />
+                    ) : (
+                        <p>This application has no installer.</p>
                     ))}
             </DialogContent>
         </Dialog>

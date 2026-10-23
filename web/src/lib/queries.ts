@@ -15,6 +15,12 @@ export const overviewQuery = queryOptions({
     refetchInterval: 5000,
 })
 
+export const workloadsQuery = queryOptions({
+    queryKey: ['workloads'],
+    queryFn: api.workloads,
+    refetchInterval: 5000,
+})
+
 export function usageQuery(target: UsageTarget, timeframe: Timeframe) {
     return queryOptions({
         queryKey: ['usage', target.node, target.type, target.vmid, timeframe],

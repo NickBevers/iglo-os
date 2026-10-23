@@ -17,9 +17,12 @@ import { Route as AppBackupsRouteImport } from './routes/_app/backups'
 import { Route as AppHealthRouteImport } from './routes/_app/health'
 import { Route as AppJellyfinRouteImport } from './routes/_app/jellyfin'
 import { Route as AppLogsRouteImport } from './routes/_app/logs'
+import { Route as AppMusicRouteImport } from './routes/_app/music'
 import { Route as AppSettingsRouteImport } from './routes/_app/settings'
+import { Route as AppStorageRouteImport } from './routes/_app/storage'
 import { Route as AppTailscaleRouteImport } from './routes/_app/tailscale'
 import { Route as AppUpdatesRouteImport } from './routes/_app/updates'
+import { Route as AppWorkloadsRouteImport } from './routes/_app/workloads'
 import { Route as AppConsoleVmidRouteImport } from './routes/_app/console/$vmid'
 
 const AppRoute = AppRouteImport.update({
@@ -61,9 +64,19 @@ const AppLogsRoute = AppLogsRouteImport.update({
   path: '/logs',
   getParentRoute: () => AppRoute,
 } as any)
+const AppMusicRoute = AppMusicRouteImport.update({
+  id: '/music',
+  path: '/music',
+  getParentRoute: () => AppRoute,
+} as any)
 const AppSettingsRoute = AppSettingsRouteImport.update({
   id: '/settings',
   path: '/settings',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppStorageRoute = AppStorageRouteImport.update({
+  id: '/storage',
+  path: '/storage',
   getParentRoute: () => AppRoute,
 } as any)
 const AppTailscaleRoute = AppTailscaleRouteImport.update({
@@ -74,6 +87,11 @@ const AppTailscaleRoute = AppTailscaleRouteImport.update({
 const AppUpdatesRoute = AppUpdatesRouteImport.update({
   id: '/updates',
   path: '/updates',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppWorkloadsRoute = AppWorkloadsRouteImport.update({
+  id: '/workloads',
+  path: '/workloads',
   getParentRoute: () => AppRoute,
 } as any)
 const AppConsoleVmidRoute = AppConsoleVmidRouteImport.update({
@@ -90,9 +108,12 @@ export interface FileRoutesByFullPath {
   '/health': typeof AppHealthRoute
   '/jellyfin': typeof AppJellyfinRoute
   '/logs': typeof AppLogsRoute
+  '/music': typeof AppMusicRoute
   '/settings': typeof AppSettingsRoute
+  '/storage': typeof AppStorageRoute
   '/tailscale': typeof AppTailscaleRoute
   '/updates': typeof AppUpdatesRoute
+  '/workloads': typeof AppWorkloadsRoute
   '/console/$vmid': typeof AppConsoleVmidRoute
 }
 export interface FileRoutesByTo {
@@ -102,9 +123,12 @@ export interface FileRoutesByTo {
   '/health': typeof AppHealthRoute
   '/jellyfin': typeof AppJellyfinRoute
   '/logs': typeof AppLogsRoute
+  '/music': typeof AppMusicRoute
   '/settings': typeof AppSettingsRoute
+  '/storage': typeof AppStorageRoute
   '/tailscale': typeof AppTailscaleRoute
   '/updates': typeof AppUpdatesRoute
+  '/workloads': typeof AppWorkloadsRoute
   '/': typeof AppIndexRoute
   '/console/$vmid': typeof AppConsoleVmidRoute
 }
@@ -117,9 +141,12 @@ export interface FileRoutesById {
   '/_app/health': typeof AppHealthRoute
   '/_app/jellyfin': typeof AppJellyfinRoute
   '/_app/logs': typeof AppLogsRoute
+  '/_app/music': typeof AppMusicRoute
   '/_app/settings': typeof AppSettingsRoute
+  '/_app/storage': typeof AppStorageRoute
   '/_app/tailscale': typeof AppTailscaleRoute
   '/_app/updates': typeof AppUpdatesRoute
+  '/_app/workloads': typeof AppWorkloadsRoute
   '/_app/': typeof AppIndexRoute
   '/_app/console/$vmid': typeof AppConsoleVmidRoute
 }
@@ -133,9 +160,12 @@ export interface FileRouteTypes {
     | '/health'
     | '/jellyfin'
     | '/logs'
+    | '/music'
     | '/settings'
+    | '/storage'
     | '/tailscale'
     | '/updates'
+    | '/workloads'
     | '/console/$vmid'
   fileRoutesByTo: FileRoutesByTo
   to:
@@ -145,9 +175,12 @@ export interface FileRouteTypes {
     | '/health'
     | '/jellyfin'
     | '/logs'
+    | '/music'
     | '/settings'
+    | '/storage'
     | '/tailscale'
     | '/updates'
+    | '/workloads'
     | '/'
     | '/console/$vmid'
   id:
@@ -159,9 +192,12 @@ export interface FileRouteTypes {
     | '/_app/health'
     | '/_app/jellyfin'
     | '/_app/logs'
+    | '/_app/music'
     | '/_app/settings'
+    | '/_app/storage'
     | '/_app/tailscale'
     | '/_app/updates'
+    | '/_app/workloads'
     | '/_app/'
     | '/_app/console/$vmid'
   fileRoutesById: FileRoutesById
@@ -229,11 +265,25 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppLogsRouteImport
       parentRoute: typeof AppRoute
     }
+    '/_app/music': {
+      id: '/_app/music'
+      path: '/music'
+      fullPath: '/music'
+      preLoaderRoute: typeof AppMusicRouteImport
+      parentRoute: typeof AppRoute
+    }
     '/_app/settings': {
       id: '/_app/settings'
       path: '/settings'
       fullPath: '/settings'
       preLoaderRoute: typeof AppSettingsRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/_app/storage': {
+      id: '/_app/storage'
+      path: '/storage'
+      fullPath: '/storage'
+      preLoaderRoute: typeof AppStorageRouteImport
       parentRoute: typeof AppRoute
     }
     '/_app/tailscale': {
@@ -248,6 +298,13 @@ declare module '@tanstack/react-router' {
       path: '/updates'
       fullPath: '/updates'
       preLoaderRoute: typeof AppUpdatesRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/_app/workloads': {
+      id: '/_app/workloads'
+      path: '/workloads'
+      fullPath: '/workloads'
+      preLoaderRoute: typeof AppWorkloadsRouteImport
       parentRoute: typeof AppRoute
     }
     '/_app/console/$vmid': {
@@ -266,9 +323,12 @@ interface AppRouteChildren {
   AppHealthRoute: typeof AppHealthRoute
   AppJellyfinRoute: typeof AppJellyfinRoute
   AppLogsRoute: typeof AppLogsRoute
+  AppMusicRoute: typeof AppMusicRoute
   AppSettingsRoute: typeof AppSettingsRoute
+  AppStorageRoute: typeof AppStorageRoute
   AppTailscaleRoute: typeof AppTailscaleRoute
   AppUpdatesRoute: typeof AppUpdatesRoute
+  AppWorkloadsRoute: typeof AppWorkloadsRoute
   AppIndexRoute: typeof AppIndexRoute
   AppConsoleVmidRoute: typeof AppConsoleVmidRoute
 }
@@ -279,9 +339,12 @@ const AppRouteChildren: AppRouteChildren = {
   AppHealthRoute: AppHealthRoute,
   AppJellyfinRoute: AppJellyfinRoute,
   AppLogsRoute: AppLogsRoute,
+  AppMusicRoute: AppMusicRoute,
   AppSettingsRoute: AppSettingsRoute,
+  AppStorageRoute: AppStorageRoute,
   AppTailscaleRoute: AppTailscaleRoute,
   AppUpdatesRoute: AppUpdatesRoute,
+  AppWorkloadsRoute: AppWorkloadsRoute,
   AppIndexRoute: AppIndexRoute,
   AppConsoleVmidRoute: AppConsoleVmidRoute,
 }

@@ -192,6 +192,8 @@ func configureQBittorrent(ctx context.Context, cfg Config, qbit *qbittorrent) er
 		"max_seeding_time_enabled": true,
 		"max_seeding_time":         seedMinutes,
 		"max_ratio_act":            qbittorrentStopTorrent,
+		// No log file, so torrent names don't stay behind on disk.
+		"file_log_enabled": false,
 	})
 	if err != nil {
 		return err
