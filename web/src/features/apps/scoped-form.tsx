@@ -2,6 +2,7 @@ import { useState, type FormEvent } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
+import { Checkbox } from '@/components/ui/checkbox'
 import { Input } from '@/components/ui/input'
 import { api, type Apps, type SavedAnswers, type ScopedAnswers } from '@/lib/api'
 import { Field } from './form-parts'
@@ -27,11 +28,25 @@ export function ScopedForm({
                   libraryBinding: '',
                   outputBinding: '',
                   backupBinding: '',
-                  cores: id === 'photos' ? 4 : 2,
-                  memoryMiB: id === 'photos' ? 8192 : id === 'music' ? 1024 : 2048,
-                  diskGB: 64,
+                  cores: id === 'photos' || id === 'gaming' ? 4 : 2,
+                  memoryMiB: id === 'photos' ? 8192 : id === 'music' ? 1024 : id === 'gaming' ? 6144 : 2048,
+                  diskGB: id === 'gaming' ? 96 : 64,
+                  privileged: false,
               },
     )
+    // The limits that the host agent checks too.
+    const limits = {
+        cores: [id === 'gaming' ? 2 : 1, 4],
+        memoryMiB:
+            id === 'photos'
+                ? [8192, 8192]
+                : id === 'music'
+                  ? [1024, 2048]
+                  : id === 'gaming'
+                    ? [4096, 8192]
+                    : [512, 2048],
+        diskGB: [id === 'gaming' ? 64 : 32, 2048],
+    }
     const install = useMutation({
         mutationFn: () => api.installScopedApp(id, answers),
         onSuccess: () => {
@@ -53,10 +68,12 @@ export function ScopedForm({
               ] as const)
             : id === 'music'
               ? ([['libraryBinding', 'music', true]] as const)
-              : ([
-                    ['libraryBinding', 'inbox', false],
-                    ['outputBinding', 'videos', true],
-                ] as const)
+              : id === 'gaming'
+                ? ([['libraryBinding', 'games', false]] as const)
+                : ([
+                      ['libraryBinding', 'inbox', false],
+                      ['outputBinding', 'videos', true],
+                  ] as const)
     return (
         <form onSubmit={submit} className="flex flex-col gap-4">
             <p className="text-sm text-muted-foreground">
@@ -116,18 +133,8 @@ export function ScopedForm({
                             id={key}
                             type="number"
                             required
-                            min={
-                                key === 'cores'
-                                    ? 1
-                                    : key === 'diskGB'
-                                      ? 32
-                                      : id === 'photos'
-                                        ? 8192
-                                        : id === 'music'
-                                          ? 1024
-                                          : 512
-                            }
-                            max={key === 'cores' ? 4 : key === 'diskGB' ? 2048 : id === 'photos' ? 8192 : 2048}
+                            min={limits[key][0]}
+                            max={limits[key][1]}
                             value={answers[key]}
                             onChange={(e) => set({ ...answers, [key]: Number(e.target.value) })}
                         />
@@ -147,11 +154,38 @@ export function ScopedForm({
                     output under /media/output; temporary files use /temp.
                 </p>
             )}
+            {id === 'gaming' && (
+                <>
+                    <p className="text-sm text-muted-foreground">
+                        The Games share needs roms and bios folders. The host needs the Intel GPU, the uinput and uhid
+                        devices, and the reviewed Wolf input rules. The installer checks all of them first.
+                    </p>
+                    <label className="flex items-start gap-3 text-sm">
+                        <Checkbox
+                            className="mt-0.5"
+                            checked={answers.privileged === true}
+                            onCheckedChange={(checked) => set({ ...answers, privileged: checked === true })}
+                        />
+                        <span>
+                            I understand that Wolf needs a privileged container with access to the GPU, input devices
+                            and Docker. It is far less isolated than the other apps, so treat it and every game image it
+                            starts as trusted software on the host.
+                        </span>
+                    </label>
+                </>
+            )}
             <div className="flex justify-end gap-2">
                 <Button type="button" variant="outline" onClick={onDone}>
                     Cancel
                 </Button>
-                <Button disabled={install.isPending || !bindings.data || roles.some(([key]) => !answers[key])}>
+                <Button
+                    disabled={
+                        install.isPending ||
+                        !bindings.data ||
+                        roles.some(([key]) => !answers[key]) ||
+                        (id === 'gaming' && !answers.privileged)
+                    }
+                >
                     {install.isPending ? 'Starting…' : 'Install'}
                 </Button>
             </div>

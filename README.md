@@ -34,7 +34,7 @@ revision to install them; pushing a branch does not publish a signed release.
 | [Photos / Immich](docs/photos.md) | Pinned installer, SSD database/derivatives, NAS originals, matched backups and recovery verification | Create the Immich admin/API key after installation. Rehearse a full library restore before relying on backups. |
 | [Music and Inbox](docs/workers.md) | One durable Music worker, Music work page, pinned FileFlows installer and admission leases | FileFlows needs its native flow and supplied pre-execute script configured. Active jobs finish after admission is paused. |
 | [Background work](docs/background-work.md) | Immich queue controls and independent worker controls for gaming holds, windows and host RAM headroom | Admission checks do not reserve RAM/GPU capacity or detect gaming sessions automatically. |
-| [Gaming proof of concept](docs/gaming-poc.md) | Opt-in Wolf/ES-DE scripts, read-only ROM access and persistent emulator profiles | Experimental privileged LXC; hardware streaming, controllers and saves still need acceptance tests. No production gaming catalog installer. |
+| [Gaming](docs/gaming.md) | Experimental Wolf/ES-DE app from the Apps page, Gaming page with Play and Stop, library counts per system, read-only ROM access and persistent emulator profiles | Privileged LXC after explicit confirmation; hardware streaming, controllers and saves still need acceptance tests. |
 
 Scoped Photos/Music/Inbox updates do not automatically roll back guest disks:
 their NAS files cannot be rewound with the local database or queue. Inspect failed
@@ -80,14 +80,14 @@ for tests, a real Proxmox and releases.
 - [Scoped SMB storage bindings](docs/scoped-storage.md)
 - [Photos: Immich installation, backups and recovery](docs/photos.md)
 - [Music and FileFlows workers](docs/workers.md)
-- [Experimental Wolf / ES-DE gaming setup](docs/gaming-poc.md)
+- [Gaming: experimental Wolf / ES-DE app](docs/gaming.md)
 - [Logs and console](docs/logs-and-console.md)
 - [Jellyfin: install and the Jellyfin page](docs/jellyfin.md)
 - [Tailscale](docs/tailscale.md)
 - [App names (seerr.iglo.local)](docs/app-names.md)
 - [Media stack](docs/media-stack.md)
 - [Media folder: on a NAS or on the host](docs/media-folder.md)
-- [Minecraft server](docs/minecraft.md)
+- [Minecraft server (hidden from Apps)](docs/minecraft.md)
 - [Settings file (iglo.yaml)](docs/settings-file.md)
 - [Uninstall](docs/uninstall.md)
 - [Development](docs/development.md)

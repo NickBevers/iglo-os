@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 set -euo pipefail
-cd /opt/gaming-poc
+cd /opt/gaming
 echo '== Guest memory and mounted Games share =='
 free -h
 findmnt --mountpoint /data/games --output TARGET,SOURCE,FSTYPE,OPTIONS

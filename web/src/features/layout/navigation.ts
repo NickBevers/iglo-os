@@ -10,6 +10,7 @@ import {
     SlidersHorizontalIcon,
     HardDriveIcon,
     MusicIcon,
+    Gamepad2Icon,
     type LucideIcon,
 } from 'lucide-react'
 
@@ -33,6 +34,7 @@ export const navigation: { label: string; items: NavItem[] }[] = [
         items: [
             { to: '/apps', label: 'Apps', icon: BlocksIcon },
             { to: '/music', label: 'Music work', icon: MusicIcon },
+            { to: '/gaming', label: 'Gaming', icon: Gamepad2Icon },
             { to: '/jellyfin', label: 'Jellyfin', icon: FilmIcon },
             { to: '/tailscale', label: 'Tailscale', icon: NetworkIcon },
         ],

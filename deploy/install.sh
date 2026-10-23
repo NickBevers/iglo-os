@@ -177,10 +177,12 @@ install_scripts() {
     install -m 0644 "$BUNDLE_DIR/lib.sh" "$BUNDLE_DIR/VERSION" "$SCRIPTS_DIR/"
     install -m 0644 "$BUNDLE_DIR/storage.sh" "$SCRIPTS_DIR/"
     install -m 0644 "$BUNDLE_DIR/scoped-stack.sh" "$SCRIPTS_DIR/"
-    if [[ -d "$BUNDLE_DIR/gaming-poc" ]]; then
-        install -d -m 0755 "$SCRIPTS_DIR/gaming-poc"
-        install -m 0755 "$BUNDLE_DIR/gaming-poc/install.sh" "$BUNDLE_DIR/gaming-poc/diagnose.sh" "$SCRIPTS_DIR/gaming-poc/"
-        install -m 0644 "$BUNDLE_DIR/gaming-poc/compose.yaml" "$BUNDLE_DIR/gaming-poc/config.toml" "$SCRIPTS_DIR/gaming-poc/"
+    # The gaming proof of concept became the Gaming app in stacks/gaming.
+    rm -rf "$SCRIPTS_DIR/gaming-poc"
+    if [[ -d "$BUNDLE_DIR/stacks/gaming" ]]; then
+        install -d -m 0755 "$SCRIPTS_DIR/stacks/gaming"
+        install -m 0755 "$BUNDLE_DIR/stacks/gaming/install.sh" "$BUNDLE_DIR/stacks/gaming/diagnose.sh" "$SCRIPTS_DIR/stacks/gaming/"
+        install -m 0644 "$BUNDLE_DIR/stacks/gaming/compose.yaml" "$BUNDLE_DIR/stacks/gaming/config.toml" "$SCRIPTS_DIR/stacks/gaming/"
     fi
     if [[ -d "$BUNDLE_DIR/stacks/music" ]]; then
         install -d -m 0755 "$SCRIPTS_DIR/stacks/music"

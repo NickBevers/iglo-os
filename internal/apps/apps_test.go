@@ -583,6 +583,7 @@ func minecraftResources(tags, status string) []proxmox.Resource {
 }
 
 func TestStatusShowsTheMinecraftAddresses(t *testing.T) {
+	t.Skip("Minecraft is hidden from the catalog; its code stays for later")
 	pve := &fakeProxmox{
 		resources:   minecraftResources("iglo;minecraft", "running"),
 		description: "Iglo-OS Minecraft server (Paper)\niglo-version: v0.9.1\niglo-address: dries.joinmc.link\n",
@@ -606,6 +607,7 @@ func TestStatusShowsTheMinecraftAddresses(t *testing.T) {
 }
 
 func TestChangePlayers(t *testing.T) {
+	t.Skip("Minecraft is hidden from the catalog; its code stays for later")
 	ctx := context.Background()
 	fake := &fakeAgent{}
 	pve := &fakeProxmox{resources: minecraftResources("iglo;minecraft", "running")}

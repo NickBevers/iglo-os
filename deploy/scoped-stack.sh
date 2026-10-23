@@ -4,7 +4,7 @@ set -euo pipefail
 source "$STACK_DIR/../../lib.sh"
 source "$STACK_DIR/../../storage.sh"
 STORAGE=local-lvm BRIDGE=vmbr0 CT_ID="" ANSWERS="" MODE=install
-LIBRARY_BINDING="" OUTPUT_BINDING="" BACKUP_BINDING="" CORES=2 MEMORY_MIB=2048 DISK_GB=64
+LIBRARY_BINDING="" OUTPUT_BINDING="" BACKUP_BINDING="" CORES=2 MEMORY_MIB=2048 DISK_GB=64 PRIVILEGED=false
 CREATED_CT=""
 while [[ $# -gt 0 ]]; do
     case "$1" in
@@ -22,7 +22,7 @@ load_scoped_answers() {
     local key value
     while IFS='=' read -r key value || [[ -n "$key" ]]; do
         case "$key" in
-            STORAGE|LIBRARY_BINDING|OUTPUT_BINDING|BACKUP_BINDING|CORES|MEMORY_MIB|DISK_GB) printf -v "$key" '%s' "$value";;
+            STORAGE|LIBRARY_BINDING|OUTPUT_BINDING|BACKUP_BINDING|CORES|MEMORY_MIB|DISK_GB|PRIVILEGED) printf -v "$key" '%s' "$value";;
             *) die "Unknown answer: $key";;
         esac
     done < "$1"
@@ -32,6 +32,7 @@ check_scoped_answers() {
     [[ "$CORES" =~ ^[1-4]$ ]] || die "Use 1–4 cores"
     [[ "$DISK_GB" =~ ^[0-9]{1,4}$ ]] && ((DISK_GB >= 32 && DISK_GB <= 2048)) || die "Use a 32–2048 GB local disk"
     [[ "$MEMORY_MIB" =~ ^[0-9]{3,4}$ ]] || die "Invalid memory limit"
+    [[ "$PRIVILEGED" == true && "$APP" == gaming || "$PRIVILEGED" == false && "$APP" != gaming ]] || die "Only Gaming runs privileged, after confirmation"
     if [[ "$APP" == photos ]]; then
         ((MEMORY_MIB == 8192)) || die "Photos uses an 8192 MiB container"
         require_binding "$LIBRARY_BINDING" photos rw
@@ -44,6 +45,13 @@ check_scoped_answers() {
         ((MEMORY_MIB >= 512 && MEMORY_MIB <= 2048)) || die "Use 512–2048 MiB"
         require_binding "$LIBRARY_BINDING" inbox ro
         require_binding "$OUTPUT_BINDING" videos rw
+    elif [[ "$APP" == gaming ]]; then
+        ((CORES >= 2 && DISK_GB >= 64)) || die "Gaming needs 2–4 cores and at least 64 GB"
+        ((MEMORY_MIB >= 4096 && MEMORY_MIB <= 8192)) || die "Use 4096–8192 MiB"
+        require_binding "$LIBRARY_BINDING" games ro
+        [[ -d "$BINDING_PATH/roms" && -d "$BINDING_PATH/bios" ]] || die "Create roms and bios folders in the Games share first"
+        [[ -c /dev/dri/renderD128 && -c /dev/uinput && -c /dev/uhid ]] || die "Check the Intel render, uinput and uhid devices on the host first"
+        [[ -f /etc/udev/rules.d/85-wolf.rules ]] || die "Review and install the upstream Wolf input rules on the host first"
     else die "Unknown scoped stack"; fi
 }
 scoped_cleanup() {
@@ -62,6 +70,18 @@ scoped_files() {
         [[ "$(basename "$file")" != install.sh ]] || continue
         pct push "$CT_ID" "$file" "/opt/$APP/$(basename "$file")" --perms 0600
     done
+}
+# gaming_devices gives the Gaming container the GPU and virtual input devices,
+# as in the Wolf Proxmox quickstart.
+gaming_devices() {
+    pct set "$1" --dev0 /dev/uinput --dev1 /dev/uhid
+    cat >> "/etc/pve/lxc/$1.conf" <<'CONF'
+lxc.cgroup2.devices.allow: a
+lxc.cap.drop:
+lxc.mount.entry: /dev/dri dev/dri none bind,optional,create=dir
+lxc.mount.entry: /run/udev mnt/udev none bind,optional,create=dir
+lxc.mount.entry: /dev mnt/dev none bind,optional,create=dir
+CONF
 }
 scoped_main() {
     require_proxmox
@@ -103,15 +123,19 @@ scoped_main() {
     CT_ID="$(pvesh get /cluster/nextid)"
     [[ "$CT_ID" =~ ^[1-9][0-9]{2,8}$ ]] || die "Invalid new container ID"
     trap scoped_cleanup EXIT
+    # Gaming is privileged and only runs while you play, so it doesn't start at boot.
+    local unprivileged=1 onboot=1
+    if [[ "$APP" == gaming ]]; then unprivileged=0 onboot=0; fi
     pct create "$CT_ID" "$TEMPLATE_STORAGE:vztmpl/$TEMPLATE" --hostname "$APP" \
-        --unprivileged 1 --features nesting=1 --cores "$CORES" --memory "$MEMORY_MIB" --swap 0 \
-        --rootfs "$STORAGE:$DISK_GB" --net0 "name=eth0,bridge=$BRIDGE,ip=dhcp" --onboot 1 \
+        --unprivileged "$unprivileged" --features nesting=1 --cores "$CORES" --memory "$MEMORY_MIB" --swap 0 \
+        --rootfs "$STORAGE:$DISK_GB" --net0 "name=eth0,bridge=$BRIDGE,ip=dhcp" --onboot "$onboot" \
         --tags "iglo;$APP" --description "$(app_description "$APP, installed by Iglo-OS")"
     CREATED_CT="$CT_ID"
     case "$APP" in
         photos) bind_share "$CT_ID" 0 "$LIBRARY_BINDING" photos rw /data/photos;bind_share "$CT_ID" 1 "$BACKUP_BINDING" backups rw /data/backups;;
         music) bind_share "$CT_ID" 0 "$LIBRARY_BINDING" music rw /data/music;;
         inbox) bind_share "$CT_ID" 0 "$LIBRARY_BINDING" inbox ro /data/inbox;bind_share "$CT_ID" 1 "$OUTPUT_BINDING" videos rw /data/videos;;
+        gaming) bind_share "$CT_ID" 0 "$LIBRARY_BINDING" games ro /data/games;gaming_devices "$CT_ID";;
     esac
     pct start "$CT_ID";wait_for_network "$CT_ID"
     [[ "$APP" == music ]] || install_docker "$CT_ID"

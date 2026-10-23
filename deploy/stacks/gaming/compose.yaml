@@ -1,5 +1,5 @@
-# Experimental privileged-LXC layout from the Wolf Proxmox quickstart.
-name: iglo-gaming-poc
+# Experimental privileged-LXC layout from the Wolf Proxmox quickstart. Iglo-OS installs it as the Gaming app.
+name: iglo-gaming
 services:
   wolf:
     image: ghcr.io/games-on-whales/wolf:stable@sha256:b0ef253739f9bd49b71eba7e150c955fd05990c0d409e666d89236995351551a

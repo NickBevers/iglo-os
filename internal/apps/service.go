@@ -92,8 +92,11 @@ type App struct {
 	// shows on the Apps page and the dashboard, so its place is clear.
 	Planned bool `json:"planned"`
 	// Stats is set when the host agent reports AppStats for the app.
-	Stats bool   `json:"-"`
-	Links []Link `json:"links"`
+	Stats bool `json:"-"`
+	// HostStats is set when the host reads the stats itself, so they don't
+	// need the container to run, like the game library on the Games share.
+	HostStats bool   `json:"-"`
+	Links     []Link `json:"links"`
 }
 
 var Catalog = []App{{
@@ -120,13 +123,6 @@ var Catalog = []App{{
 		{Name: "qBittorrent", Description: "Downloads", Port: 8080},
 	},
 }, {
-	ID:          agent.MinecraftApp,
-	Name:        "Minecraft",
-	Description: "A Minecraft Java server (Paper) for you and your friends. With playit.gg, friends join without open ports.",
-	Tag:         "minecraft",
-	Stack:       true,
-	Links:       []Link{{Name: "Minecraft", Description: "On your network", Port: 25565, Address: true}},
-}, {
 	ID:          "music",
 	Name:        "Music",
 	Description: "Downloads songs from YouTube Music with their cover art, for Jellyfin and Finamp. Music videos only when you ask.",
@@ -148,6 +144,15 @@ var Catalog = []App{{
 	Tag:         "inbox",
 	Stack:       true,
 	Links:       []Link{{Name: "FileFlows", Description: "Converter", Port: 19200}},
+}, {
+	ID:          agent.GamingApp,
+	Name:        "Gaming",
+	Description: "Experimental. Retro games from your Games share, streamed to your PC or TV with Moonlight. Wolf runs in a privileged container that only starts while you play.",
+	Tag:         "gaming",
+	Stack:       true,
+	Stats:       true,
+	HostStats:   true,
+	Links:       []Link{},
 }}
 
 type AppView struct {
@@ -308,7 +313,7 @@ func (s *Service) Status(ctx context.Context) (View, error) {
 			}
 		}
 		// Stats are best effort: the dashboard shows the app without them.
-		if app.Stats && appView.Installed && appView.Status == "running" {
+		if app.Stats && appView.Installed && (appView.Status == "running" || app.HostStats) {
 			if stats, err := s.Agent.AppStats(ctx, app.ID, appView.VMID); err == nil {
 				appView.Stats = &stats
 			}

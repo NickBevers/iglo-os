@@ -224,6 +224,8 @@ func New(options Options) http.Handler {
 	mux.Handle("GET /api/music/jobs", s.requireSession(http.HandlerFunc(s.musicJobs)))
 	mux.Handle("POST /api/music/jobs", s.requireSession(http.HandlerFunc(s.musicJobs)))
 	mux.Handle("PUT /api/music/pause", s.requireSession(http.HandlerFunc(s.musicJobs)))
+	mux.Handle("GET /api/gaming", s.requireSession(http.HandlerFunc(s.gamingStatus)))
+	mux.Handle("PUT /api/gaming/play", s.requireSession(http.HandlerFunc(s.gamingPlay)))
 	mux.Handle("POST /api/apps/{id}/install", s.requireSession(http.HandlerFunc(s.appsInstall)))
 	mux.Handle("POST /api/apps/{id}/retry", s.requireSession(http.HandlerFunc(s.appsRetry)))
 	mux.Handle("DELETE /api/apps/{id}/answers", s.requireSession(http.HandlerFunc(s.appsForget)))

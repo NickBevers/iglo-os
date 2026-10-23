@@ -1,5 +1,7 @@
 # Minecraft
 
+Minecraft is hidden from the Apps page for now. Its installer and code stay in the repository, so it can come back. An existing Minecraft container keeps running, but Iglo-OS no longer lists it as an app.
+
 The Apps page installs a Minecraft Java server in its own container. The server is [Paper](https://papermc.io): the normal Minecraft Java server, but faster and lighter.
 
 ## Before you start

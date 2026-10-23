@@ -41,8 +41,10 @@ for (const path of [
     '/backups',
     '/tailscale',
     '/apps',
-    '/apps/minecraft/players',
     '/apps/media/vpn',
+    '/storage/bindings',
+    '/music/jobs',
+    '/gaming',
     '/health',
     '/logs/tasks',
 ]) {

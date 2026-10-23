@@ -14,6 +14,8 @@ var plannedApps = []map[string]any{
 	{"type": "lxc", "node": "pve", "vmid": 160, "name": "music", "status": "running", "tags": "iglo;music", "cpu": 0.04, "maxcpu": 2, "mem": 420_000_000, "maxmem": 1_073_741_824, "uptime": 86_400},
 	{"type": "lxc", "node": "pve", "vmid": 170, "name": "photos", "status": "running", "tags": "iglo;photos", "cpu": 0.11, "maxcpu": 4, "mem": 3_100_000_000, "maxmem": 6_442_450_944, "uptime": 86_400},
 	{"type": "lxc", "node": "pve", "vmid": 180, "name": "inbox", "status": "running", "tags": "iglo;inbox", "cpu": 0.62, "maxcpu": 4, "mem": 1_400_000_000, "maxmem": 2_147_483_648, "uptime": 86_400},
+	// Gaming only runs during a session. Play on the Gaming page starts it.
+	{"type": "lxc", "node": "pve", "vmid": 190, "name": "gaming", "status": "stopped", "tags": "iglo;gaming", "maxcpu": 4, "maxmem": 6_442_450_944},
 }
 
 // moving is a progress that goes from 0 to 100 in period, so the fake looks alive.
@@ -62,6 +64,19 @@ func fakeStats(app string) (agent.AppStats, bool) {
 				{Title: "family-2009.avi", Detail: "Converting to HEVC", Progress: moving(60*time.Second, 0)},
 				{Title: "behind-the-scenes.mov", Detail: "Next", Progress: -1},
 			},
+		}, true
+	case "gaming":
+		// The library on the Games share, which the host counts even while the container is stopped.
+		return agent.AppStats{
+			Figures: []agent.Figure{
+				{Label: "Game Boy", Value: 42},
+				{Label: "Game Boy Color", Value: 31},
+				{Label: "Game Boy Advance", Value: 58},
+				{Label: "Nintendo 64", Value: 24},
+				{Label: "GameCube", Value: 17},
+				{Label: "Wii", Value: 12},
+			},
+			Activity: []agent.Activity{},
 		}, true
 	}
 
