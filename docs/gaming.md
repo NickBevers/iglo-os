@@ -1,9 +1,9 @@
-# Experimental Wolf / ES-DE proof of concept
+# Gaming (experimental)
 
-This is a reproducible **hardware test path**, not a production Apps installer.
-It prepares Wolf plus the upstream Games on Whales ES-DE image, which includes
-RetroArch and standalone Dolphin. Image digests were checked on 22 October 2026.
-No ROMs, BIOS files, console keys or copyrighted games are included.
+The Gaming app runs Wolf with the upstream Games on Whales ES-DE image, which
+includes RetroArch and standalone Dolphin. It streams retro games from your
+Games share to Moonlight on a PC or TV box. Image digests were checked on
+22 October 2026. No ROMs, BIOS files, console keys or copyrighted games are included.
 
 The [Wolf Proxmox quickstart](https://games-on-whales.github.io/wolf/stable/user/quickstart.html)
 currently requires a **privileged LXC**, broad device access and a Docker socket.
@@ -13,10 +13,10 @@ is unsuitable, evaluate a separate VM with GPU assignment or separate gaming
 hardware instead. Do not assume the same GPU can be assigned exclusively to a VM
 and simultaneously used by the host's Jellyfin container.
 
-## Prepare and create
+## Prepare the host
 
-Run only on a backed-up Proxmox VE 9 amd64 host after reviewing the scripts.
-Nothing here is run automatically by opening the Iglo UI.
+Do this once, on a backed-up Proxmox VE 9 amd64 host. The installer checks each
+step and stops if one is missing.
 
 1. Confirm `/dev/dri/renderD128` is the intended Intel GPU. Verify the loaded
    driver on the host, and test Jellyfin hardware playback independently.
@@ -28,34 +28,46 @@ Nothing here is run automatically by opening the Iglo UI.
    account. On that share prepare `roms/{gb,gbc,gba,n64,gc,wii}` and `bios` folders.
    Use game dumps and BIOS files you supply yourself. ROM folders are read only
    to the emulator guest. Scraped art/metadata and saves must use the SSD profile.
-4. Review local disk capacity for the emulator images and persistent profile.
-   The test creates a 96 GB root disk, four cores, **6144 MiB** RAM, no swap and
-   **onboot disabled**. It requires another 4096 MiB of host MemAvailable. This
-   stays within a budgeted gaming allowance; it is not proof of acceptable FPS.
-5. From the installed release's host scripts directory:
 
-```sh
-bash /usr/local/lib/iglo/gaming-poc/install.sh \
-  --storage local-lvm --games-binding games --allow-privileged
-```
+## Install from Apps
 
-Replace `games` with the real binding ID. The script prints the guest ID/IP.
-It creates only a new guest and binding dependency, not a replacement host OS.
-The guest shows in Iglo's general guest list; gaming has no dedicated catalog
-update/remove flow yet. Failed creation attempts destroy their new guest while
-leaving the Games share intact.
+Choose **Install** on the Gaming card. The form asks for the Games share, the
+local container storage, CPU, RAM and disk. It starts at four cores,
+**6144 MiB** RAM and a 96 GB disk, and needs at least 4096 MiB, two cores and
+64 GB. The host also needs another 4096 MiB of available RAM. Nothing installs
+until you confirm the privileged container in the form; the host agent refuses
+the answers without that confirmation.
+
+The container gets the tags `iglo;gaming`, no swap and **onboot disabled**. A
+failed install removes the new container and leaves the Games share intact.
+**Update** pulls the pinned images again and keeps the pairings and saves.
+**Remove** deletes the container; its backups stay.
+
+## The Gaming page
+
+The Gaming page shows whether the container runs and how many games each system
+has in the roms folder. The host counts them on the share, so the library shows
+while the container is stopped. A file or a folder counts as one game; hidden
+files and scraper folders like `media` don't.
+
+**Play** holds heavy background work for up to 8 hours first, then starts the
+container. Its address then shows: add it as a host in Moonlight. **Stop** shuts
+the container down and ends the hold. Save in the game and quit the emulator
+before you stop. If the start fails, the hold ends again. Stopping the container
+in Proxmox does not end the hold; it expires on its own.
 
 ## Pair and configure on a PC first
 
 1. Install the official Moonlight client on a PC. Add the gaming guest's IP.
-2. Click the host in Moonlight to display its PIN. Read Wolf's logs inside the
-   guest (`cd /opt/gaming-poc && docker compose logs --tail 100`). Open the
+2. Click the host in Moonlight to display its PIN. Read Wolf's logs on the Logs
+   page (Docker tab, gaming container), or inside the guest with
+   `cd /opt/gaming && docker compose logs --tail 100`. Open the
    indicated local pairing URL, replacing localhost with the guest IP, and enter
    that PIN. Pair only clients you recognize. Do not expose Wolf's control API
    or pairing endpoint to the internet.
 3. Start at **1080p, 60 FPS, SDR, H.264**, with hardware decoding enabled and a
-   wired connection. Enable Iglo's **Protect gaming for 2 hours** first and verify
-   new background work stops. This timer is manual; session detection is not wired.
+   wired connection. Press **Play** on the Gaming page and verify that new
+   background work stops. Iglo-OS does not detect Moonlight sessions itself.
 4. Launch **Retro games**. In ES-DE choose `/ROMs` as the ROM root. If it asks to
    create folders, create them on the NAS beforehand; do not grant write access
    just to satisfy onboarding. Disable ROM-directory media/gamelist writes.
@@ -78,7 +90,7 @@ saves. Save in-game and quit the emulator before disconnecting/switching clients
 Run inside the gaming guest:
 
 ```sh
-bash /opt/gaming-poc/diagnose.sh
+bash /opt/gaming/diagnose.sh
 ```
 
 Record the chosen render node and the **actual live encoder in Wolf logs**;
@@ -96,8 +108,8 @@ ordinary Moonlight gamepad forwarding is not an equivalent replacement.
 
 Run a Jellyfin playback stream alongside it, then an allowed background job.
 Watch host RAM, Intel GPU usage, thermals and frame pacing. Lower emulator
-resolution or defer more work before buying a GPU. End the gaming hold only
-after exiting the emulator. Original Switch emulation is outside this test.
+resolution or defer more work before buying a GPU. Press Stop only after
+exiting the emulator. Original Switch emulation is outside this test.
 
 ## Persistence, rollback and backup
 
@@ -107,15 +119,13 @@ an additional versioned copy of important normal saves on a separate backup
 target, then test restore into a fresh profile before trusting it. Save-state
 compatibility across emulator versions is not guaranteed.
 
-The POC does not self-update. Keep its pinned digests until acceptance succeeds;
-record versions and back up the profile before testing a newer image. To retire
-it, shut down and delete the test guest in Proxmox after backing up saves. Remove
-its `iglo-<binding>.conf` systemd drop-in only after the guest is removed; the
-Storage page then permits disconnecting the unused binding. Do not delete NAS ROMs.
+Gaming does not self-update. A new Iglo-OS release can pin newer image digests;
+back up the profile before you run **Update**. To retire it, back up the saves and
+choose **Remove** on the Apps page. That also removes the share dependency, so the
+Storage page can disconnect the unused binding. Removing never touches NAS ROMs.
 
-Prepared and syntax/config checked locally. **Not installed, paired, streamed or
-benchmarked on the target Intel/Proxmox hardware.** The TV client can only be
-chosen confidently after these checks pass.
+Tested with unit tests and the dev mock, and syntax/config checked locally.
+**Not installed, paired, streamed or benchmarked on real Intel/Proxmox hardware.**
 
 Sources: [Wolf configuration](https://games-on-whales.github.io/wolf/stable/user/configuration.html),
 [ES-DE image](https://games-on-whales.github.io/wildlife/apps/es-de/),

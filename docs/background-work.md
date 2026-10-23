@@ -26,7 +26,7 @@ This limits **queues accepting work**, not individual worker processes. Set each
 
 The daily window uses its explicit IANA timezone, supports crossing midnight and follows local daylight-saving changes. Its start is inclusive and its end exclusive. Turn the window off for all-day processing.
 
-**Protect gaming for 2 hours** creates an expiring hold. **End protection** removes the hold; memory and time-window checks still apply. This is manual protection, not automatic Wolf/Moonlight session detection.
+**Protect gaming for 2 hours** creates an expiring hold. **End protection** removes the hold; memory and time-window checks still apply. This is manual protection, not automatic Wolf/Moonlight session detection. **Play** on the [Gaming page](gaming.md#the-gaming-page) sets an 8-hour hold, and **Stop** ends it.
 
 ## Recovery and secrets
 

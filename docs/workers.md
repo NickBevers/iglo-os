@@ -86,7 +86,7 @@ This installs the real service and supplies its admission script. It does **not*
 claim an imported flow, a licensed API connection, GPU acceleration or verified
 conversions. Configure and export the tested flow from the native UI. CPU is the
 default; no Intel GPU is passed to this stack yet, leaving the initial GPU test
-to Jellyfin and the gaming proof of concept.
+to Jellyfin and the Gaming app.
 
 Updates stop FileFlows, archive `/app/Data` on local SSD, then replace the image.
 Scoped Music/Photos/Inbox updates do not automatically rewind guest disks on
