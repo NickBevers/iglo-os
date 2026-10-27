@@ -39,7 +39,7 @@ bundle: build
 	install -m 0644 deploy/stacks/inbox/compose.yaml deploy/stacks/inbox/compose.gpu.yaml deploy/stacks/inbox/pre-execute.cs $(BUNDLE)/stacks/inbox/
 	mkdir -p $(BUNDLE)/stacks/gaming
 	install -m 0755 deploy/stacks/gaming/install.sh deploy/stacks/gaming/diagnose.sh $(BUNDLE)/stacks/gaming/
-	install -m 0644 deploy/stacks/gaming/compose.yaml deploy/stacks/gaming/config.toml deploy/stacks/gaming/dolphinbar.sh $(BUNDLE)/stacks/gaming/
+	install -m 0644 deploy/stacks/gaming/compose.yaml deploy/stacks/gaming/config.toml $(BUNDLE)/stacks/gaming/
 	# COPYFILE_DISABLE stops macOS tar from adding ._ files, which the agent refuses.
 	COPYFILE_DISABLE=1 tar -czf $(BUNDLE).tar.gz -C dist $(notdir $(BUNDLE))
 

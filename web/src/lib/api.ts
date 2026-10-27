@@ -122,7 +122,6 @@ const libretroSystems: Record<string, string> = {
     gba: 'Nintendo - Game Boy Advance',
     n64: 'Nintendo - Nintendo 64',
     gc: 'Nintendo - GameCube',
-    wii: 'Nintendo - Wii',
 }
 
 // coverURL is the address of a game's cover. The server tries your own cover

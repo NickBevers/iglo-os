@@ -16,7 +16,6 @@ var sampleGames = map[string][]string{
 	"gba": {"Mario Kart - Super Circuit (USA)", "Metroid Fusion (USA)", "Pokemon - Emerald Version (USA, Europe)", "Space Pong (World) (Homebrew)"},
 	"n64": {"Legend of Zelda, The - Ocarina of Time (USA) (Rev 2)", "Mario Kart 64 (USA)", "Super Mario 64 (USA)"},
 	"gc":  {"Legend of Zelda, The - The Wind Waker (USA)", "Metroid Prime (USA)", "Super Smash Bros. Melee (USA) (En,Ja) (Rev 2)"},
-	"wii": {"Mario Kart Wii (USA) (En,Fr,Es)", "Super Mario Galaxy (USA) (En,Fr,Es)", "Wii Sports (USA)"},
 }
 
 func sampleSystems() []agent.GameSystem {

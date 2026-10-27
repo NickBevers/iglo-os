@@ -19,7 +19,7 @@ start_audio_server = true
 type = "docker"
 name = "IgloRetro"
 image = "ghcr.io/games-on-whales/es-de:edge@sha256:b718b0a0782a98c6f4a761bc43b2ac984d732f3e2f647ee4614c4986db6b194d"
-mounts = ["/data/games/roms:/ROMs:ro", "/data/games/bios:/bioses:ro", "/opt/gaming/dolphinbar.sh:/etc/cont-init.d/14-iglo-dolphinbar.sh:ro"]
+mounts = ["/data/games/roms:/ROMs:ro", "/data/games/bios:/bioses:ro"]
 env = ["RUN_SWAY=1", "GOW_REQUIRED_DEVICES=/dev/input/* /dev/dri/*"]
 devices = []
 ports = []

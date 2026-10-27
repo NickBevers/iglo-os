@@ -111,7 +111,7 @@ type fakeCovers struct{ asked []string }
 
 func (f *fakeCovers) Cover(_ context.Context, system, name string) ([]byte, error) {
 	f.asked = append(f.asked, system+"/"+name)
-	if name == "Wii Sports (USA)" {
+	if name == "Super Mario Sunshine (USA)" {
 		return []byte("libretro"), nil
 	}
 	return nil, errors.New("no cover found")
@@ -138,7 +138,7 @@ func TestGameCoversPreferTheShare(t *testing.T) {
 	if len(libretro.asked) != 0 {
 		t.Fatalf("asked libretro for an own cover: %v", libretro.asked)
 	}
-	if code, kind, body := cover("/api/gaming/covers/wii/Wii%20Sports%20(USA)"); code != 200 || kind != "image/jpeg" || body != "libretro" {
+	if code, kind, body := cover("/api/gaming/covers/gc/Super%20Mario%20Sunshine%20(USA)"); code != 200 || kind != "image/jpeg" || body != "libretro" {
 		t.Fatalf("libretro cover: %d %s %q", code, kind, body)
 	}
 	if code, _, _ := cover("/api/gaming/covers/n64/Homebrew"); code != http.StatusNotFound {
