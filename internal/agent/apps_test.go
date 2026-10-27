@@ -18,8 +18,7 @@ func validAnswers() MediaStackAnswers {
 		SeriesFolder:          "TV Shows",
 		AnimeFolder:           "anime",
 		AnimeMoviesFolder:     "anime-movies",
-		WireGuardPrivateKey:   "cGVyZmVjdGx5IHZhbGlkIGtleSBvZiAzMiBieXRlcyE=",
-		VPNCountries:          "Netherlands,Switzerland",
+		VPN:                   VPNSettings{Provider: "protonvpn", Locations: "Netherlands,Switzerland", WireGuardPrivateKey: "cGVyZmVjdGx5IHZhbGlkIGtleSBvZiAzMiBieXRlcyE="},
 		SubtitleLanguages:     "en,nl",
 		Username:              "iglo",
 		Password:              "correct horse battery",
@@ -45,7 +44,11 @@ func TestMediaStackAnswersValidate(t *testing.T) {
 		"no videos share":            func(a *MediaStackAnswers) { a.VideosBinding = "" },
 		"share with slash":           func(a *MediaStackAnswers) { a.VideosBinding = "../etc" },
 		"share with newline":         func(a *MediaStackAnswers) { a.VideosBinding = "videos\nARR_PASSWORD=x" },
-		"short key":                  func(a *MediaStackAnswers) { a.WireGuardPrivateKey = "abc=" },
+		"short key":                  func(a *MediaStackAnswers) { a.VPN.WireGuardPrivateKey = "abc=" },
+		"no key":                     func(a *MediaStackAnswers) { a.VPN.WireGuardPrivateKey = "" },
+		"unknown provider":           func(a *MediaStackAnswers) { a.VPN.Provider = "nordvpn" },
+		"pia without login":          func(a *MediaStackAnswers) { a.VPN.Provider, a.VPN.Locations = "pia", "Netherlands" },
+		"dedicated on protonvpn":     func(a *MediaStackAnswers) { a.VPN.Locations = "Dedicated IP" },
 		"folder with slash":          func(a *MediaStackAnswers) { a.MoviesFolder = "media/movies" },
 		"folder up":                  func(a *MediaStackAnswers) { a.SeriesFolder = ".." },
 		"folder newline":             func(a *MediaStackAnswers) { a.MoviesFolder = "movies\nARR_PASSWORD=x" },
@@ -60,7 +63,9 @@ func TestMediaStackAnswersValidate(t *testing.T) {
 		"admin name with slash":      func(a *MediaStackAnswers) { a.JellyfinAdminUsername = "a/b" },
 		"subtitles without password": func(a *MediaStackAnswers) { a.OpenSubtitlesPassword = "" },
 		"subtitles name with space":  func(a *MediaStackAnswers) { a.OpenSubtitlesUsername = "dries h" },
-		"country with digits":        func(a *MediaStackAnswers) { a.VPNCountries = "NL1" },
+		"country with digits":        func(a *MediaStackAnswers) { a.VPN.Locations = "NL1" },
+		"unknown country":            func(a *MediaStackAnswers) { a.VPN.Locations = "Mars" },
+		"country newline":            func(a *MediaStackAnswers) { a.VPN.Locations = "Netherlands\nARR_PASSWORD=x" },
 		"language too long":          func(a *MediaStackAnswers) { a.SubtitleLanguages = "eng" },
 		"username with space":        func(a *MediaStackAnswers) { a.Username = "my user" },
 		"short password":             func(a *MediaStackAnswers) { a.Password = "short" },
@@ -252,7 +257,7 @@ func TestAppRetryUsesTheSavedAnswers(t *testing.T) {
 	if err != nil || saved == nil {
 		t.Fatalf("saved = %v, err = %v", saved, err)
 	}
-	if saved.Answers.WireGuardPrivateKey != "" || saved.Answers.Password != "" || saved.Answers.JellyfinAPIKey != "" || saved.Answers.JellyfinAdminPassword != "" || saved.Answers.OpenSubtitlesPassword != "" || !saved.HasOpenSubtitlesPassword {
+	if saved.Answers.VPN.WireGuardPrivateKey != "" || saved.Answers.Password != "" || saved.Answers.JellyfinAPIKey != "" || saved.Answers.JellyfinAdminPassword != "" || saved.Answers.OpenSubtitlesPassword != "" || !saved.HasOpenSubtitlesPassword {
 		t.Fatalf("the view has secrets: %+v", saved.Answers)
 	}
 	if saved.Answers.VideosBinding != "videos" || !saved.HasJellyfinAPIKey || !saved.HasJellyfinAdminPassword || saved.Answers.JellyfinAdminUsername != "Dries H" || !saved.Until.Equal(now.Add(SavedAnswersTTL)) {
@@ -262,24 +267,29 @@ func TestAppRetryUsesTheSavedAnswers(t *testing.T) {
 		t.Fatalf("saved answers mode = %v", info.Mode())
 	}
 
-	// Try again: the same answers, secrets included.
-	if err := installer.Retry(MediaStackApp); err != nil {
-		t.Fatal(err)
+	// The retry file never has the VPN login: the host keeps that sealed.
+	data, _ := os.ReadFile(installer.savedPath(MediaStackApp))
+	if strings.Contains(string(data), validAnswers().VPN.WireGuardPrivateKey) {
+		t.Fatalf("the retry file has the VPN key: %s", data)
 	}
-	answers, _ := os.ReadFile(unit.started[len(unit.started)-1])
-	if !strings.Contains(string(answers), "ARR_PASSWORD=correct horse battery\n") {
-		t.Fatalf("retry answers:\n%s", answers)
+	if !strings.Contains(string(data), "correct horse battery") {
+		t.Fatal("the retry file lost the other passwords")
 	}
-	fail()
 
-	// Change answers: empty secrets keep the saved ones.
+	// So Try again can't work for the media stack: Change answers asks for it.
+	if err := installer.Retry(MediaStackApp); !errors.Is(err, ErrInvalidAnswers) || !strings.Contains(err.Error(), "VPN login") {
+		t.Fatalf("retry without the VPN login: %v", err)
+	}
+
+	// Change answers: empty secrets keep the saved ones, and the VPN login comes again.
 	changed := saved.Answers
 	changed.MoviesFolder = "Films"
+	changed.VPN.WireGuardPrivateKey = validAnswers().VPN.WireGuardPrivateKey
 	if err := installer.Install(MediaStackApp, InstallRequest{MediaStackAnswers: changed, KeepSecrets: true}); err != nil {
 		t.Fatal(err)
 	}
-	answers, _ = os.ReadFile(unit.started[len(unit.started)-1])
-	for _, line := range []string{"MOVIES_FOLDER=Films\n", "ARR_PASSWORD=correct horse battery\n", "JELLYFIN_ADMIN_PASSWORD=jelly pass\n", "OPENSUBTITLES_PASSWORD=subs pass\n", "WIREGUARD_PRIVATE_KEY=" + validAnswers().WireGuardPrivateKey + "\n"} {
+	answers, _ := os.ReadFile(unit.started[len(unit.started)-1])
+	for _, line := range []string{"MOVIES_FOLDER=Films\n", "ARR_PASSWORD=correct horse battery\n", "JELLYFIN_ADMIN_PASSWORD=jelly pass\n", "OPENSUBTITLES_PASSWORD=subs pass\n", "WIREGUARD_PRIVATE_KEY=" + validAnswers().VPN.WireGuardPrivateKey + "\n"} {
 		if !strings.Contains(string(answers), line) {
 			t.Fatalf("answers miss %q:\n%s", line, answers)
 		}
@@ -335,7 +345,7 @@ func TestSavedAdminPasswordOnlyForTheSameAdmin(t *testing.T) {
 	unit.running = false
 
 	changed := validAnswers()
-	changed.WireGuardPrivateKey, changed.Password, changed.JellyfinAPIKey, changed.JellyfinAdminPassword = "", "", "", ""
+	changed.VPN.WireGuardPrivateKey, changed.Password, changed.JellyfinAPIKey, changed.JellyfinAdminPassword = "", "", "", ""
 	changed.JellyfinAdminUsername = "someone else"
 	if err := installer.Install(MediaStackApp, InstallRequest{MediaStackAnswers: changed, KeepSecrets: true}); !errors.Is(err, ErrInvalidAnswers) {
 		t.Fatalf("a new admin got the old password: %v", err)
@@ -460,14 +470,21 @@ func TestJellyfinRetryKeepsTheAdminPassword(t *testing.T) {
 func TestChangeVPN(t *testing.T) {
 	installer, unit := newTestInstaller(t)
 
-	if err := installer.ChangeVPN(130, VPNSettings{Countries: "Netherlands\nARR_PASSWORD=x"}); !errors.Is(err, ErrInvalidAnswers) {
-		t.Fatalf("countries with a line break: %v", err)
-	}
-	if err := installer.ChangeVPN(130, VPNSettings{Countries: "Netherlands", WireGuardPrivateKey: "abc="}); !errors.Is(err, ErrInvalidAnswers) {
-		t.Fatalf("short key: %v", err)
+	for name, settings := range map[string]VPNSettings{
+		"location newline": {Provider: "protonvpn", Locations: "Netherlands\nARR_PASSWORD=x"},
+		"short key":        {Provider: "protonvpn", Locations: "Netherlands", WireGuardPrivateKey: "abc="},
+		"pia region":       {Provider: "protonvpn", Locations: "DE Berlin"},
+		"password newline": {Provider: "pia", Locations: "Netherlands", PIAPassword: "a\nVPN_PROVIDER=x"},
+		"short token":      {Provider: "pia", Locations: "Dedicated IP", PIADedicatedToken: "DIP123"},
+	} {
+		if err := installer.ChangeVPN(130, settings); !errors.Is(err, ErrInvalidAnswers) {
+			t.Fatalf("%s: %v", name, err)
+		}
 	}
 
-	if err := installer.ChangeVPN(130, VPNSettings{Countries: "Netherlands,Switzerland"}); err != nil {
+	// A change may leave the secrets empty, to keep the sealed ones. A half
+	// key of the other provider doesn't count, and doesn't go out.
+	if err := installer.ChangeVPN(130, VPNSettings{Provider: "pia", Locations: "DE Berlin, Netherlands", PIAUsername: "p1234567", WireGuardPrivateKey: "abc="}); err != nil {
 		t.Fatal(err)
 	}
 	answersPath := unit.started[1]
@@ -475,7 +492,8 @@ func TestChangeVPN(t *testing.T) {
 		t.Fatalf("args = %v", unit.args)
 	}
 	answers, _ := os.ReadFile(answersPath)
-	if string(answers) != "VPN_COUNTRIES=Netherlands,Switzerland\nWIREGUARD_PRIVATE_KEY=\n" {
+	want := "VPN_PROVIDER=pia\nVPN_LOCATIONS=DE Berlin,Netherlands\nWIREGUARD_PRIVATE_KEY=\nPIA_USERNAME=p1234567\nPIA_PASSWORD=\nPIA_DEDICATED_TOKEN=\n"
+	if string(answers) != want {
 		t.Fatalf("answers = %q", answers)
 	}
 	if info, _ := os.Stat(answersPath); info.Mode().Perm() != 0o600 {
@@ -486,29 +504,70 @@ func TestChangeVPN(t *testing.T) {
 	}
 }
 
-func TestVPNCountries(t *testing.T) {
+func TestVPNView(t *testing.T) {
 	installer, _ := newTestInstaller(t)
+	installer.CredentialsDir = t.TempDir()
 	var command []string
-	output := "Netherlands,Switzerland\n"
+	output := "VPN_COUNTRIES=Netherlands,Switzerland\nWIREGUARD_PRIVATE_KEY=set\n"
 	installer.output = func(_ context.Context, name string, args ...string) ([]byte, error) {
 		command = append([]string{name}, args...)
 		return []byte(output), nil
 	}
 
-	countries, err := installer.VPNCountries(context.Background(), 130)
-	if err != nil || countries != "Netherlands,Switzerland" {
-		t.Fatalf("countries = %q, err = %v", countries, err)
+	// A stack from before the provider choice is ProtonVPN, with its key in .env.
+	view, err := installer.VPN(context.Background(), 130)
+	if err != nil || view != (VPNView{Provider: "protonvpn", Locations: "Netherlands,Switzerland", HasWireGuardKey: true}) {
+		t.Fatalf("view = %+v, err = %v", view, err)
 	}
-	if !slices.Equal(command, []string{"pct", "exec", "130", "--", "sed", "-n", "s/^VPN_COUNTRIES=//p", "/opt/arr/.env"}) {
+	if !slices.Equal(command[:5], []string{"pct", "exec", "130", "--", "sed"}) || command[len(command)-1] != "/opt/arr/.env" {
 		t.Fatalf("command = %v", command)
 	}
 
-	output = ""
-	if _, err := installer.VPNCountries(context.Background(), 130); err == nil {
-		t.Fatal("no countries should be an error")
+	// The secrets that the host sealed say what the form may keep.
+	keep := filepath.Join(installer.CredentialsDir, "130", "keep")
+	os.MkdirAll(keep, 0o700)
+	for _, name := range []string{"pia_username", "pia_password", "pia_dedicated_token"} {
+		os.WriteFile(filepath.Join(keep, name+".cred"), []byte("sealed"), 0o600)
 	}
-	if _, err := installer.VPNCountries(context.Background(), 1); !errors.Is(err, ErrInvalidContainer) {
+	output = "VPN_PROVIDER=pia\nVPN_REGIONS='DE Berlin,Atlantis,DE Berlin'\n"
+	view, _ = installer.VPN(context.Background(), 130)
+	if view != (VPNView{Provider: "pia", Locations: "DE Berlin", HasPIALogin: true, HasDedicatedToken: true}) {
+		t.Fatalf("pia view = %+v", view)
+	}
+	output = "VPN_PROVIDER=pia\nGLUETUN_PROVIDER=custom\n"
+	if view, _ = installer.VPN(context.Background(), 130); view.Locations != "Dedicated IP" {
+		t.Fatalf("dedicated view = %+v", view)
+	}
+
+	// Old free text and an empty .env still open the form.
+	output = "VPN_COUNTRIES=netherlands,Cote d'Ivoire\n"
+	if view, err = installer.VPN(context.Background(), 130); err != nil || view.Provider != "protonvpn" || view.Locations != "Cote d'Ivoire" {
+		t.Fatalf("free text view = %+v, err = %v", view, err)
+	}
+	output = ""
+	if view, err = installer.VPN(context.Background(), 130); err != nil || view.Locations != "" {
+		t.Fatalf("empty view = %+v, err = %v", view, err)
+	}
+	if _, err := installer.VPN(context.Background(), 1); !errors.Is(err, ErrInvalidContainer) {
 		t.Fatalf("vmid 1: %v", err)
+	}
+}
+
+func TestOldRetryFilesLoseTheKey(t *testing.T) {
+	installer, _ := newTestInstaller(t)
+	now := time.Now()
+	installer.now = func() time.Time { return now }
+	os.MkdirAll(installer.Dir, 0o700)
+	old := `{"answers":{"videosBinding":"videos","wireguardPrivateKey":"cGVyZmVjdGx5IHZhbGlkIGtleSBvZiAzMiBieXRlcyE=","vpnCountries":"Netherlands"},"savedAt":"` +
+		now.Format(time.RFC3339Nano) + `"}`
+	os.WriteFile(installer.savedPath(MediaStackApp), []byte(old), 0o600)
+
+	saved, err := installer.Saved(MediaStackApp)
+	if err != nil || saved.Answers.VPN.Provider != "protonvpn" || saved.Answers.VPN.Locations != "Netherlands" {
+		t.Fatalf("saved = %+v, err = %v", saved, err)
+	}
+	if data, _ := os.ReadFile(installer.savedPath(MediaStackApp)); strings.Contains(string(data), "cGVyZmVjdGx5") {
+		t.Fatalf("the old key is still in the file: %s", data)
 	}
 }
 

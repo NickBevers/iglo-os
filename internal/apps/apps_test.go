@@ -31,14 +31,14 @@ func (f *fakeAgent) UpdateApp(_ context.Context, app string, vmid int) error {
 	return nil
 }
 
-func (f *fakeAgent) VPNCountries(_ context.Context, vmid int) (string, error) {
-	return "Netherlands", nil
+func (f *fakeAgent) VPN(_ context.Context, vmid int) (agent.VPNView, error) {
+	return agent.VPNView{Provider: "protonvpn", Locations: "Netherlands", HasWireGuardKey: true}, nil
 }
 
 func (f *fakeAgent) ChangeVPN(_ context.Context, vmid int, settings agent.VPNSettings) error {
 	f.mu.Lock()
 	defer f.mu.Unlock()
-	f.actions = append(f.actions, fmt.Sprintf("vpn %d %s", vmid, settings.Countries))
+	f.actions = append(f.actions, fmt.Sprintf("vpn %d %s %s", vmid, settings.Provider, settings.Locations))
 	f.status = agent.AppInstallStatus{App: "media", Action: agent.ActionVPN, State: agent.UpgradeRunning}
 	return nil
 }
@@ -162,9 +162,9 @@ func (f *fakeProxmox) ContainerInterfaces(_ context.Context, _ string, vmid int)
 func validAnswers() agent.MediaStackAnswers {
 	return agent.MediaStackAnswers{
 		VideosBinding: "videos", MoviesFolder: "movies", SeriesFolder: "series",
-		WireGuardPrivateKey: "cGVyZmVjdGx5IHZhbGlkIGtleSBvZiAzMiBieXRlcyE=",
-		VPNCountries:        "Netherlands", SubtitleLanguages: "en",
-		Username: "iglo", Password: "correct horse battery",
+		VPN:               agent.VPNSettings{Provider: "protonvpn", Locations: "Netherlands", WireGuardPrivateKey: "cGVyZmVjdGx5IHZhbGlkIGtleSBvZiAzMiBieXRlcyE="},
+		SubtitleLanguages: "en",
+		Username:          "iglo", Password: "correct horse battery",
 		Storage: "local-lvm", DownloadsSize: 200,
 	}
 }
@@ -294,7 +294,7 @@ func TestRetryAndChangedAnswers(t *testing.T) {
 	// With KeepSecrets the empty secrets are fine: the agent fills them in.
 	fake.set(agent.AppInstallStatus{App: "media", State: agent.UpgradeFailed})
 	changed := validAnswers()
-	changed.Password, changed.WireGuardPrivateKey = "", ""
+	changed.Password, changed.VPN.WireGuardPrivateKey = "", ""
 	if err := service.Install(ctx, ctx, "media", agent.InstallRequest{MediaStackAnswers: changed, KeepSecrets: true}); err != nil {
 		t.Fatal(err)
 	}
@@ -537,20 +537,20 @@ func TestChangeVPN(t *testing.T) {
 		Notify: func(_ context.Context, text string) { messages <- text },
 	})
 
-	if countries, err := service.VPNCountries(ctx, "media"); err != nil || countries != "Netherlands" {
-		t.Fatalf("countries = %q, err = %v", countries, err)
+	if view, err := service.VPN(ctx, "media"); err != nil || view.Locations != "Netherlands" {
+		t.Fatalf("view = %+v, err = %v", view, err)
 	}
-	if _, err := service.VPNCountries(ctx, "jellyfin"); !errors.Is(err, ErrUnknownApp) {
+	if _, err := service.VPN(ctx, "jellyfin"); !errors.Is(err, ErrUnknownApp) {
 		t.Fatalf("jellyfin has no VPN: %v", err)
 	}
-	if err := service.ChangeVPN(ctx, ctx, "media", agent.VPNSettings{Countries: "NL1"}); !errors.Is(err, agent.ErrInvalidAnswers) {
+	if err := service.ChangeVPN(ctx, ctx, "media", agent.VPNSettings{Provider: "protonvpn", Locations: "NL1"}); !errors.Is(err, agent.ErrInvalidAnswers) {
 		t.Fatalf("bad countries: %v", err)
 	}
 
-	if err := service.ChangeVPN(ctx, ctx, "media", agent.VPNSettings{Countries: "Switzerland"}); err != nil {
+	if err := service.ChangeVPN(ctx, ctx, "media", agent.VPNSettings{Provider: "protonvpn", Locations: "Switzerland"}); err != nil {
 		t.Fatal(err)
 	}
-	if fake.actions[0] != "vpn 130 Switzerland" {
+	if fake.actions[0] != "vpn 130 protonvpn Switzerland" {
 		t.Fatalf("actions = %v", fake.actions)
 	}
 

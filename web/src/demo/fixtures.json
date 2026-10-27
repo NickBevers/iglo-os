@@ -748,7 +748,8 @@
       "seriesFolder": "series",
       "animeFolder": "anime",
       "animeMoviesFolder": "anime-movies",
-      "vpnCountries": "Netherlands",
+      "vpnProvider": "protonvpn",
+      "vpnLocations": "Netherlands",
       "subtitleLanguages": "en",
       "username": "iglo",
       "downloadsSize": 200,
@@ -771,7 +772,11 @@
     }
   },
   "/apps/media/vpn": {
-    "countries": "Netherlands"
+    "provider": "pia",
+    "locations": "Netherlands,Switzerland",
+    "hasWireguardKey": false,
+    "hasPiaLogin": true,
+    "hasDedicatedToken": true
   },
   "/storage/bindings": {
     "bindings": [

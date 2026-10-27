@@ -6,7 +6,7 @@ The Setup page installs the whole stack in one go: the shares on your NAS, Proxm
 
 1. **Apps.** Everything is chosen. Leave out what you don't want. An installed app shows as installed and stays as it is. Gaming needs a prepared host (see [gaming.md](gaming.md#prepare-the-host)); until then the page says what is missing and leaves it out.
 2. **NAS.** The address of the NAS, and one share per role that the apps need: Videos, Photos, Backups, Music, Inbox and Games. Each share has its own account by default, so an app can only reach its own folders. **One account for all shares** is easier, and lets every app reach every share. A share that is connected already is used again. **Keep Proxmox backups on the NAS** is on by default.
-3. **Accounts.** One login for Jellyfin, Seerr, the apps of the media stack and Immich, with an email address for Immich. The ProtonVPN key and the anime and FlareSolverr switches show when the media stack is chosen, and the confirmation of the privileged container when Gaming is.
+3. **Accounts.** One login for Jellyfin, Seerr, the apps of the media stack and Immich, with an email address for Immich. The VPN (ProtonVPN or PIA, with its login and locations) and the anime and FlareSolverr switches show when the media stack is chosen, and the confirmation of the privileged container when Gaming is.
 4. **Review.** What will happen, in order, and the memory limits of the chosen apps against the memory of the host. Nothing changes before **Install**.
 
 The manager checks the whole plan before it starts, with the same checks as each installer, so a typo can't stop the run halfway.
@@ -30,7 +30,7 @@ Passwords and keys stay in the memory of the manager until the setup is done, an
 
 ## Keep your plan
 
-A plan file holds everything the setup asked, without the passwords and keys: the apps, the NAS address, the shares and their usernames, the admin username and email, the VPN countries and the switches. Keep it with your own notes, like in a private repository, together with the [settings file](settings-file.md).
+A plan file holds everything the setup asked, without the passwords and keys: the apps, the NAS address, the shares and their usernames, the admin username and email, the VPN provider and locations, and the switches. The PIA username stays out too. A plan file from before PIA has `countries` instead of `locations`, and still loads. Keep it with your own notes, like in a private repository, together with the [settings file](settings-file.md).
 
 - **Download this server's plan** on the first page, or **Download the plan** after a run. It is the plan of the last setup. A server that was set up without the setup gets a plan of its apps and shares; the accounts on the NAS are unknown, so they stay empty.
 - **Load a plan file** on the first page fills all four pages. Check them, type the passwords and keys, and confirm the privileged container of Gaming again. Loading starts nothing.
@@ -52,7 +52,7 @@ nas:
     music: { share: Music, username: music }
     inbox: { share: Inbox, username: inbox }
 admin: { username: nick, email: nick@example.com }
-vpn: { countries: Netherlands }
+vpn: { provider: protonvpn, locations: Netherlands }
 flareSolverr: true
 animeIndexers: true
 proxmoxBackups: true

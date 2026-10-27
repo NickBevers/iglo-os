@@ -114,10 +114,13 @@ function AppCard({ app, defaults }: { app: CatalogApp; defaults: Apps['defaults'
                                 <Button variant="outline" onClick={() => setInstallOpen(true)}>
                                     Change answers
                                 </Button>
-                                <Button disabled={retry.isPending} onClick={() => retry.mutate()}>
-                                    {retry.isPending ? <Loader2Icon className="animate-spin" /> : <RotateCwIcon />}
-                                    Try again
-                                </Button>
+                                {/* The media stack keeps no VPN login for a retry. */}
+                                {app.id !== 'media' && (
+                                    <Button disabled={retry.isPending} onClick={() => retry.mutate()}>
+                                        {retry.isPending ? <Loader2Icon className="animate-spin" /> : <RotateCwIcon />}
+                                        Try again
+                                    </Button>
+                                )}
                             </>
                         ) : (
                             <Button onClick={() => setInstallOpen(true)}>Install</Button>

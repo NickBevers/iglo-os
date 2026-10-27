@@ -63,6 +63,11 @@ and memory choices for people.
   session list carry the AES stream keys; strip them in the agent.
 - The setup keeps its plan with secrets in memory only, and drops it when the
   run ends. A restart means filling the pages again; done steps are skipped.
+- A secret that an app needs at runtime, like a VPN login, is sealed on the
+  host with `deploy/secrets.sh` (`systemd-creds`, TPM2 when there is one) and
+  reaches the container unsealed in RAM, never on its disk: not in `.env`, not
+  in a backup, not in the retry file. Pass it on stdin, never as an argument
+  or a here-string, which can be a file.
 
 ## Performance
 

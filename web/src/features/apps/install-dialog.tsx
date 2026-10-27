@@ -22,6 +22,7 @@ import { JellyfinForm } from './jellyfin-form'
 import { ScopedForm } from './scoped-form'
 import { MinecraftForm } from './minecraft-form'
 import { keepSaved } from './keep-saved'
+import { VpnFields } from './vpn-fields'
 import { useVideosShares } from './use-videos-shares'
 import { VideosShareFields } from './videos-share'
 
@@ -95,8 +96,14 @@ function MediaStackForm({
                 seriesFolder: defaults.seriesFolder,
                 animeFolder: defaults.animeFolder,
                 animeMoviesFolder: defaults.animeMoviesFolder,
-                wireguardPrivateKey: '',
-                vpnCountries: defaults.vpnCountries,
+                vpn: {
+                    provider: defaults.vpnProvider,
+                    locations: defaults.vpnLocations,
+                    wireguardPrivateKey: '',
+                    piaUsername: '',
+                    piaPassword: '',
+                    piaDedicatedToken: '',
+                },
                 subtitleLanguages: defaults.subtitleLanguages,
                 username: defaults.username,
                 password: '',
@@ -199,46 +206,12 @@ function MediaStackForm({
                 )}
             </VideosShareFields>
 
-            <Section
-                title="ProtonVPN"
-                help="qBittorrent, Prowlarr and FlareSolverr only use the internet through the VPN."
-            >
-                <Field
-                    id="wireguard-key"
-                    label="WireGuard private key"
-                    help={
-                        <>
-                            Make one at{' '}
-                            <a
-                                className="underline"
-                                href="https://account.proton.me/u/0/vpn/WireGuard"
-                                target="_blank"
-                                rel="noreferrer"
-                            >
-                                account.proton.me
-                            </a>
-                            . Turn on NAT-PMP (port forwarding).
-                        </>
-                    }
-                >
-                    <Input
-                        id="wireguard-key"
-                        type="password"
-                        autoComplete="off"
-                        value={answers.wireguardPrivateKey}
-                        onChange={(event) => set('wireguardPrivateKey', event.target.value.trim())}
-                        placeholder={saved ? keepSaved : undefined}
-                        required={!saved}
-                    />
-                </Field>
-                <Field id="vpn-countries" label="Server countries" help="Separate them with commas.">
-                    <Input
-                        id="vpn-countries"
-                        value={answers.vpnCountries}
-                        onChange={(event) => set('vpnCountries', event.target.value)}
-                        required
-                    />
-                </Field>
+            <Section title="VPN" help="qBittorrent, Prowlarr and FlareSolverr only use the internet through the VPN.">
+                <VpnFields
+                    id="media-vpn"
+                    value={answers.vpn}
+                    onChange={(patch) => set('vpn', { ...answers.vpn, ...patch })}
+                />
                 <label className="flex items-center justify-between gap-4 text-sm">
                     <span>
                         FlareSolverr

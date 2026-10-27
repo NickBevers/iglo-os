@@ -12,11 +12,10 @@ import {
     DialogHeader,
     DialogTitle,
 } from '@/components/ui/dialog'
-import { Input } from '@/components/ui/input'
 import { Skeleton } from '@/components/ui/skeleton'
-import { api, type CatalogApp } from '@/lib/api'
+import { api, type CatalogApp, type VpnSettings, type VpnView } from '@/lib/api'
 import { appsQuery } from '@/lib/queries'
-import { Field } from './form-parts'
+import { VpnFields } from './vpn-fields'
 
 type VpnDialogProps = { app: CatalogApp; open: boolean; onOpenChange: (open: boolean) => void }
 
@@ -30,7 +29,7 @@ export function VpnDialog({ app, open, onOpenChange }: VpnDialogProps) {
 
     return (
         <Dialog open={open} onOpenChange={onOpenChange}>
-            <DialogContent className="sm:max-w-md">
+            <DialogContent className="sm:max-w-lg">
                 <DialogHeader>
                     <DialogTitle>VPN settings</DialogTitle>
                     <DialogDescription>
@@ -41,7 +40,7 @@ export function VpnDialog({ app, open, onOpenChange }: VpnDialogProps) {
                 {error ? (
                     <p className="text-sm text-destructive">{error.message}</p>
                 ) : data && !isFetching ? (
-                    <VpnForm app={app} countries={data.countries} onDone={() => onOpenChange(false)} />
+                    <VpnForm app={app} current={data} onDone={() => onOpenChange(false)} />
                 ) : (
                     <Skeleton className="h-40 w-full" />
                 )}
@@ -50,13 +49,25 @@ export function VpnDialog({ app, open, onOpenChange }: VpnDialogProps) {
     )
 }
 
-function VpnForm({ app, countries: current, onDone }: { app: CatalogApp; countries: string; onDone: () => void }) {
+function VpnForm({ app, current, onDone }: { app: CatalogApp; current: VpnView; onDone: () => void }) {
     const queryClient = useQueryClient()
-    const [countries, setCountries] = useState(current)
-    const [key, setKey] = useState('')
+    // The secrets stay in the container: empty fields keep them.
+    const [settings, setSettings] = useState<VpnSettings>({
+        provider: current.provider,
+        locations: current.locations,
+        wireguardPrivateKey: '',
+        piaUsername: '',
+        piaPassword: '',
+        piaDedicatedToken: '',
+    })
+    const keep = {
+        wireguardKey: current.hasWireguardKey,
+        piaLogin: current.hasPiaLogin,
+        dedicatedToken: current.hasDedicatedToken,
+    }
 
     const change = useMutation({
-        mutationFn: () => api.changeVpn(app.id, { countries: countries.trim(), wireguardPrivateKey: key }),
+        mutationFn: () => api.changeVpn(app.id, settings),
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: appsQuery.queryKey })
             onDone()
@@ -71,43 +82,14 @@ function VpnForm({ app, countries: current, onDone }: { app: CatalogApp; countri
 
     return (
         <form onSubmit={submit} className="flex flex-col gap-4">
-            <Field id="vpn-countries" label="Server countries" help="Separate them with commas.">
-                <Input
-                    id="vpn-countries"
-                    value={countries}
-                    onChange={(event) => setCountries(event.target.value)}
-                    required
-                />
-            </Field>
-            <Field
-                id="vpn-key"
-                label="WireGuard private key"
-                help={
-                    <>
-                        Leave it empty to keep the current key. For a new key, go to{' '}
-                        <a
-                            className="underline"
-                            href="https://account.proton.me/u/0/vpn/WireGuard"
-                            target="_blank"
-                            rel="noreferrer"
-                        >
-                            account.proton.me
-                        </a>{' '}
-                        and turn on NAT-PMP (port forwarding).
-                    </>
-                }
-            >
-                <Input
-                    id="vpn-key"
-                    type="password"
-                    autoComplete="off"
-                    value={key}
-                    onChange={(event) => setKey(event.target.value.trim())}
-                    placeholder="Keep the current key"
-                />
-            </Field>
+            <VpnFields
+                id="vpn"
+                value={settings}
+                onChange={(patch) => setSettings((now) => ({ ...now, ...patch }))}
+                keep={keep}
+            />
             <DialogFooter>
-                <Button type="submit" disabled={change.isPending}>
+                <Button type="submit" disabled={change.isPending || settings.locations === ''}>
                     {change.isPending && <Loader2Icon className="animate-spin" />}
                     Save and restart the VPN
                 </Button>

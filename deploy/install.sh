@@ -219,6 +219,12 @@ install_scripts() {
     install -m 0755 "$BUNDLE_DIR/install.sh" "$SCRIPTS_DIR/install.sh.new"
     install -m 0644 "$BUNDLE_DIR/lib.sh" "$BUNDLE_DIR/VERSION" "$SCRIPTS_DIR/"
     install -m 0644 "$BUNDLE_DIR/storage.sh" "$SCRIPTS_DIR/"
+    # App secrets, sealed on the host. A bundle from before them has neither file.
+    if [[ -f "$BUNDLE_DIR/secrets.sh" ]]; then
+        install -m 0644 "$BUNDLE_DIR/secrets.sh" "$SCRIPTS_DIR/"
+        install -m 0644 "$BUNDLE_DIR/iglo-secrets@.service" /etc/systemd/system/
+        systemctl daemon-reload
+    fi
     install -m 0644 "$BUNDLE_DIR/scoped-stack.sh" "$SCRIPTS_DIR/"
     # The gaming proof of concept became the Gaming app in stacks/gaming.
     rm -rf "$SCRIPTS_DIR/gaming-poc"

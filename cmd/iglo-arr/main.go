@@ -1,10 +1,17 @@
 // iglo-arr runs inside the media LXC and connects the apps of the arr stack.
 //
 //	iglo-arr configure --env /opt/arr/.env < passwords
+//	iglo-arr vpn --env /opt/arr/.env < settings
 //
-// The first line on stdin is the password for the apps. Optional next lines
-// are the password of the Jellyfin admin, for the setup of Seerr, and the
-// password of the OpenSubtitles.com account, for Bazarr.
+// For configure, the first line on stdin is the password for the apps.
+// Optional next lines are the password of the Jellyfin admin, for the setup
+// of Seerr, and the password of the OpenSubtitles.com account, for Bazarr.
+//
+// For vpn, stdin has KEY=value lines: VPN_PROVIDER, VPN_LOCATIONS (separated
+// by commas), and WIREGUARD_PRIVATE_KEY, PIA_USERNAME, PIA_PASSWORD and
+// PIA_DEDICATED_TOKEN. It writes the settings without secrets in .env, and
+// prints the secret files for Gluetun as name=value lines, for the host to
+// seal. The secrets never land on the disk of the container.
 package main
 
 import (
@@ -24,15 +31,61 @@ import (
 )
 
 func main() {
-	if len(os.Args) < 2 || os.Args[1] != "configure" {
+	commands := map[string]func([]string) error{"configure": configure, "vpn": applyVPN}
+	if len(os.Args) < 2 || commands[os.Args[1]] == nil {
 		fmt.Fprintln(os.Stderr, "usage: iglo-arr configure [--env FILE] [--data-dir DIR] [--bazarr-config FILE] < passwords")
+		fmt.Fprintln(os.Stderr, "       iglo-arr vpn [--env FILE] [--gluetun-dir DIR] < settings")
 		os.Exit(2)
 	}
 
-	if err := configure(os.Args[2:]); err != nil {
+	if err := commands[os.Args[1]](os.Args[2:]); err != nil {
 		fmt.Fprintln(os.Stderr, "error:", err)
 		os.Exit(1)
 	}
+}
+
+// applyVPN writes the VPN settings from stdin in .env, and prints Gluetun's
+// secret files. The secrets come on stdin and go out on stdout, so they never
+// land in the process list or a file.
+func applyVPN(args []string) error {
+	flags := flag.NewFlagSet("vpn", flag.ExitOnError)
+	envPath := flags.String("env", "/opt/arr/.env", "stack .env file")
+	gluetunDir := flags.String("gluetun-dir", "/opt/arr/config/gluetun", "folder that Gluetun sees as /gluetun")
+	flags.Parse(args)
+
+	settings := map[string]string{}
+	scanner := bufio.NewScanner(os.Stdin)
+	for scanner.Scan() {
+		if key, value, found := strings.Cut(scanner.Text(), "="); found {
+			settings[key] = value
+		}
+	}
+	if err := scanner.Err(); err != nil {
+		return err
+	}
+	if err := os.MkdirAll(*gluetunDir, 0o700); err != nil {
+		return err
+	}
+
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer stop()
+
+	secrets, err := arr.ApplyVPN(ctx, arr.VPN{
+		Provider:          settings["VPN_PROVIDER"],
+		Locations:         strings.Split(settings["VPN_LOCATIONS"], ","),
+		WireGuardKey:      settings["WIREGUARD_PRIVATE_KEY"],
+		PIAUsername:       settings["PIA_USERNAME"],
+		PIAPassword:       settings["PIA_PASSWORD"],
+		PIADedicatedToken: settings["PIA_DEDICATED_TOKEN"],
+	}, *envPath, *gluetunDir, arr.NewPIAClient())
+	if err != nil {
+		return err
+	}
+	for _, name := range arr.SecretFiles {
+		fmt.Printf("%s=%s\n", name, secrets[name])
+	}
+
+	return nil
 }
 
 func configure(args []string) error {

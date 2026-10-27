@@ -25,7 +25,7 @@ func TestPlanFileKeepsAllButTheSecrets(t *testing.T) {
 			t.Fatalf("the file has %q:\n%s", secret, text)
 		}
 	}
-	for _, want := range []string{"version: 1", "server: 192.168.1.20", "share: Videos", "username: media", "email: nick@example.com", "countries: Netherlands", "timezone: Europe/Brussels"} {
+	for _, want := range []string{"version: 1", "server: 192.168.1.20", "share: Videos", "username: media", "email: nick@example.com", "provider: protonvpn", "locations: Netherlands", "timezone: Europe/Brussels"} {
 		if !strings.Contains(text, want) {
 			t.Fatalf("the file misses %q:\n%s", want, text)
 		}
@@ -44,6 +44,7 @@ func TestPlanFileKeepsAllButTheSecrets(t *testing.T) {
 	}
 	// With the secrets typed again, the plan is whole.
 	loaded.Admin.Password, loaded.VPN.WireGuardKey = plan.Admin.Password, plan.VPN.WireGuardKey
+	loaded.VPN.PIAUsername, loaded.VPN.PIAPassword, loaded.VPN.PIADedicatedToken = plan.VPN.PIAUsername, plan.VPN.PIAPassword, plan.VPN.PIADedicatedToken
 	for role, share := range loaded.NAS.Shares {
 		share.Password = "typed"
 		loaded.NAS.Shares[role] = share
@@ -110,6 +111,16 @@ func TestExportIsTheLastPlanOrWhatIsThere(t *testing.T) {
 	}
 	if info, _ := os.Stat(filepath.Join(dir, planFile)); info.Mode().Perm() != 0o600 {
 		t.Fatalf("mode = %v", info.Mode())
+	}
+}
+
+func TestOldPlanFilesCallLocationsCountries(t *testing.T) {
+	plan, err := ParseFile([]byte("version: 1\nvpn: { countries: Netherlands, wireguardKey: secret }\n"))
+	if err != nil || plan.VPN.Locations != "Netherlands" || plan.VPN.Countries != "" || plan.VPN.WireGuardKey != "" {
+		t.Fatalf("plan = %+v, %v", plan.VPN, err)
+	}
+	if settings := plan.VPN.settings(); settings.Provider != "protonvpn" || settings.Locations != "Netherlands" {
+		t.Fatalf("settings = %+v", settings)
 	}
 }
 

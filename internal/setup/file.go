@@ -15,6 +15,7 @@ import (
 	"go.yaml.in/yaml/v3"
 
 	"iglo/internal/agent"
+	"iglo/internal/vpn"
 )
 
 // A plan file is the plan of a setup without its secrets, as YAML. Keep it
@@ -40,7 +41,13 @@ type File struct {
 // the shares, so the plan of a running setup stays as it is.
 func (p Plan) withoutSecrets() Plan {
 	plan := p
-	plan.Admin.Password, plan.VPN.WireGuardKey, plan.NAS.Account.Password = "", "", ""
+	plan.Admin.Password, plan.NAS.Account.Password = "", ""
+	plan.VPN.WireGuardKey, plan.VPN.PIAUsername, plan.VPN.PIAPassword, plan.VPN.PIADedicatedToken = "", "", "", ""
+	// Plan files from before PIA call the locations countries.
+	if plan.VPN.Locations == "" {
+		plan.VPN.Locations = plan.VPN.Countries
+	}
+	plan.VPN.Countries = ""
 	plan.ConfirmPrivileged = false
 	plan.Apps = slices.Clone(p.Apps)
 	plan.NAS.Shares = maps.Clone(p.NAS.Shares)
@@ -130,7 +137,7 @@ func (s *Service) ExportPlan(ctx context.Context) ([]byte, error) {
 // currentPlan describes the apps and shares of a server that was set up
 // without the setup. The accounts on the NAS aren't known, so they stay empty.
 func (s *Service) currentPlan(ctx context.Context) Plan {
-	plan := Plan{Apps: []string{}, NAS: NAS{Shares: map[string]Share{}}, VPN: VPN{Countries: "Netherlands"},
+	plan := Plan{Apps: []string{}, NAS: NAS{Shares: map[string]Share{}}, VPN: VPN{Provider: vpn.ProtonVPN, Locations: "Netherlands"},
 		FlareSolverr: true, AnimeIndexers: true}
 	status, _ := s.Apps.Status(ctx)
 	plan.Storage = status.Defaults.Storage

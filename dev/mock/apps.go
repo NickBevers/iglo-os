@@ -81,7 +81,11 @@ func (f *fakeInstalls) start(script string, args []string, cleanup, logPath, exi
 	return nil
 }
 
-// playVPN plays a change of the VPN settings. Countries with "Mars" do not connect.
+// playVPN plays a change of the VPN settings, like install.sh --vpn with
+// iglo-arr: an empty secret keeps the sealed one, and a missing one fails
+// before anything changes. A PIA password with "wrong" in it does not
+// connect, like a refused login, and a dedicated IP token with "US" in it is
+// refused, as PIA has no port forwarding there.
 func (f *fakeInstalls) playVPN(answers, logPath, exitPath string) {
 	defer func() {
 		f.mu.Lock()
@@ -98,27 +102,58 @@ func (f *fakeInstalls) playVPN(answers, logPath, exitPath string) {
 		fmt.Fprintln(logFile, line)
 		time.Sleep(time.Second)
 	}
+	failWith := func(lines ...string) {
+		for _, line := range lines {
+			write(line)
+		}
+		os.WriteFile(exitPath, []byte("1\n"), 0o600)
+	}
 
-	countries := ""
+	settings := map[string]string{}
 	for line := range strings.Lines(answers) {
-		if value, found := strings.CutPrefix(strings.TrimSpace(line), "VPN_COUNTRIES="); found {
-			countries = value
+		if key, value, found := strings.Cut(strings.TrimSpace(line), "="); found {
+			settings[key] = value
 		}
 	}
 
-	write("==> Saving the new VPN settings")
-	write("==> Restarting the VPN and the apps behind it")
-	write("==> Waiting for the VPN")
-	if strings.Contains(countries, "Mars") {
-		write("Last lines of the VPN log (gluetun):")
-		write("ERROR [vpn] no server found for countries: " + countries)
-		write("==> The VPN did not connect, going back to the old settings")
-		write("==> Restarting the VPN and the apps behind it")
-		write("error: the VPN did not connect with the new settings, so the old settings are back")
-		os.WriteFile(exitPath, []byte("1\n"), 0o600)
+	view := loadVPN()
+	hasKey := view.HasWireGuardKey || settings["WIREGUARD_PRIVATE_KEY"] != ""
+	hasLogin := view.HasPIALogin || (settings["PIA_USERNAME"] != "" && settings["PIA_PASSWORD"] != "")
+	hasToken := view.HasDedicatedToken || settings["PIA_DEDICATED_TOKEN"] != ""
+	pia, dedicated := settings["VPN_PROVIDER"] == "pia", settings["VPN_LOCATIONS"] == "Dedicated IP"
+
+	write("==> Saving the VPN settings")
+	switch {
+	case !pia && !hasKey:
+		failWith("error: ProtonVPN needs a WireGuard private key", "error: the VPN settings were not saved, read the error above")
+		return
+	case pia && !hasLogin:
+		failWith("error: PIA needs its username and password", "error: the VPN settings were not saved, read the error above")
+		return
+	case dedicated && !hasToken:
+		failWith("error: a PIA dedicated IP needs its token", "error: the VPN settings were not saved, read the error above")
+		return
+	case dedicated && strings.Contains(settings["PIA_DEDICATED_TOKEN"], "US"):
+		failWith("error: PIA has no port forwarding for a dedicated IP in the US, and qBittorrent needs it",
+			"error: the VPN settings were not saved, read the error above")
 		return
 	}
-	os.WriteFile(statePath("vpn-countries"), []byte(countries), 0o600)
+	write("==> Restarting the VPN and the apps behind it")
+	write("==> Waiting for the VPN")
+	if strings.Contains(settings["PIA_PASSWORD"], "wrong") {
+		failWith("Last lines of the VPN log (gluetun):",
+			"ERROR [vpn] AUTH: Received control message: AUTH_FAILED",
+			"==> The VPN did not connect, going back to the old settings",
+			"==> Restarting the VPN and the apps behind it",
+			"error: the VPN did not connect with the new settings, so the old settings are back")
+		return
+	}
+
+	// The host keeps every sealed secret, also the other provider's.
+	view.Provider, view.Locations = settings["VPN_PROVIDER"], settings["VPN_LOCATIONS"]
+	view.HasWireGuardKey, view.HasPIALogin, view.HasDedicatedToken = hasKey, hasLogin, hasToken
+	data, _ := json.Marshal(view)
+	os.WriteFile(statePath("vpn.json"), data, 0o600)
 	write("==> Done")
 	os.WriteFile(exitPath, []byte("0\n"), 0o600)
 }
@@ -441,11 +476,7 @@ func addAppRoutes(mux *http.ServeMux, installer *agent.AppInstaller) {
 		})
 	}
 	mux.HandleFunc("GET /v1/apps/media/vpn", func(w http.ResponseWriter, r *http.Request) {
-		countries := "Netherlands"
-		if data, err := os.ReadFile(statePath("vpn-countries")); err == nil {
-			countries = string(data)
-		}
-		writeJSON(w, agent.VPNSettings{Countries: countries})
+		writeJSON(w, loadVPN())
 	})
 	mux.HandleFunc("PUT /v1/apps/media/vpn", func(w http.ResponseWriter, r *http.Request) {
 		var request agent.VPNRequest
@@ -490,4 +521,14 @@ func addAppRoutes(mux *http.ServeMux, installer *agent.AppInstaller) {
 		}
 		w.WriteHeader(http.StatusNoContent)
 	})
+}
+
+// loadVPN is the VPN of the fake media stack: ProtonVPN in the Netherlands,
+// until a change.
+func loadVPN() agent.VPNView {
+	view := agent.VPNView{Provider: "protonvpn", Locations: "Netherlands", HasWireGuardKey: true}
+	if data, err := os.ReadFile(statePath("vpn.json")); err == nil {
+		json.Unmarshal(data, &view)
+	}
+	return view
 }

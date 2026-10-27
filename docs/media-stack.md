@@ -1,13 +1,13 @@
 # Media stack
 
-Prowlarr, Radarr, Sonarr, Bazarr, qBittorrent, Seerr, Recyclarr and FlareSolverr in one LXC with Docker. qBittorrent, Prowlarr and FlareSolverr go through ProtonVPN via Gluetun.
+Prowlarr, Radarr, Sonarr, Bazarr, qBittorrent, Seerr, Recyclarr and FlareSolverr in one LXC with Docker. qBittorrent, Prowlarr and FlareSolverr go through ProtonVPN or Private Internet Access (PIA) via Gluetun.
 
 ## Before you start
 
 Install Jellyfin first, from the Apps page or in another way: the installer of the media stack finds a container named `jellyfin` and connects it. See [jellyfin.md](jellyfin.md).
 
 1. Connect the Videos share with your movies and series on the Storage page, with write access. See [media-folder.md](media-folder.md). If Jellyfin already uses a Videos share, the form chooses the same one.
-2. Create a ProtonVPN WireGuard key with "NAT-PMP (Port Forwarding)" on.
+2. For ProtonVPN, create a WireGuard key with "NAT-PMP (Port Forwarding)" on. For PIA, have your username (like `p1234567`) and password, and your dedicated IP token if you have a static IP.
 3. Optional: create a Jellyfin API key (Dashboard > API Keys).
 4. Optional: make a free account on [opensubtitles.com](https://www.opensubtitles.com). Not opensubtitles.org: that is the old site, and Bazarr can't use it without a paid VIP account.
 
@@ -15,10 +15,9 @@ Install Jellyfin first, from the Apps page or in another way: the installer of t
 
 Install it on the Apps page. The host agent runs the installer from the release bundle, in its own container, and the page shows the log. Telegram tells you when it is done.
 
-If the install fails, it removes the container and the media mount it made. Then:
+If the install fails, it removes the container, the media mount and the sealed secrets it made. Then:
 
-- **Try again** runs the install again with the same answers.
-- **Change answers** opens the form with your answers. Leave the WireGuard key, the password, the Jellyfin API key and the SMB password empty to keep them. The SMB password only stays for the same SMB user on the same NAS.
+- **Change answers** opens the form with your answers. Leave the password, the Jellyfin API key and the SMB password empty to keep them. The SMB password only stays for the same SMB user on the same NAS. The VPN login is never kept for a retry, so enter it again; that is also why the media stack has no **Try again**.
 
 The answers stay on the Proxmox host in a file that only root can read, for 24 hours or until the install works. The keys and passwords never go back to the browser. "Remove them now" deletes them at once.
 
@@ -98,13 +97,44 @@ A media stack from before these changes gets the Radarr anime profile and the fi
 
 Which audio and subtitles play is up to the player. Set the language preferences in Jellyfin, or in Kodi on the TV.
 
-## VPN settings
+## VPN
 
-To use other server countries or a new WireGuard key, click **VPN** on the Apps page. Leave the key empty to keep the current key. A new key needs "NAT-PMP (Port Forwarding)" on, like the first one.
+The stack uses one of two providers. Both need port forwarding, because qBittorrent can't seed well without a forwarded port.
+
+|                     | ProtonVPN                                                         | Private Internet Access (PIA)                       |
+| ------------------- | ----------------------------------------------------------------- | --------------------------------------------------- |
+| Login               | A WireGuard private key, made with "NAT-PMP (Port Forwarding)" on | Your PIA username and password                      |
+| Locations           | Countries                                                         | Regions, like `DE Berlin`, or your dedicated IP     |
+| Protocol in Gluetun | WireGuard                                                         | OpenVPN (Gluetun has no WireGuard for PIA, v3.41.3) |
+
+The form lists only the countries and regions with port forwarding, from the server list of the Gluetun version the stack runs. Choose up to 10; Gluetun picks a server in one of them. `dev/vpnlocations` makes the list again for a new Gluetun version.
+
+### A PIA dedicated IP
+
+With a dedicated IP token (it starts with `DIP`), the location list gets **Dedicated IP**, which goes alone. Iglo-OS then asks PIA's API for the address and name of that server, writes an OpenVPN file for it in `/opt/arr/config/gluetun`, and gives Gluetun its custom provider with PIA's port forwarding. The VPN login is `dedicated_ip_` and the token, as in PIA's own [manual-connections](https://github.com/pia-foss/manual-connections) scripts; port forwarding logs in with your normal PIA account. PIA has no port forwarding for a dedicated IP in the US, so Iglo-OS refuses one there.
+
+This follows Gluetun v3.41.3 and PIA's scripts at `645377e`, checked on 27 October 2026, and is untested with a real token.
+
+### Changing the VPN
+
+Click **VPN** on the Apps page to choose another provider, other locations or a new login. Leave a key, password or token empty to keep the current one. Switching providers needs the login of the new one.
 
 Iglo-OS writes the new settings in `/opt/arr/.env` in the container, and restarts Gluetun, qBittorrent, Prowlarr and FlareSolverr, when it runs. Downloads stop for about a minute. If the VPN does not connect with the new settings, Iglo-OS puts the old settings back and shows the VPN log.
 
-The key goes to the container on stdin. It never goes back to the browser.
+The form only learns which secrets the host keeps, never their values. Switching back to a provider you used before needs no new login: the host keeps the sealed secrets of both.
+
+### How the VPN login is kept
+
+The login never lies on a disk in plain text:
+
+1. The browser sends it to Iglo-OS over HTTPS, and Iglo-OS to the host agent over its Unix socket.
+2. The installer passes it to `iglo-arr` in the container on stdin, which checks it and sends back the files that Gluetun reads, also on stdout. Nothing goes through a file or the process list.
+3. The host seals each secret with `systemd-creds` in `/etc/iglo/credentials/<container>`: bound to the TPM2 chip and the host key when the host has a TPM2, otherwise to the host key (systemd v257, `--with-key=auto`).
+4. Before Proxmox starts the container, `iglo-secrets@<container>.service` unseals them into RAM, in `/run/iglo/secrets/<container>`. The container sees that folder read-only at `/mnt/iglo-secrets`, and Gluetun reads it as `/run/secrets`, which it prefers to environment variables (v3.41.3).
+5. `.env` in the container has no secrets, and a backup of the container doesn't have the folder, so backups on the NAS hold no VPN login.
+6. The answers kept for a retry leave the VPN login out.
+
+Root on the running host, or in the container, can still read what Gluetun reads: any VPN client needs its login in usable form. The seal protects the disk, the NAS and the backups. A stack from before the sealed secrets keeps its WireGuard key in `.env` until its next update or VPN change: then the container gets its secrets folder and restarts once, and the key moves to the host, sealed.
 
 ## VPN kill switch
 

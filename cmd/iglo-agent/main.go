@@ -92,16 +92,16 @@ func run(socketPath string, socketGID int, logger *slog.Logger) error {
 	mux.HandleFunc("POST /v1/apps/{app}/remove", appOnContainer(apps.Remove, "app removal started", logger))
 	mux.HandleFunc("GET /v1/apps/media/vpn", func(w http.ResponseWriter, r *http.Request) {
 		vmid, _ := strconv.Atoi(r.URL.Query().Get("vmid"))
-		countries, err := apps.VPNCountries(r.Context(), vmid)
+		view, err := apps.VPN(r.Context(), vmid)
 		if err != nil {
 			writeAppError(w, logger, agent.MediaStackApp, err)
 			return
 		}
-		writeJSON(w, http.StatusOK, agent.VPNSettings{Countries: countries})
+		writeJSON(w, http.StatusOK, view)
 	})
 	mux.HandleFunc("PUT /v1/apps/media/vpn", func(w http.ResponseWriter, r *http.Request) {
 		var request agent.VPNRequest
-		if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, 1024)).Decode(&request); err != nil {
+		if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, 4096)).Decode(&request); err != nil {
 			http.Error(w, "invalid request body", http.StatusBadRequest)
 			return
 		}

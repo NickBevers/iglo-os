@@ -18,6 +18,7 @@ import (
 	"unicode"
 
 	"iglo/internal/stacks/arr"
+	"iglo/internal/vpn"
 )
 
 const (
@@ -67,7 +68,6 @@ var (
 
 var (
 	hostPattern         = regexp.MustCompile(`^[A-Za-z0-9]([A-Za-z0-9.-]{0,252})$`)
-	countriesPattern    = regexp.MustCompile(`^[A-Za-z][A-Za-z ]{1,40}(,[A-Za-z][A-Za-z ]{1,40}){0,9}$`)
 	languagesPattern    = regexp.MustCompile(`^[a-z]{2}(,[a-z]{2}){0,9}$`)
 	usernamePattern     = regexp.MustCompile(`^[A-Za-z0-9._-]{1,32}$`)
 	apiKeyPattern       = regexp.MustCompile(`^[a-f0-9]{32}$`)
@@ -92,13 +92,12 @@ type MediaStackAnswers struct {
 	SeriesFolder string `json:"seriesFolder"`
 	// AnimeFolder and AnimeMoviesFolder are optional folders for anime. Empty
 	// keeps anime in the series and movies folders.
-	AnimeFolder         string `json:"animeFolder"`
-	AnimeMoviesFolder   string `json:"animeMoviesFolder"`
-	WireGuardPrivateKey string `json:"wireguardPrivateKey"`
-	VPNCountries        string `json:"vpnCountries"`
-	SubtitleLanguages   string `json:"subtitleLanguages"`
-	Username            string `json:"username"`
-	Password            string `json:"password"`
+	AnimeFolder       string      `json:"animeFolder"`
+	AnimeMoviesFolder string      `json:"animeMoviesFolder"`
+	VPN               VPNSettings `json:"vpn"`
+	SubtitleLanguages string      `json:"subtitleLanguages"`
+	Username          string      `json:"username"`
+	Password          string      `json:"password"`
 	// JellyfinAPIKey is optional. With it, the installer adds the libraries to Jellyfin.
 	JellyfinAPIKey string `json:"jellyfinApiKey"`
 	// JellyfinAdminUsername and JellyfinAdminPassword are optional. With them,
@@ -127,10 +126,8 @@ func (a MediaStackAnswers) Validate() error {
 		return invalid("select a Videos share from Storage")
 	case !validFolders(a.MoviesFolder, a.SeriesFolder, a.AnimeFolder, a.AnimeMoviesFolder):
 		return invalid(foldersMessage)
-	case !validWireGuardKey(a.WireGuardPrivateKey):
-		return invalid("the WireGuard private key must be 44 characters of base64")
-	case !countriesPattern.MatchString(a.VPNCountries):
-		return invalid("the VPN countries must be names, separated by commas")
+	case a.VPN.validate(true) != nil:
+		return a.VPN.validate(true)
 	case !languagesPattern.MatchString(a.SubtitleLanguages):
 		return invalid("the subtitle languages must be 2-letter codes, like en,nl")
 	case !usernamePattern.MatchString(a.Username):
@@ -196,8 +193,9 @@ func (a MediaStackAnswers) file() string {
 		"SERIES_FOLDER="+a.SeriesFolder,
 		"ANIME_FOLDER="+a.AnimeFolder,
 		"ANIME_MOVIES_FOLDER="+a.AnimeMoviesFolder,
-		"WIREGUARD_PRIVATE_KEY="+a.WireGuardPrivateKey,
-		"VPN_COUNTRIES="+a.VPNCountries,
+	)
+	lines = append(lines, a.VPN.lines()...)
+	lines = append(lines,
 		"SUBTITLE_LANGUAGES="+a.SubtitleLanguages,
 		"ARR_USERNAME="+a.Username,
 		"ARR_PASSWORD="+a.Password,
@@ -270,25 +268,8 @@ func (a JellyfinAnswers) file() string {
 	return strings.Join(lines, "\n") + "\n"
 }
 
-// VPNSettings are the new VPN settings of the media stack. An empty key keeps the key in the container.
-type VPNSettings struct {
-	Countries           string `json:"countries"`
-	WireGuardPrivateKey string `json:"wireguardPrivateKey"`
-}
-
-func (v VPNSettings) Validate() error {
-	switch {
-	case !countriesPattern.MatchString(v.Countries):
-		return fmt.Errorf("%w: the VPN countries must be names, separated by commas", ErrInvalidAnswers)
-	case v.WireGuardPrivateKey != "" && !validWireGuardKey(v.WireGuardPrivateKey):
-		return fmt.Errorf("%w: the WireGuard private key must be 44 characters of base64", ErrInvalidAnswers)
-	}
-
-	return nil
-}
-
 func (v VPNSettings) file() string {
-	return "VPN_COUNTRIES=" + v.Countries + "\nWIREGUARD_PRIVATE_KEY=" + v.WireGuardPrivateKey + "\n"
+	return strings.Join(v.lines(), "\n") + "\n"
 }
 
 // appAnswers are the answers of one installer.
@@ -377,6 +358,9 @@ type AppInstaller struct {
 	now func() time.Time
 	// output runs a command and returns its output. Tests replace it.
 	output func(ctx context.Context, name string, args ...string) ([]byte, error)
+	// CredentialsDir has the secrets that the host seals for each container
+	// (deploy/secrets.sh). Empty is /etc/iglo/credentials.
+	CredentialsDir string
 
 	mu sync.Mutex
 }
@@ -449,9 +433,7 @@ func (i *AppInstaller) Install(app string, request InstallRequest) error {
 	answers := request.MediaStackAnswers
 	if request.KeepSecrets {
 		saved := saved.Answers
-		if answers.WireGuardPrivateKey == "" {
-			answers.WireGuardPrivateKey = saved.WireGuardPrivateKey
-		}
+		answers.VPN = answers.VPN.withSecretsFrom(saved.VPN)
 		if answers.Password == "" {
 			answers.Password = saved.Password
 		}
@@ -482,6 +464,10 @@ func (i *AppInstaller) Retry(app string) error {
 	saved, err := i.loadSavedFile(app)
 	if err != nil {
 		return err
+	}
+	// The retry file keeps no VPN login, so the form has to ask for it.
+	if app == MediaStackApp && saved.Answers.VPN.missingSecrets() {
+		return fmt.Errorf("%w: the VPN login is not kept for a retry, use Change answers and enter it again", ErrInvalidAnswers)
 	}
 
 	return i.installLocked(app, saved)
@@ -527,25 +513,6 @@ func (i *AppInstaller) Recover(app string, vmid int, action AppAction) error {
 		return ErrUnknownApp
 	}
 	return i.runOnContainer(app, action, vmid)
-}
-
-// VPNCountries reads the VPN countries of the media stack in container vmid.
-// The WireGuard key stays in the container.
-func (i *AppInstaller) VPNCountries(ctx context.Context, vmid int) (string, error) {
-	if vmid < 100 || vmid > 999999999 {
-		return "", ErrInvalidContainer
-	}
-
-	output, err := i.output(ctx, "pct", "exec", strconv.Itoa(vmid), "--", "sed", "-n", "s/^VPN_COUNTRIES=//p", "/opt/arr/.env")
-	if err != nil {
-		return "", fmt.Errorf("could not read the VPN settings of container %d: %w", vmid, err)
-	}
-	countries := strings.TrimSpace(string(output))
-	if !countriesPattern.MatchString(countries) {
-		return "", fmt.Errorf("container %d has no VPN countries in /opt/arr/.env", vmid)
-	}
-
-	return countries, nil
 }
 
 // ChangeVPN gives the media stack in container vmid new VPN settings. The
@@ -727,7 +694,8 @@ func (i *AppInstaller) Saved(app string) (*SavedAnswers, error) {
 		HasPlayitSecretKey:       minecraft.PlayitSecretKey != "",
 		Until:                    file.SavedAt.Add(SavedAnswersTTL),
 	}
-	answers.WireGuardPrivateKey, answers.Password, answers.JellyfinAPIKey = "", "", ""
+	answers.VPN = answers.VPN.withoutSecrets()
+	answers.Password, answers.JellyfinAPIKey = "", ""
 	answers.JellyfinAdminPassword, answers.OpenSubtitlesPassword = "", ""
 	jellyfin.AdminPassword = ""
 	minecraft.PlayitSecretKey = ""
@@ -752,9 +720,15 @@ func (i *AppInstaller) Forget(app string) error {
 	return nil
 }
 
-// save keeps the answers for a retry, readable by root only. It needs i.mu.
+// save keeps the answers for a retry, readable by root only, but never the
+// VPN login: the host keeps that one sealed. It needs i.mu.
 func (i *AppInstaller) save(app string, saved savedFile) error {
 	saved.SavedAt = i.now()
+	return i.write(app, saved)
+}
+
+func (i *AppInstaller) write(app string, saved savedFile) error {
+	saved.Answers.VPN = saved.Answers.VPN.withoutSecrets()
 	data, err := json.Marshal(saved)
 	if err != nil {
 		return err
@@ -782,6 +756,22 @@ func (i *AppInstaller) loadSavedFile(app string) (savedFile, error) {
 	if err := json.Unmarshal(data, &file); err != nil || i.now().Sub(file.SavedAt) > SavedAnswersTTL {
 		os.Remove(i.savedPath(app))
 		return savedFile{}, ErrNoSavedAnswers
+	}
+
+	// Answers from before the provider choice had the countries and the key
+	// at the top. Keep the countries, and write the file again without the key.
+	var legacy struct {
+		Answers struct {
+			WireGuardPrivateKey string `json:"wireguardPrivateKey"`
+			VPNCountries        string `json:"vpnCountries"`
+		} `json:"answers"`
+	}
+	if json.Unmarshal(data, &legacy) == nil && file.Answers.VPN.Provider == "" &&
+		(legacy.Answers.VPNCountries != "" || legacy.Answers.WireGuardPrivateKey != "") {
+		file.Answers.VPN = VPNSettings{Provider: vpn.ProtonVPN, Locations: legacy.Answers.VPNCountries}
+		if err := i.write(app, file); err != nil {
+			return savedFile{}, err
+		}
 	}
 
 	return file, nil

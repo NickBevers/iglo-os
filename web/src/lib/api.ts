@@ -188,7 +188,14 @@ export type SetupPlan = {
         shares: Record<string, { share: string } & SetupAccount>
     }
     admin: { username: string; password: string; email: string }
-    vpn: { wireguardKey: string; countries: string }
+    vpn: {
+        provider: VpnProvider
+        locations: string
+        wireguardKey?: string
+        piaUsername?: string
+        piaPassword?: string
+        piaDedicatedToken?: string
+    }
     flareSolverr: boolean
     animeIndexers: boolean
     proxmoxBackups: boolean
@@ -610,13 +617,38 @@ export type Apps = {
         seriesFolder: string
         animeFolder: string
         animeMoviesFolder: string
-        vpnCountries: string
+        vpnProvider: VpnProvider
+        vpnLocations: string
         subtitleLanguages: string
         username: string
         downloadsSize: number
         minecraft: MinecraftAnswers
     }
     error?: string
+}
+
+export type VpnProvider = 'protonvpn' | 'pia'
+
+// VpnSettings are the VPN of the media stack. Locations are countries
+// (ProtonVPN) or regions (PIA), separated by commas, or "Dedicated IP". When
+// changing the VPN, an empty secret keeps the one in the container.
+export type VpnSettings = {
+    provider: VpnProvider
+    locations: string
+    wireguardPrivateKey: string
+    piaUsername: string
+    piaPassword: string
+    piaDedicatedToken: string
+}
+
+// VpnView is the VPN of an installed media stack, without its secrets. The
+// has fields say which secrets the host keeps sealed.
+export type VpnView = {
+    provider: VpnProvider
+    locations: string
+    hasWireguardKey: boolean
+    hasPiaLogin: boolean
+    hasDedicatedToken: boolean
 }
 
 export type MediaStackAnswers = {
@@ -627,8 +659,7 @@ export type MediaStackAnswers = {
     // animeFolder and animeMoviesFolder are optional, as for Jellyfin.
     animeFolder: string
     animeMoviesFolder: string
-    wireguardPrivateKey: string
-    vpnCountries: string
+    vpn: VpnSettings
     subtitleLanguages: string
     username: string
     password: string
@@ -809,9 +840,8 @@ export const api = {
     removeApp: (id: string) => request<void>('POST', `/apps/${id}/remove`),
     minecraftPlayers: () => request<MinecraftPlayers>('GET', '/apps/minecraft/players'),
     changeMinecraftPlayers: (players: MinecraftPlayers) => request<void>('PUT', '/apps/minecraft/players', players),
-    vpnSettings: (id: string) => request<{ countries: string }>('GET', `/apps/${id}/vpn`),
-    changeVpn: (id: string, settings: { countries: string; wireguardPrivateKey: string }) =>
-        request<void>('PUT', `/apps/${id}/vpn`, settings),
+    vpnSettings: (id: string) => request<VpnView>('GET', `/apps/${id}/vpn`),
+    changeVpn: (id: string, settings: VpnSettings) => request<void>('PUT', `/apps/${id}/vpn`, settings),
     settingsExportUrl: '/api/settings/export',
     downloadDataBackup,
     restoreDataBackup,
