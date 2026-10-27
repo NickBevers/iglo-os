@@ -18,6 +18,15 @@ type fakeGamingApps struct {
 	Apps
 	running bool
 	fail    error
+	ended   []string
+}
+
+func (f *fakeGamingApps) StopGamingSession(_ context.Context, id string) error {
+	if f.fail != nil {
+		return f.fail
+	}
+	f.ended = append(f.ended, id)
+	return nil
 }
 
 func (f *fakeGamingApps) Gaming(context.Context) (apps.GamingView, error) {
@@ -149,5 +158,23 @@ func TestGameCoversPreferTheShare(t *testing.T) {
 	var games struct{ Systems []agent.GameSystem }
 	if err := json.NewDecoder(response.Body).Decode(&games); err != nil || len(games.Systems) != 1 || games.Systems[0].Games[0].Title != "Metroid Fusion" {
 		t.Fatalf("games = %+v, %v", games, err)
+	}
+}
+
+func TestEndGamingSession(t *testing.T) {
+	gaming := &fakeGamingApps{running: true}
+	server, _ := newTestServerWithOptions(t, func(options *Options) { options.Apps = gaming })
+	cookie := login(t, server)
+
+	response := request(t, http.MethodPost, server.URL+"/api/gaming/sessions/4242/stop", "", cookie)
+	response.Body.Close()
+	if response.StatusCode != http.StatusNoContent || len(gaming.ended) != 1 || gaming.ended[0] != "4242" {
+		t.Fatalf("status = %d, ended = %v", response.StatusCode, gaming.ended)
+	}
+	gaming.fail = apps.ErrNotInstalled
+	response = request(t, http.MethodPost, server.URL+"/api/gaming/sessions/4242/stop", "", cookie)
+	response.Body.Close()
+	if response.StatusCode != http.StatusConflict {
+		t.Fatalf("status = %d", response.StatusCode)
 	}
 }

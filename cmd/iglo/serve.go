@@ -183,6 +183,8 @@ func serve() error {
 		Version: version,
 		Logger:  logger,
 	})
+	// A Moonlight session holds heavy background work, also without Play.
+	go appsService.WatchGaming(ctx, workloadService.HoldWhilePlaying)
 	appProxy := appproxy.New(cfg.Hostname, []appproxy.App{
 		{Name: "seerr", Title: "Seerr", Resolve: func(ctx context.Context) (string, error) {
 			return appsService.Address(ctx, agent.MediaStackApp, 5055)

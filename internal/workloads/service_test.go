@@ -333,3 +333,31 @@ func TestWindowBoundariesAndValidation(t *testing.T) {
 		}
 	}
 }
+
+func TestHoldWhilePlayingKeepsAShortHoldAhead(t *testing.T) {
+	f := setup(t)
+	start := f.now
+	if err := f.s.HoldWhilePlaying(); err != nil {
+		t.Fatal(err)
+	}
+	if got := f.s.Status().GamingUntil; !got.Equal(start.Add(15 * time.Minute)) {
+		t.Fatalf("until = %v", got)
+	}
+	// A check soon after leaves the hold, so the file isn't written each time.
+	f.now = start.Add(4 * time.Minute)
+	f.s.HoldWhilePlaying()
+	if got := f.s.Status().GamingUntil; !got.Equal(start.Add(15 * time.Minute)) {
+		t.Fatalf("until moved early to %v", got)
+	}
+	f.now = start.Add(6 * time.Minute)
+	f.s.HoldWhilePlaying()
+	if got := f.s.Status().GamingUntil; !got.Equal(f.now.Add(15 * time.Minute)) {
+		t.Fatalf("until = %v", got)
+	}
+	// The 8 hours of Play stay.
+	f.s.Protect(480)
+	f.s.HoldWhilePlaying()
+	if got := f.s.Status().GamingUntil; !got.Equal(f.now.Add(480 * time.Minute)) {
+		t.Fatalf("shortened Play to %v", got)
+	}
+}
