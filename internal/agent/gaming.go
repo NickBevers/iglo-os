@@ -315,6 +315,10 @@ func gamingCover(covers, system, name string) ([]byte, string, error) {
 
 // RegisterGaming adds the game list and the covers of the Games share.
 func RegisterGaming(mux *http.ServeMux) {
+	mux.HandleFunc("GET /v1/gaming/ready", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(checkGamingReady("/"))
+	})
 	mux.HandleFunc("GET /v1/gaming/{vmid}/games", func(w http.ResponseWriter, r *http.Request) {
 		vmid, _ := strconv.Atoi(r.PathValue("vmid"))
 		root, err := gamingRoot(r.Context(), vmid)
@@ -412,4 +416,43 @@ func (c *Client) GamingCover(ctx context.Context, vmid int, system, name string)
 	}
 	data, err := io.ReadAll(io.LimitReader(response.Body, 10<<20))
 	return data, response.Header.Get("Content-Type"), err
+}
+
+// GamingReadiness says whether the host is prepared for the Gaming app, as
+// in docs/gaming.md, before an install would stop on it.
+type GamingReadiness struct {
+	Ready bool `json:"ready"`
+	// Missing names what the host still needs, in plain words.
+	Missing []string `json:"missing"`
+}
+
+// gamingPrerequisites are what the installer of Gaming checks on the host.
+var gamingPrerequisites = []struct {
+	path, missing string
+	device        bool
+}{
+	{"/dev/dri/renderD128", "an Intel or AMD GPU (/dev/dri/renderD128)", true},
+	{"/dev/uinput", "the uinput module (/dev/uinput)", true},
+	{"/dev/uhid", "the uhid module (/dev/uhid)", true},
+	{"/etc/udev/rules.d/85-wolf.rules", "the Wolf input rules (/etc/udev/rules.d/85-wolf.rules)", false},
+}
+
+// checkGamingReady looks for the prerequisites under root, which is / on the host.
+func checkGamingReady(root string) GamingReadiness {
+	readiness := GamingReadiness{Missing: []string{}}
+	for _, need := range gamingPrerequisites {
+		info, err := os.Stat(filepath.Join(root, need.path))
+		if err != nil || (need.device && info.Mode()&os.ModeCharDevice == 0) {
+			readiness.Missing = append(readiness.Missing, need.missing)
+		}
+	}
+	readiness.Ready = len(readiness.Missing) == 0
+	return readiness
+}
+
+// GamingReady reads whether the host is prepared for Gaming.
+func (c *Client) GamingReady(ctx context.Context) (GamingReadiness, error) {
+	var readiness GamingReadiness
+	err := c.do(ctx, http.MethodGet, "/v1/gaming/ready", nil, &readiness)
+	return readiness, err
 }

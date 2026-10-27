@@ -18,6 +18,7 @@ const topicKeys: Record<string, string[]> = {
     workloads: ['workloads'],
     music: ['music-jobs'],
     jellyfin: ['jellyfin'],
+    setup: ['setup'],
 }
 
 // connectLive opens the stream and returns a function that closes it.

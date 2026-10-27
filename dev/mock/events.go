@@ -11,8 +11,8 @@ import (
 func streamChanges(w http.ResponseWriter, r *http.Request, topic string, fingerprint func() string) {
 	w.Header().Set("Content-Type", "text/event-stream")
 	controller := http.NewResponseController(w)
-	fmt.Fprint(w, ": open\n\n")
 	last := fingerprint()
+	fmt.Fprint(w, ": open\n\n")
 	check := time.NewTicker(time.Second)
 	defer check.Stop()
 	for controller.Flush() == nil {

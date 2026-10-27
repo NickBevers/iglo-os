@@ -20,6 +20,7 @@ import { Route as AppJellyfinRouteImport } from './routes/_app/jellyfin'
 import { Route as AppLogsRouteImport } from './routes/_app/logs'
 import { Route as AppMusicRouteImport } from './routes/_app/music'
 import { Route as AppSettingsRouteImport } from './routes/_app/settings'
+import { Route as AppSetupRouteImport } from './routes/_app/setup'
 import { Route as AppStorageRouteImport } from './routes/_app/storage'
 import { Route as AppTailscaleRouteImport } from './routes/_app/tailscale'
 import { Route as AppUpdatesRouteImport } from './routes/_app/updates'
@@ -80,6 +81,11 @@ const AppSettingsRoute = AppSettingsRouteImport.update({
   path: '/settings',
   getParentRoute: () => AppRoute,
 } as any)
+const AppSetupRoute = AppSetupRouteImport.update({
+  id: '/setup',
+  path: '/setup',
+  getParentRoute: () => AppRoute,
+} as any)
 const AppStorageRoute = AppStorageRouteImport.update({
   id: '/storage',
   path: '/storage',
@@ -117,6 +123,7 @@ export interface FileRoutesByFullPath {
   '/logs': typeof AppLogsRoute
   '/music': typeof AppMusicRoute
   '/settings': typeof AppSettingsRoute
+  '/setup': typeof AppSetupRoute
   '/storage': typeof AppStorageRoute
   '/tailscale': typeof AppTailscaleRoute
   '/updates': typeof AppUpdatesRoute
@@ -133,6 +140,7 @@ export interface FileRoutesByTo {
   '/logs': typeof AppLogsRoute
   '/music': typeof AppMusicRoute
   '/settings': typeof AppSettingsRoute
+  '/setup': typeof AppSetupRoute
   '/storage': typeof AppStorageRoute
   '/tailscale': typeof AppTailscaleRoute
   '/updates': typeof AppUpdatesRoute
@@ -152,6 +160,7 @@ export interface FileRoutesById {
   '/_app/logs': typeof AppLogsRoute
   '/_app/music': typeof AppMusicRoute
   '/_app/settings': typeof AppSettingsRoute
+  '/_app/setup': typeof AppSetupRoute
   '/_app/storage': typeof AppStorageRoute
   '/_app/tailscale': typeof AppTailscaleRoute
   '/_app/updates': typeof AppUpdatesRoute
@@ -172,6 +181,7 @@ export interface FileRouteTypes {
     | '/logs'
     | '/music'
     | '/settings'
+    | '/setup'
     | '/storage'
     | '/tailscale'
     | '/updates'
@@ -188,6 +198,7 @@ export interface FileRouteTypes {
     | '/logs'
     | '/music'
     | '/settings'
+    | '/setup'
     | '/storage'
     | '/tailscale'
     | '/updates'
@@ -206,6 +217,7 @@ export interface FileRouteTypes {
     | '/_app/logs'
     | '/_app/music'
     | '/_app/settings'
+    | '/_app/setup'
     | '/_app/storage'
     | '/_app/tailscale'
     | '/_app/updates'
@@ -298,6 +310,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppSettingsRouteImport
       parentRoute: typeof AppRoute
     }
+    '/_app/setup': {
+      id: '/_app/setup'
+      path: '/setup'
+      fullPath: '/setup'
+      preLoaderRoute: typeof AppSetupRouteImport
+      parentRoute: typeof AppRoute
+    }
     '/_app/storage': {
       id: '/_app/storage'
       path: '/storage'
@@ -345,6 +364,7 @@ interface AppRouteChildren {
   AppLogsRoute: typeof AppLogsRoute
   AppMusicRoute: typeof AppMusicRoute
   AppSettingsRoute: typeof AppSettingsRoute
+  AppSetupRoute: typeof AppSetupRoute
   AppStorageRoute: typeof AppStorageRoute
   AppTailscaleRoute: typeof AppTailscaleRoute
   AppUpdatesRoute: typeof AppUpdatesRoute
@@ -362,6 +382,7 @@ const AppRouteChildren: AppRouteChildren = {
   AppLogsRoute: AppLogsRoute,
   AppMusicRoute: AppMusicRoute,
   AppSettingsRoute: AppSettingsRoute,
+  AppSetupRoute: AppSetupRoute,
   AppStorageRoute: AppStorageRoute,
   AppTailscaleRoute: AppTailscaleRoute,
   AppUpdatesRoute: AppUpdatesRoute,

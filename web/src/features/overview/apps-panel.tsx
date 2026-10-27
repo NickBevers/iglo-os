@@ -31,9 +31,21 @@ export function AppsPanel() {
         return <Skeleton className="h-60 rounded-lg" />
     }
 
+    // A new server points to the guided setup, which installs everything in one go.
+    const fresh = !data.apps.some((app) => app.installed || app.operation?.state === 'running')
+
     return (
         // Two columns on wide screens. The 1px gaps over the border color are the hairlines.
         <Card className="gap-0 py-0">
+            {fresh && (
+                <p className="border-b px-4 py-3 text-sm">
+                    Nothing is installed yet.{' '}
+                    <Link to="/setup" className="font-medium underline">
+                        Set up everything in one go
+                    </Link>
+                    , or install single apps from Apps.
+                </p>
+            )}
             <ul className="grid gap-px bg-border lg:grid-cols-2">
                 {data.apps.map((app) => (
                     <AppRow key={app.id} app={app} jellyfin={jellyfin} />

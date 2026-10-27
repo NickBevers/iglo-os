@@ -154,6 +154,8 @@ type Options struct {
 	Covers     Covers
 	// Events tells the open pages which topic changed.
 	Events *events.Hub
+	// Setup installs the whole stack in one guided run.
+	Setup Setup
 	// SettingsFile exports and imports iglo.yaml.
 	SettingsFile SettingsFile
 	// DataDir is the folder that a data backup copies.
@@ -183,6 +185,10 @@ func New(options Options) http.Handler {
 	mux.Handle("GET /api/auth/me", s.requireSession(http.HandlerFunc(s.me)))
 	mux.Handle("GET /api/overview", s.requireSession(http.HandlerFunc(s.overview)))
 	mux.Handle("GET /api/events", s.requireSession(http.HandlerFunc(s.serverEvents)))
+	mux.Handle("GET /api/setup", s.requireSession(http.HandlerFunc(s.setupRoute)))
+	mux.Handle("POST /api/setup", s.requireSession(http.HandlerFunc(s.setupRoute)))
+	mux.Handle("DELETE /api/setup", s.requireSession(http.HandlerFunc(s.setupRoute)))
+	mux.Handle("POST /api/setup/{action}", s.requireSession(http.HandlerFunc(s.setupRoute)))
 	mux.Handle("GET /api/storage/bindings", s.requireSession(http.HandlerFunc(s.storageBindings)))
 	mux.Handle("POST /api/storage/bindings", s.requireSession(http.HandlerFunc(s.storageBindings)))
 	mux.Handle("DELETE /api/storage/bindings/{id}", s.requireSession(http.HandlerFunc(s.storageBindings)))

@@ -777,10 +777,111 @@
         "path": "/mnt/iglo/shares/videos",
         "readOnly": false,
         "mounted": true,
-        "consumers": ["101"]
+        "consumers": [
+          "101"
+        ]
       }
     ],
     "sample": true
+  },
+  "/setup": {
+    "state": "idle",
+    "steps": [],
+    "apps": [
+      {
+        "id": "jellyfin",
+        "name": "Jellyfin",
+        "description": "Watch your movies and series on every device. Transcodes with the GPU of the host, when it has one.",
+        "installed": true,
+        "shares": [
+          "videos"
+        ],
+        "memoryMiB": 3072,
+        "ready": true,
+        "missing": []
+      },
+      {
+        "id": "media",
+        "name": "Media stack",
+        "description": "Request, find and download movies and series for Jellyfin. Downloads go through ProtonVPN.",
+        "installed": true,
+        "shares": [
+          "videos"
+        ],
+        "memoryMiB": 4096,
+        "ready": true,
+        "missing": []
+      },
+      {
+        "id": "photos",
+        "name": "Photos",
+        "description": "Immich: the phones back up their photos to the NAS, with faces and search.",
+        "installed": true,
+        "shares": [
+          "photos",
+          "backups"
+        ],
+        "memoryMiB": 8192,
+        "ready": true,
+        "missing": []
+      },
+      {
+        "id": "music",
+        "name": "Music",
+        "description": "Downloads songs from YouTube Music with their cover art, for Jellyfin and Finamp. Music videos only when you ask.",
+        "installed": true,
+        "shares": [
+          "music"
+        ],
+        "memoryMiB": 1024,
+        "ready": true,
+        "missing": []
+      },
+      {
+        "id": "inbox",
+        "name": "Inbox",
+        "description": "FileFlows processes your own videos into the Home videos output library. Configure its flow and schedule after installation; sources stay read only.",
+        "installed": true,
+        "shares": [
+          "inbox",
+          "videos"
+        ],
+        "memoryMiB": 2048,
+        "ready": true,
+        "missing": []
+      },
+      {
+        "id": "gaming",
+        "name": "Gaming",
+        "description": "Experimental. Retro games from your Games share, streamed to your PC or TV with Moonlight. Wolf runs in a privileged container that only starts while you play.",
+        "installed": true,
+        "shares": [
+          "games"
+        ],
+        "memoryMiB": 6144,
+        "ready": true,
+        "missing": []
+      }
+    ],
+    "hostBytes": 34359738368,
+    "bindings": [
+      {
+        "id": "videos",
+        "role": "videos",
+        "source": "//192.168.1.20/Videos",
+        "path": "/mnt/iglo/shares/videos",
+        "readOnly": false,
+        "mounted": true,
+        "consumers": [
+          "101"
+        ]
+      }
+    ],
+    "storage": "local-lvm",
+    "storages": [
+      "fast-zfs",
+      "local-lvm"
+    ]
   },
   "/music/jobs": {
     "storageReady": true,

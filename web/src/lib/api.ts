@@ -144,6 +144,60 @@ export type BindingInput = {
     password: string
     readOnly: boolean
 }
+// SetupApp is an app on the first page of the guided setup.
+export type SetupApp = {
+    id: string
+    name: string
+    description: string
+    installed: boolean
+    // shares are the roles of the NAS shares that the app needs.
+    shares: string[]
+    memoryMiB: number
+    // ready is false when the host isn't prepared yet, with what is missing.
+    ready: boolean
+    missing: string[]
+}
+
+export type SetupStep = {
+    id: string
+    title: string
+    state: 'waiting' | 'running' | 'done' | 'failed' | 'skipped'
+    message?: string
+    // app is the app that the step installs, for its live log.
+    app?: string
+}
+
+export type Setup = {
+    state: 'idle' | 'running' | 'paused' | 'done'
+    steps: SetupStep[]
+    apps: SetupApp[]
+    hostBytes: number
+    bindings: StorageBinding[]
+    storage: string
+    storages: string[]
+}
+
+export type SetupAccount = { username: string; password: string }
+
+// SetupPlan is what the setup page sends. Its secrets stay in the memory of the manager.
+export type SetupPlan = {
+    apps: string[]
+    nas: {
+        server: string
+        oneAccount: boolean
+        account: SetupAccount
+        shares: Record<string, { share: string } & SetupAccount>
+    }
+    admin: { username: string; password: string; email: string }
+    vpn: { wireguardKey: string; countries: string }
+    flareSolverr: boolean
+    animeIndexers: boolean
+    proxmoxBackups: boolean
+    confirmPrivileged: boolean
+    timezone: string
+    storage: string
+}
+
 export type StorageBinding = {
     id: string
     role: string
@@ -668,6 +722,11 @@ export const api = {
     endGamingSession: (id: string) => request<void>('POST', `/gaming/sessions/${encodeURIComponent(id)}/stop`),
     gamingGames: () => request<{ systems: GameSystem[] }>('GET', '/gaming/games'),
     storageBindings: () => request<{ bindings: StorageBinding[]; sample: boolean }>('GET', '/storage/bindings'),
+    setup: () => request<Setup>('GET', '/setup'),
+    startSetup: (plan: SetupPlan) => request<void>('POST', '/setup', plan),
+    retrySetup: () => request<void>('POST', '/setup/retry'),
+    skipSetup: () => request<void>('POST', '/setup/skip'),
+    cancelSetup: () => request<void>('DELETE', '/setup'),
     createBinding: (input: BindingInput) => request<void>('POST', '/storage/bindings', input),
     deleteBinding: (id: string) => request<void>('DELETE', `/storage/bindings/${encodeURIComponent(id)}`),
     setBindingBackups: (id: string, enabled: boolean) =>

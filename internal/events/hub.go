@@ -12,6 +12,7 @@ const (
 	Workloads = "workloads"
 	Music     = "music"
 	Jellyfin  = "jellyfin"
+	Setup     = "setup"
 )
 
 // Hub passes topics from the services to the open pages.
