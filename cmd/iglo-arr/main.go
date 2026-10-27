@@ -78,10 +78,10 @@ func configure(args []string) error {
 		MoviesFolder:          env["MOVIES_FOLDER"],
 		SeriesFolder:          env["SERIES_FOLDER"],
 		// Stacks from before FlareSolverr was optional have no answer: they run it.
-		FlareSolverr: env["FLARESOLVERR"] != "n",
-		DataDir:               *dataDir,
-		BazarrConfigPath:      *bazarrConfig,
-		Endpoints:             arr.DefaultEndpoints,
+		FlareSolverr:     env["FLARESOLVERR"] != "n",
+		DataDir:          *dataDir,
+		BazarrConfigPath: *bazarrConfig,
+		Endpoints:        arr.DefaultEndpoints,
 		QBittorrentTempPassword: func(ctx context.Context) (string, error) {
 			return qbittorrentTempPassword(ctx)
 		},
