@@ -12,7 +12,8 @@ import { isLive } from '@/lib/live'
 import { GameLibrary } from './game-library'
 
 export function GamingPage() {
-    // The manager checks the sessions every 10 seconds while the container runs.
+    // The manager follows the session events of Wolf and tells the page; this
+    // query polls only as a fallback.
     const query = useQuery({
         queryKey: ['gaming'],
         queryFn: api.gaming,
