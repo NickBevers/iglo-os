@@ -64,7 +64,7 @@ func writeData(w http.ResponseWriter, value any) {
 
 func (p *fakeProxmox) resources(w http.ResponseWriter, r *http.Request) {
 	resources := []map[string]any{
-		{"type": "node", "node": "pve", "status": "online", "cpu": 0.18, "maxcpu": 8, "mem": 9_800_000_000, "maxmem": 34_359_738_368, "disk": 21_000_000_000, "maxdisk": 100_000_000_000, "uptime": 1_234_567},
+		{"type": "node", "node": "pve", "status": "online", "cpu": 0.18, "maxcpu": 20, "mem": 9_800_000_000, "maxmem": 34_359_738_368, "disk": 21_000_000_000, "maxdisk": 100_000_000_000, "uptime": 1_234_567},
 		{"type": "lxc", "node": "pve", "vmid": 100, "name": "iglo", "status": "running", "tags": "iglo", "cpu": 0.01, "maxcpu": 1, "mem": 90_000_000, "maxmem": 536_870_912, "uptime": 3600},
 		{"type": "lxc", "node": "pve", "vmid": 101, "name": "jellyfin", "status": "running", "cpu": 0.07, "maxcpu": 4, "mem": 1_300_000_000, "maxmem": 4_294_967_296, "uptime": 345_600},
 		{"type": "lxc", "node": "pve", "vmid": 102, "name": "downloads", "status": "running", "cpu": 0.2, "maxcpu": 2, "mem": 2_300_000_000, "maxmem": 4_294_967_296, "uptime": 345_600},
@@ -231,7 +231,7 @@ func (p *fakeProxmox) node(w http.ResponseWriter, r *http.Request) {
 		writeData(w, fakeUsage(parts, r.URL.Query().Get("timeframe")))
 	case path == "disks/list":
 		writeData(w, []map[string]any{
-			{"devpath": "/dev/nvme0n1", "model": "Samsung SSD 990 PRO 1TB", "serial": "S6Z1", "size": 1_000_204_886_016, "type": "nvme", "health": "PASSED", "wearout": 96, "used": "LVM"},
+			{"devpath": "/dev/nvme0n1", "model": "SAMSUNG MZVL2512HCJQ-00BH1", "serial": "S6Z1", "size": 512_110_190_592, "type": "nvme", "health": "PASSED", "wearout": 96, "used": "LVM"},
 			{"devpath": "/dev/sda", "model": "WDC WD40EFRX", "serial": "WD-1", "size": 4_000_787_030_016, "type": "hdd", "health": "PASSED", "wearout": "N/A", "used": "ZFS"},
 			{"devpath": "/dev/sdb", "model": "ST4000VN008", "serial": "ZD1", "size": 4_000_787_030_016, "type": "hdd", "health": "FAILED", "wearout": "N/A", "used": "ZFS"},
 		})
