@@ -220,6 +220,7 @@ func serve() error {
 			Tailscale:  tailscaleService,
 			Jellyfin:   jellyfinService,
 			SelfUpdate: selfUpdateService,
+			Workloads:  workloadService,
 		},
 		DataDir:       cfg.DataDir,
 		Restart:       func() { restart(errRestart) },

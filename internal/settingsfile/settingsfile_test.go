@@ -3,6 +3,7 @@ package settingsfile
 import (
 	"context"
 	"errors"
+	"fmt"
 	"os"
 	"strings"
 	"testing"
@@ -14,6 +15,7 @@ import (
 	"iglo/internal/selfupdate"
 	"iglo/internal/tailscale"
 	"iglo/internal/updates"
+	"iglo/internal/workloads"
 )
 
 type fakeUpdates struct {
@@ -98,6 +100,21 @@ func (f *fakeSelfUpdate) SaveSettings(input selfupdate.SettingsInput) error {
 	return nil
 }
 
+type fakeWorkloads struct {
+	settings workloads.Settings
+	saved    []workloads.Settings
+}
+
+func (f *fakeWorkloads) Status() workloads.View {
+	view := workloads.View{Settings: f.settings, Configured: f.settings.URL != "" && f.settings.APIKey != ""}
+	view.Settings.APIKey = ""
+	return view
+}
+func (f *fakeWorkloads) SaveSettings(input workloads.Settings) error {
+	f.saved = append(f.saved, input)
+	return nil
+}
+
 type fakes struct {
 	updates    *fakeUpdates
 	health     *fakeHealth
@@ -105,6 +122,7 @@ type fakes struct {
 	tailscale  *fakeTailscale
 	jellyfin   *fakeJellyfin
 	selfUpdate *fakeSelfUpdate
+	workloads  *fakeWorkloads
 }
 
 func newService() (*Service, fakes) {
@@ -130,11 +148,17 @@ func newService() (*Service, fakes) {
 		}},
 		jellyfin:   &fakeJellyfin{settings: jellyfin.Settings{URL: "http://192.168.1.20:8096", APIKey: "key"}, theme: true},
 		selfUpdate: &fakeSelfUpdate{settings: selfupdate.Settings{Repo: "NickBevers/iglo-os", Token: "ghp_secret"}},
+		workloads: &fakeWorkloads{settings: workloads.Settings{
+			Enabled: true, URL: "http://192.168.1.30:2283", APIKey: "immich-secret", Node: "pve",
+			ReserveGiB: 4, MaxQueues: 1, Queues: []string{"videoConversion", "smartSearch"},
+			Window: true, Start: "02:00", End: "07:00", Timezone: "Europe/Brussels",
+		}},
 	}
 
 	return &Service{
 		Updates: f.updates, Health: f.health, Backups: f.backups,
 		Tailscale: f.tailscale, Jellyfin: f.jellyfin, SelfUpdate: f.selfUpdate,
+		Workloads: f.workloads,
 	}, f
 }
 
@@ -155,12 +179,12 @@ func TestExportLeavesSecretsOutAndImportsUnchanged(t *testing.T) {
 		t.Fatal(err)
 	}
 	text := string(data)
-	for _, secret := range []string{"secret-token", "ghp_secret", "apiKey", "key\n"} {
+	for _, secret := range []string{"secret-token", "ghp_secret", "apiKey", "key\n", "immich-secret"} {
 		if strings.Contains(text, secret) {
 			t.Fatalf("export has a secret %q:\n%s", secret, text)
 		}
 	}
-	for _, want := range []string{"day: sun", `time: "04:00"`, "chatId: \"42\"", "serve: true", "theme: true", "repo: NickBevers/iglo-os"} {
+	for _, want := range []string{"day: sun", `time: "04:00"`, "chatId: \"42\"", "serve: true", "theme: true", "repo: NickBevers/iglo-os", "url: http://192.168.1.30:2283", "timezone: Europe/Brussels"} {
 		if !strings.Contains(text, want) {
 			t.Fatalf("export misses %q:\n%s", want, text)
 		}
@@ -170,7 +194,7 @@ func TestExportLeavesSecretsOutAndImportsUnchanged(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(result.Changes) != 7 {
+	if len(result.Changes) != 8 {
 		t.Fatalf("changes = %+v", result.Changes)
 	}
 	for section, status := range statuses(result) {
@@ -319,20 +343,23 @@ jellyfin: {url: "http://192.168.1.20:8096"}
 
 func TestParseRejectsBadFiles(t *testing.T) {
 	for name, file := range map[string]string{
-		"empty":         "",
-		"no version":    "health: {checks: []}",
-		"wrong version": "version: 2",
-		"unknown key":   "version: 1\nhealth: {chekcs: []}",
-		"bad day":       "version: 1\nupdates: {enabled: true, day: funday, time: \"04:00\"}",
-		"bad time":      "version: 1\nbackups: {enabled: true, time: \"25:00\", storage: local}",
-		"bad storage":   "version: 1\nbackups: {enabled: true, time: \"03:00\", storage: \"a b\"}",
-		"bad check":     "version: 1\nhealth: {checks: [{name: x, type: ping, target: y}]}",
-		"bad subnet":    "version: 1\ntailscale: {shareSubnet: true, subnet: 192.168.1.1/24}",
-		"bad url":       "version: 1\njellyfin: {url: ftp://nas}",
-		"bad repo":      "version: 1\nselfUpdate: {repo: nope}",
-		"bad chat":      "version: 1\nnotifications: {telegram: {chatId: hello}}",
-		"bad guest":     "version: 1\nupdates: {enabled: true, day: sun, time: \"04:00\", exclude: [5]}",
-		"too large":     "version: 1\n#" + strings.Repeat("x", MaxSize),
+		"empty":            "",
+		"no version":       "health: {checks: []}",
+		"wrong version":    "version: 2",
+		"unknown key":      "version: 1\nhealth: {chekcs: []}",
+		"bad day":          "version: 1\nupdates: {enabled: true, day: funday, time: \"04:00\"}",
+		"bad time":         "version: 1\nbackups: {enabled: true, time: \"25:00\", storage: local}",
+		"bad storage":      "version: 1\nbackups: {enabled: true, time: \"03:00\", storage: \"a b\"}",
+		"bad check":        "version: 1\nhealth: {checks: [{name: x, type: ping, target: y}]}",
+		"bad subnet":       "version: 1\ntailscale: {shareSubnet: true, subnet: 192.168.1.1/24}",
+		"bad url":          "version: 1\njellyfin: {url: ftp://nas}",
+		"bad repo":         "version: 1\nselfUpdate: {repo: nope}",
+		"bad chat":         "version: 1\nnotifications: {telegram: {chatId: hello}}",
+		"bad queue":        "version: 1\nbackgroundWork: {reserveGiB: 4, maxQueues: 1, queues: [nope], window: {start: \"02:00\", end: \"07:00\", timezone: UTC}}",
+		"bad zone":         "version: 1\nbackgroundWork: {reserveGiB: 4, maxQueues: 1, queues: [smartSearch], window: {start: \"02:00\", end: \"07:00\", timezone: Mars/Base}}",
+		"control, no node": "version: 1\nbackgroundWork: {immich: {control: true, url: \"http://immich:2283\"}, reserveGiB: 4, maxQueues: 1, queues: [smartSearch], window: {start: \"02:00\", end: \"07:00\", timezone: UTC}}",
+		"bad guest":        "version: 1\nupdates: {enabled: true, day: sun, time: \"04:00\", exclude: [5]}",
+		"too large":        "version: 1\n#" + strings.Repeat("x", MaxSize),
 	} {
 		if _, err := Parse([]byte(file)); !errors.Is(err, ErrInvalidFile) {
 			t.Errorf("%s: err = %v", name, err)
@@ -369,5 +396,50 @@ func TestDocsExampleParses(t *testing.T) {
 	}
 	if file.Health == nil || len(file.Health.Checks) != 2 || file.SelfUpdate == nil {
 		t.Fatalf("file = %+v", file)
+	}
+}
+
+func TestImportBackgroundWork(t *testing.T) {
+	file := func(control bool, url string) []byte {
+		return []byte(fmt.Sprintf(`
+version: 1
+backgroundWork:
+  immich: {control: %t, url: %q, node: pve}
+  workers: true
+  reserveGiB: 6
+  maxQueues: 2
+  queues: [smartSearch, faceDetection]
+  window: {enabled: false, start: "02:00", end: "07:00", timezone: Europe/Brussels}
+`, control, url))
+	}
+
+	// Same server: saved, and the empty API key keeps the saved one.
+	service, f := newService()
+	result, err := service.Import(context.Background(), file(true, "http://192.168.1.30:2283/"), true)
+	if err != nil || statuses(result)["backgroundWork"] != StatusApplied || len(f.workloads.saved) != 1 {
+		t.Fatalf("result = %+v, %v, saved = %+v", result, err, f.workloads.saved)
+	}
+	saved := f.workloads.saved[0]
+	if saved.APIKey != "" || saved.URL != "http://192.168.1.30:2283" || !saved.Workers || saved.ReserveGiB != 6 || saved.Window {
+		t.Fatalf("saved = %+v", saved)
+	}
+
+	// Another server never gets the saved key.
+	service, f = newService()
+	result, _ = service.Import(context.Background(), file(false, "http://192.168.1.99:2283"), true)
+	if statuses(result)["backgroundWork"] != StatusSkipped || len(f.workloads.saved) != 0 {
+		t.Fatalf("result = %+v", result)
+	}
+
+	// Control needs a key first. Without control, the rest is saved.
+	service, f = newService()
+	f.workloads.settings.APIKey, f.workloads.settings.Enabled = "", false
+	result, _ = service.Import(context.Background(), file(true, "http://192.168.1.30:2283"), true)
+	if statuses(result)["backgroundWork"] != StatusSkipped || len(f.workloads.saved) != 0 {
+		t.Fatalf("result = %+v", result)
+	}
+	result, _ = service.Import(context.Background(), file(false, "http://192.168.1.30:2283"), true)
+	if statuses(result)["backgroundWork"] != StatusApplied || len(f.workloads.saved) != 1 {
+		t.Fatalf("result = %+v", result)
 	}
 }
