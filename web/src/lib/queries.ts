@@ -18,7 +18,8 @@ export const overviewQuery = queryOptions({
 export const workloadsQuery = queryOptions({
     queryKey: ['workloads'],
     queryFn: api.workloads,
-    refetchInterval: 5000,
+    // The manager checks the queues every 15 to 60 seconds, so faster shows nothing new.
+    refetchInterval: 15000,
 })
 
 export function usageQuery(target: UsageTarget, timeframe: Timeframe) {

@@ -9,7 +9,13 @@ import { api } from '@/lib/api'
 import { Field } from './form-parts'
 
 export function MusicPage() {
-    const query = useQuery({ queryKey: ['music-jobs'], queryFn: api.musicJobs, refetchInterval: 5000 })
+    // Each check asks the worker in its container, so poll fast only while jobs wait or run.
+    const query = useQuery({
+        queryKey: ['music-jobs'],
+        queryFn: api.musicJobs,
+        refetchInterval: (query) =>
+            query.state.data?.jobs.some((job) => job.state === 'queued' || job.state === 'running') ? 5000 : 30000,
+    })
     const client = useQueryClient()
     const [url, setURL] = useState('')
     const [video, setVideo] = useState(false)

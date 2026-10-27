@@ -12,7 +12,7 @@ import { LibraryPanel } from './library-panel'
 import { NodeCard } from './node-card'
 import { StoragePanel } from './storage-panel'
 import { Summaries } from './summaries'
-import { UsageCharts } from './usage-charts'
+import { LazyUsageCharts } from './lazy-usage-charts'
 
 export function OverviewPage() {
     const { data, error, isPending } = useQuery(overviewQuery)
@@ -92,7 +92,7 @@ export function OverviewPage() {
             {node && (
                 <section className="flex flex-col gap-2.5" aria-label="History of the host">
                     <Card className="px-4">
-                        <UsageCharts target={{ node: node.name }} />
+                        <LazyUsageCharts target={{ node: node.name }} />
                     </Card>
                 </section>
             )}
