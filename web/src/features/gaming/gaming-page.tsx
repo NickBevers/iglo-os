@@ -22,6 +22,15 @@ export function GamingPage() {
         },
         onError: (e) => toast.error(e.message),
     })
+    const end = useMutation({
+        mutationFn: api.endGamingSession,
+        onSuccess: () => {
+            client.invalidateQueries({ queryKey: ['gaming'] })
+            toast.success('Ended the session')
+        },
+        onError: (e) => toast.error(e.message),
+    })
+    const session = query.data?.sessions[0]
 
     return (
         <div className="flex flex-col gap-6">
@@ -69,12 +78,16 @@ export function GamingPage() {
                     )}
                     <Card>
                         <CardHeader>
-                            <CardTitle>{query.data.status === 'running' ? 'Ready to play' : 'Stopped'}</CardTitle>
+                            <CardTitle>
+                                {query.data.status !== 'running' ? 'Stopped' : session ? 'Playing' : 'Ready to play'}
+                            </CardTitle>
                             <CardDescription>
                                 {query.data.status === 'running'
-                                    ? query.data.address
-                                        ? `Add ${query.data.address} as a host in Moonlight, then choose Retro games.`
-                                        : 'The container runs. Its address shows once it has one.'
+                                    ? session
+                                        ? `Streaming to ${session.clientIP} at ${session.width}×${session.height}, ${session.fps} FPS.`
+                                        : query.data.address
+                                          ? `Add ${query.data.address} as a host in Moonlight, then choose Retro games.`
+                                          : 'The container runs. Its address shows once it has one.'
                                     : 'The container only runs while you play, so it uses no RAM or GPU now.'}
                             </CardDescription>
                         </CardHeader>
@@ -82,8 +95,14 @@ export function GamingPage() {
                             <p>
                                 {query.data.protected && query.data.protectedUntil
                                     ? `Heavy background work waits until you stop, or until ${formatDateTime(query.data.protectedUntil)} at the latest.`
-                                    : 'Play also holds heavy background work, like photo analysis and video conversion, for up to 8 hours.'}
+                                    : 'Play holds heavy background work, like photo analysis and video conversion, for up to 8 hours. A Moonlight session holds it too, for as long as it runs.'}
                             </p>
+                            {session && (
+                                <p>
+                                    Every screen uses the same saves, so a second screen can't join. To switch, quit the
+                                    game on this one, or end its session here. Save in the game first.
+                                </p>
+                            )}
                             {query.data.status === 'running' && (
                                 <p>
                                     Save in the game and quit the emulator before you stop. Stop shuts the container
@@ -91,11 +110,26 @@ export function GamingPage() {
                                 </p>
                             )}
                         </CardContent>
-                        <CardFooter>
+                        <CardFooter className="gap-2">
                             {query.data.status === 'running' ? (
-                                <Button variant="outline" disabled={play.isPending} onClick={() => play.mutate(false)}>
-                                    Stop
-                                </Button>
+                                <>
+                                    {session && (
+                                        <Button
+                                            variant="outline"
+                                            disabled={end.isPending}
+                                            onClick={() => end.mutate(session.id)}
+                                        >
+                                            End session
+                                        </Button>
+                                    )}
+                                    <Button
+                                        variant="outline"
+                                        disabled={play.isPending}
+                                        onClick={() => play.mutate(false)}
+                                    >
+                                        Stop
+                                    </Button>
+                                </>
                             ) : (
                                 <Button disabled={play.isPending} onClick={() => play.mutate(true)}>
                                     <Gamepad2Icon />
@@ -120,7 +154,10 @@ export function GamingPage() {
                                     </Link>{' '}
                                     has the pairing link for it. Pair only devices you know.
                                 </li>
-                                <li>Choose Retro games. Every screen uses the same saves, so play on one at a time.</li>
+                                <li>
+                                    Choose Retro games. Every screen uses the same saves, so Iglo-OS stops the session
+                                    of a second screen.
+                                </li>
                             </ol>
                         </CardContent>
                     </Card>
