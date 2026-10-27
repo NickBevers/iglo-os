@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"iglo/internal/agent"
+	"iglo/internal/events"
 	"iglo/internal/proxmox"
 )
 
@@ -80,8 +81,16 @@ func (s *Service) SetGamingPower(ctx context.Context, on bool) error {
 	if on {
 		action = proxmox.Start
 	}
-	_, err = actions.RunGuestAction(ctx, guest.Node, proxmox.LXC, guest.VMID, action)
-	return err
+	if _, err = actions.RunGuestAction(ctx, guest.Node, proxmox.LXC, guest.VMID, action); err != nil {
+		return err
+	}
+	s.Changed(events.Gaming)
+	// The watcher starts or ends its stream of Wolf events now, not on its next check.
+	select {
+	case s.gamingWake <- struct{}{}:
+	default:
+	}
+	return nil
 }
 
 type gamingAgent interface {
@@ -121,10 +130,18 @@ type gamingSessionAgent interface {
 	StopGamingSession(ctx context.Context, vmid int, id string) error
 }
 
+// gamingEventsAgent follows the session events of Wolf.
+type gamingEventsAgent interface {
+	GamingEvents(ctx context.Context, vmid int, onEvent func(topic string)) error
+}
+
 const (
 	// gamingCheck is how often WatchGaming looks for Moonlight sessions while
-	// the gaming container runs. A second session stops within this time.
+	// the gaming container runs and the events of Wolf don't come through.
 	gamingCheck = 10 * time.Second
+	// gamingLiveCheck is how often it looks while the events come through.
+	// An event makes it look at once, so this only refreshes the hold.
+	gamingLiveCheck = time.Minute
 	// gamingIdleCheck is how often it looks while the container is stopped.
 	gamingIdleCheck = 30 * time.Second
 )
@@ -132,36 +149,63 @@ const (
 // WatchGaming follows the Moonlight sessions of the gaming container. While
 // one runs, hold keeps heavy background work deferred, also when the container
 // was started without Play. Every screen shares the same saves, so a session
-// of a second device stops before its emulator can write them.
+// of a second device stops before its emulator can write them. While the
+// container runs, it follows the events of Wolf, so it sees a session at once.
 func (s *Service) WatchGaming(ctx context.Context, hold func() error) {
+	follow := newFollower(func(ctx context.Context, vmid int, onEvent func(string)) error {
+		a, ok := s.Agent.(gamingEventsAgent)
+		if !ok {
+			return agent.ErrAppNotAvailable
+		}
+		return a.GamingEvents(ctx, vmid, onEvent)
+	})
+	defer follow.stop()
+	// soon counts the quick checks after Play or Stop, while the container starts or stops.
+	soon := 0
 	for {
-		wait := s.checkGaming(ctx, hold)
+		vmid, running := s.checkGaming(ctx, hold)
+		follow.keep(ctx, vmid, running)
+		wait := gamingIdleCheck
+		switch {
+		case soon > 0:
+			soon--
+			wait = 2 * time.Second
+		case running && follow.live.Load():
+			wait = gamingLiveCheck
+		case running:
+			wait = gamingCheck
+		}
 		select {
 		case <-ctx.Done():
 			return
 		case <-time.After(wait):
+		case <-follow.events:
+		case <-s.gamingWake:
+			soon = 10
 		}
 	}
 }
 
-func (s *Service) checkGaming(ctx context.Context, hold func() error) time.Duration {
+// checkGaming looks at the sessions of a running gaming container, and
+// returns the container and whether it runs.
+func (s *Service) checkGaming(ctx context.Context, hold func() error) (int, bool) {
 	ctx, cancel := context.WithTimeout(ctx, 30*time.Second)
 	defer cancel()
 	a, ok := s.Agent.(gamingSessionAgent)
 	if !ok {
-		return gamingIdleCheck
+		return 0, false
 	}
 	_, guest, err := s.managedGuest(ctx, agent.GamingApp)
 	if err != nil || guest.Status != "running" {
 		s.setGamingSessions(nil, "")
-		return gamingIdleCheck
+		return 0, false
 	}
 	sessions, err := a.GamingSessions(ctx, guest.VMID)
 	if err != nil {
 		// Wolf may still be starting. A running hold covers a short gap.
 		s.Logger.Debug("gaming sessions", "error", err)
 		s.setGamingSessions(nil, "")
-		return gamingCheck
+		return guest.VMID, true
 	}
 	s.gamingMu.Lock()
 	owner := s.gamingOwner
@@ -193,13 +237,19 @@ func (s *Service) checkGaming(ctx context.Context, hold func() error) time.Durat
 		}
 	}
 	s.setGamingSessions(kept, owner)
-	return gamingCheck
+	return guest.VMID, true
 }
 
+// setGamingSessions keeps the sessions for the Gaming page, and tells the
+// open pages when they changed.
 func (s *Service) setGamingSessions(sessions []agent.GamingSession, owner string) {
 	s.gamingMu.Lock()
-	defer s.gamingMu.Unlock()
+	changed := !slices.Equal(sessions, s.gamingSessions)
 	s.gamingSessions, s.gamingOwner = sessions, owner
+	s.gamingMu.Unlock()
+	if changed {
+		s.Changed(events.Gaming)
+	}
 }
 
 // StopGamingSession ends a Moonlight session, like one that a device left
@@ -219,5 +269,6 @@ func (s *Service) StopGamingSession(ctx context.Context, id string) error {
 	s.gamingMu.Lock()
 	defer s.gamingMu.Unlock()
 	s.gamingSessions = slices.DeleteFunc(slices.Clone(s.gamingSessions), func(session agent.GamingSession) bool { return session.ID == id })
+	s.Changed(events.Gaming)
 	return nil
 }

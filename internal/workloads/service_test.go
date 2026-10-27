@@ -361,3 +361,25 @@ func TestHoldWhilePlayingKeepsAShortHoldAhead(t *testing.T) {
 		t.Fatalf("shortened Play to %v", got)
 	}
 }
+
+func TestPagesHearOfChangesButNotOfFreeMemory(t *testing.T) {
+	topics := []string{}
+	now := time.Date(2026, 10, 27, 12, 0, 0, 0, time.UTC)
+	host := &fakeHost{free: 8 << 30}
+	s, err := New(Options{DataDir: t.TempDir(), Proxmox: host, Now: func() time.Time { return now }, Changed: func(topic string) { topics = append(topics, topic) }})
+	if err != nil {
+		t.Fatal(err)
+	}
+	s.Reconcile(context.Background())
+	s.Reconcile(context.Background())
+	host.free = 7 << 30
+	now = now.Add(time.Minute)
+	s.Reconcile(context.Background())
+	if len(topics) != 0 {
+		t.Fatalf("topics = %v", topics)
+	}
+	s.Protect(60)
+	if !slices.Equal(topics, []string{"workloads", "gaming"}) {
+		t.Fatalf("topics = %v", topics)
+	}
+}
