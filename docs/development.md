@@ -66,6 +66,8 @@ Without a host agent, the pages that need it show "the host agent did not answer
 make test       # Go vet and tests, ESLint and the TypeScript check
 ```
 
+GitHub runs the same checks on every pull request and on main, plus `gofmt` and Prettier. Build the web app first with `make web`, because the Go tests embed it.
+
 ## Test the real install
 
 The installers only run on a Proxmox host. Test them in a nested Proxmox VM on your server:
