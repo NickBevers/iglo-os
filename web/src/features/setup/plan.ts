@@ -1,0 +1,64 @@
+import type { Setup, SetupPlan, StorageBinding } from '@/lib/api'
+
+// The order of the shares on the NAS page, with the name the share usually has.
+export const shareNames: Record<string, string> = {
+    videos: 'Videos',
+    photos: 'Photos',
+    backups: 'Backups',
+    music: 'Music',
+    inbox: 'Inbox',
+    games: 'Games',
+}
+
+// readOnlyRoles are the shares that the apps only read.
+export const readOnlyRoles = new Set(['games', 'inbox'])
+
+// Draft is the plan while you fill it in. confirm repeats the admin password.
+export type Draft = SetupPlan & { confirm: string }
+
+export function newDraft(setup: Setup): Draft {
+    const shares: Draft['nas']['shares'] = {}
+    for (const [role, name] of Object.entries(shareNames)) {
+        shares[role] = { share: name, username: '', password: '' }
+    }
+    return {
+        // Everything that the host is ready for, and isn't installed yet.
+        apps: setup.apps.filter((app) => app.ready && !app.installed).map((app) => app.id),
+        nas: { server: '', oneAccount: false, account: { username: '', password: '' }, shares },
+        admin: { username: '', password: '', email: '' },
+        confirm: '',
+        vpn: { wireguardKey: '', countries: 'Netherlands' },
+        flareSolverr: true,
+        animeIndexers: true,
+        proxmoxBackups: true,
+        confirmPrivileged: false,
+        timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+        storage: setup.storage,
+    }
+}
+
+// rolesOf are the shares that the draft needs, like the manager counts them.
+export function rolesOf(draft: Draft, setup: Setup): string[] {
+    const needed = new Set<string>()
+    for (const app of setup.apps) {
+        if (draft.apps.includes(app.id)) {
+            app.shares.forEach((role) => needed.add(role))
+        }
+    }
+    if (draft.proxmoxBackups) {
+        needed.add('backups')
+    }
+    return Object.keys(shareNames).filter((role) => needed.has(role))
+}
+
+// connectedShare is a share of role that the setup uses again, if there is one.
+export function connectedShare(role: string, bindings: StorageBinding[]) {
+    return bindings.find((b) => b.role === role && b.mounted && (readOnlyRoles.has(role) || !b.readOnly))
+}
+
+// planOf is what goes to the manager, without the repeated password.
+export function planOf(draft: Draft): SetupPlan {
+    const plan: Partial<Draft> = { ...draft }
+    delete plan.confirm
+    return plan as SetupPlan
+}
