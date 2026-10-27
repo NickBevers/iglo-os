@@ -110,7 +110,7 @@ var Catalog = []App{{
 }, {
 	ID:          agent.MediaStackApp,
 	Name:        "Media stack",
-	Description: "Request, find and download movies and series for Jellyfin. Downloads go through ProtonVPN.",
+	Description: "Request, find and download movies and series for Jellyfin. Downloads go through ProtonVPN or PIA.",
 	Tag:         "media",
 	Subdomain:   "seerr",
 	Stack:       true,

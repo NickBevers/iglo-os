@@ -560,7 +560,7 @@
       {
         "id": "media",
         "name": "Media stack",
-        "description": "Request, find and download movies and series for Jellyfin. Downloads go through ProtonVPN.",
+        "description": "Request, find and download movies and series for Jellyfin. Downloads go through ProtonVPN or PIA.",
         "planned": false,
         "links": [
           {
@@ -823,7 +823,7 @@
       {
         "id": "media",
         "name": "Media stack",
-        "description": "Request, find and download movies and series for Jellyfin. Downloads go through ProtonVPN.",
+        "description": "Request, find and download movies and series for Jellyfin. Downloads go through ProtonVPN or PIA.",
         "installed": true,
         "shares": [
           "videos"
