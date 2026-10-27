@@ -297,7 +297,7 @@ func securityHeaders(next http.Handler) http.Handler {
 }
 
 func spa(files fs.FS) http.Handler {
-	fileServer := http.FileServerFS(files)
+	static := &staticFiles{files: files}
 
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		path := strings.TrimPrefix(r.URL.Path, "/")
@@ -307,13 +307,13 @@ func spa(files fs.FS) http.Handler {
 				if strings.HasPrefix(path, "assets/") {
 					w.Header().Set("Cache-Control", "public, max-age=31536000, immutable")
 				}
-				fileServer.ServeHTTP(w, r)
+				static.serve(w, r, path)
 				return
 			}
 		}
 
 		w.Header().Set("Cache-Control", "no-cache")
-		http.ServeFileFS(w, r, files, "index.html")
+		static.serve(w, r, "index.html")
 	})
 }
 
