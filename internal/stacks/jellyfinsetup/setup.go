@@ -32,6 +32,9 @@ type Config struct {
 	AdminPassword string
 	MoviesPath    string
 	SeriesPath    string
+	// AnimePath and AnimeMoviesPath are optional libraries for anime.
+	AnimePath       string
+	AnimeMoviesPath string
 	// GPU turns on VA-API transcoding, for Intel and AMD.
 	GPU bool
 	// VAInfo is the output of vainfo in the container. It says which codecs
@@ -83,11 +86,16 @@ func Setup(ctx context.Context, cfg Config) (string, error) {
 		return "", fmt.Errorf("log in as %s: %w", cfg.AdminUsername, err)
 	}
 
-	cfg.Logf("Adding the Movies and Series libraries")
+	cfg.Logf("Adding the libraries")
 	for _, library := range []struct{ name, kind, path string }{
 		{"Movies", "movies", cfg.MoviesPath},
 		{"Series", "tvshows", cfg.SeriesPath},
+		{"Anime", "tvshows", cfg.AnimePath},
+		{"Anime Movies", "movies", cfg.AnimeMoviesPath},
 	} {
+		if library.path == "" {
+			continue
+		}
 		if err := jf.ensureLibrary(ctx, library.name, library.kind, library.path); err != nil {
 			return "", err
 		}

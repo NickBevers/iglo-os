@@ -93,6 +93,8 @@ function MediaStackForm({
                 videosBinding: '',
                 moviesFolder: defaults.moviesFolder,
                 seriesFolder: defaults.seriesFolder,
+                animeFolder: defaults.animeFolder,
+                animeMoviesFolder: defaults.animeMoviesFolder,
                 wireguardPrivateKey: '',
                 vpnCountries: defaults.vpnCountries,
                 subtitleLanguages: defaults.subtitleLanguages,
@@ -143,7 +145,7 @@ function MediaStackForm({
                 value={videosBinding}
                 onChange={(value) => set('videosBinding', value)}
                 write
-                help="Where your movies and series are. Each gets its own folder on the share, and its own library in Jellyfin."
+                help="Where your movies, series and anime are. Each gets its own folder on the share, and its own library in Jellyfin."
             >
                 {(path) => (
                     <div className="grid gap-4 sm:grid-cols-2">
@@ -161,6 +163,36 @@ function MediaStackForm({
                                 value={answers.seriesFolder}
                                 onChange={(event) => set('seriesFolder', event.target.value)}
                                 required
+                            />
+                        </Field>
+                        <Field
+                            id="anime-folder"
+                            label="Anime folder"
+                            help={
+                                answers.animeFolder
+                                    ? `${path}/${answers.animeFolder}`
+                                    : 'Empty: anime goes in the series folder.'
+                            }
+                        >
+                            <Input
+                                id="anime-folder"
+                                value={answers.animeFolder}
+                                onChange={(event) => set('animeFolder', event.target.value)}
+                            />
+                        </Field>
+                        <Field
+                            id="anime-movies-folder"
+                            label="Anime movies folder"
+                            help={
+                                answers.animeMoviesFolder
+                                    ? `${path}/${answers.animeMoviesFolder}`
+                                    : 'Empty: anime movies go in the movies folder.'
+                            }
+                        >
+                            <Input
+                                id="anime-movies-folder"
+                                value={answers.animeMoviesFolder}
+                                onChange={(event) => set('animeMoviesFolder', event.target.value)}
                             />
                         </Field>
                     </div>

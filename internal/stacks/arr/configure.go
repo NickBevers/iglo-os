@@ -12,6 +12,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"slices"
 	"strconv"
 	"strings"
 	"time"
@@ -61,6 +62,12 @@ type Config struct {
 	// means movies and tv, the folders of installs from before they could be chosen.
 	MoviesFolder string
 	SeriesFolder string
+	// AnimeFolder and AnimeMoviesFolder are the folders for anime series and
+	// films, each with a root folder in Sonarr or Radarr and a Jellyfin
+	// library. Empty keeps anime in the series and movies folders, like
+	// installs from before they existed.
+	AnimeFolder       string
+	AnimeMoviesFolder string
 
 	// AnimeIndexers adds the public anime trackers Nyaa.si and Anime Tosho to Prowlarr.
 	AnimeIndexers bool
@@ -110,13 +117,14 @@ func Configure(ctx context.Context, cfg Config) error {
 	qbit := newQBittorrent(cfg.Endpoints.QBittorrent, client)
 
 	movies, series := cfg.folders()
-	for _, name := range []string{movies, series} {
+	anime, animeMovies := cfg.animeFolders()
+	for _, name := range []string{movies, series, anime, animeMovies} {
 		if !ValidFolder(name) {
 			return fmt.Errorf("invalid media folder %q", name)
 		}
 	}
 
-	for _, dir := range []string{"media/" + movies, "media/" + series, "downloads/torrents"} {
+	for _, dir := range []string{"media/" + movies, "media/" + series, "media/" + anime, "media/" + animeMovies, "downloads/torrents"} {
 		if err := makeDataDir(filepath.Join(cfg.DataDir, dir)); err != nil {
 			return err
 		}
@@ -135,10 +143,10 @@ func Configure(ctx context.Context, cfg Config) error {
 	}{
 		{"qBittorrent", func(ctx context.Context) error { return configureQBittorrent(ctx, cfg, qbit) }},
 		{"Radarr", func(ctx context.Context) error {
-			return configureServarr(ctx, cfg, radarr, movies, "movieCategory", "radarr")
+			return configureServarr(ctx, cfg, radarr, []string{movies, animeMovies}, "movieCategory", "radarr")
 		}},
 		{"Sonarr", func(ctx context.Context) error {
-			return configureServarr(ctx, cfg, sonarr, series, "tvCategory", "tv-sonarr")
+			return configureServarr(ctx, cfg, sonarr, []string{series, anime}, "tvCategory", "tv-sonarr")
 		}},
 		{"Prowlarr", func(ctx context.Context) error { return configureProwlarr(ctx, cfg, prowlarr) }},
 		{"Bazarr", func(ctx context.Context) error { return configureBazarr(ctx, cfg, client) }},
@@ -229,13 +237,17 @@ func configureQBittorrent(ctx context.Context, cfg Config, qbit *qbittorrent) er
 	return nil
 }
 
-func configureServarr(ctx context.Context, cfg Config, app *servarr, mediaFolder, categoryField, category string) error {
+// configureServarr sets up Radarr or Sonarr with a root folder for each of
+// mediaFolders, which may repeat.
+func configureServarr(ctx context.Context, cfg Config, app *servarr, mediaFolders []string, categoryField, category string) error {
 	if err := app.setLogin(ctx, cfg.Username, cfg.Password); err != nil {
 		return err
 	}
 
-	if err := app.ensureRootFolder(ctx, "/data/media/"+mediaFolder); err != nil {
-		return err
+	for _, folder := range slices.Compact(mediaFolders) {
+		if err := app.ensureRootFolder(ctx, "/data/media/"+folder); err != nil {
+			return err
+		}
 	}
 
 	err := app.ensure(ctx, provider{
@@ -489,15 +501,39 @@ func (c Config) folders() (movies, series string) {
 	return movies, series
 }
 
+// animeFolders are the folders of anime series and films. Without their own,
+// anime goes in the series and movies folders.
+func (c Config) animeFolders() (anime, animeMovies string) {
+	movies, series := c.folders()
+	anime, animeMovies = c.AnimeFolder, c.AnimeMoviesFolder
+	if anime == "" {
+		anime = series
+	}
+	if animeMovies == "" {
+		animeMovies = movies
+	}
+
+	return anime, animeMovies
+}
+
 // jellyfinLibraries are one library for movies and one for series. Jellyfin
 // sees the media share at the same path as the apps.
 func jellyfinLibraries(cfg Config) []jellyfinLibrary {
 	movies, series := cfg.folders()
+	anime, animeMovies := cfg.animeFolders()
 
-	return []jellyfinLibrary{
+	libraries := []jellyfinLibrary{
 		{name: "Movies", collectionType: "movies", path: "/data/media/" + movies},
 		{name: "Series", collectionType: "tvshows", path: "/data/media/" + series},
 	}
+	if anime != series {
+		libraries = append(libraries, jellyfinLibrary{name: "Anime", collectionType: "tvshows", path: "/data/media/" + anime})
+	}
+	if animeMovies != movies {
+		libraries = append(libraries, jellyfinLibrary{name: "Anime Movies", collectionType: "movies", path: "/data/media/" + animeMovies})
+	}
+
+	return libraries
 }
 
 // containerUser is the PUID/PGID the containers run as.

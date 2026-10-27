@@ -739,6 +739,8 @@
       "jellyfinVmid": 101,
       "moviesFolder": "movies",
       "seriesFolder": "series",
+      "animeFolder": "anime",
+      "animeMoviesFolder": "anime-movies",
       "vpnCountries": "Netherlands",
       "subtitleLanguages": "en",
       "username": "iglo",

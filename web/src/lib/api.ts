@@ -524,6 +524,10 @@ export type JellyfinAnswers = {
     videosBinding: string
     moviesFolder: string
     seriesFolder: string
+    // animeFolder and animeMoviesFolder are optional. Empty keeps anime in
+    // the series and movies folders.
+    animeFolder: string
+    animeMoviesFolder: string
     adminUsername: string
     adminPassword: string
     theme: boolean
@@ -604,6 +608,8 @@ export type Apps = {
         mediaVmid?: number
         moviesFolder: string
         seriesFolder: string
+        animeFolder: string
+        animeMoviesFolder: string
         vpnCountries: string
         subtitleLanguages: string
         username: string
@@ -618,6 +624,9 @@ export type MediaStackAnswers = {
     videosBinding: string
     moviesFolder: string
     seriesFolder: string
+    // animeFolder and animeMoviesFolder are optional, as for Jellyfin.
+    animeFolder: string
+    animeMoviesFolder: string
     wireguardPrivateKey: string
     vpnCountries: string
     subtitleLanguages: string

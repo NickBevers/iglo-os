@@ -60,7 +60,8 @@ load_answers() {
         [[ -z "$line" ]] && continue
         key="${line%%=*}" value="${line#*=}"
         case "$key" in
-            VIDEOS_BINDING | MOVIES_FOLDER | SERIES_FOLDER | JELLYFIN_ADMIN_USERNAME | \
+            VIDEOS_BINDING | MOVIES_FOLDER | SERIES_FOLDER | ANIME_FOLDER | ANIME_MOVIES_FOLDER | \
+                JELLYFIN_ADMIN_USERNAME | \
                 JELLYFIN_ADMIN_PASSWORD | THEME | STORAGE)
                 printf -v "$key" '%s' "$value"
                 ;;
@@ -72,6 +73,7 @@ load_answers() {
 }
 
 ask_settings() {
+    ANIME_FOLDER="" ANIME_MOVIES_FOLDER=""
     if [[ -n "$ANSWERS" ]]; then
         load_answers
     else
@@ -80,6 +82,8 @@ ask_settings() {
         ask VIDEOS_BINDING "ID of the Videos share"
         ask MOVIES_FOLDER "Folder for movies in it" "movies"
         ask SERIES_FOLDER "Folder for series in it" "series"
+        ask ANIME_FOLDER "Folder for anime series in it" "anime"
+        ask ANIME_MOVIES_FOLDER "Folder for anime movies in it" "anime-movies"
         echo "The admin account of Jellyfin:"
         ask JELLYFIN_ADMIN_USERNAME "Username" "admin"
         ask JELLYFIN_ADMIN_PASSWORD "Password" "" secret
@@ -201,6 +205,8 @@ configure_jellyfin() {
     local flags=()
     [[ -n "$GPU" ]] && flags+=(--gpu --vainfo "$VAINFO_FILE")
     [[ "$THEME" == "y" ]] && flags+=(--theme)
+    [[ -z "$ANIME_FOLDER" ]] || flags+=(--anime "/data/media/$ANIME_FOLDER")
+    [[ -z "$ANIME_MOVIES_FOLDER" ]] || flags+=(--anime-movies "/data/media/$ANIME_MOVIES_FOLDER")
 
     # The password goes on stdin, so it is not in the process list.
     printf '%s\n' "$JELLYFIN_ADMIN_PASSWORD" | "$STACK_DIR/iglo-jellyfin" setup \
@@ -225,7 +231,8 @@ main() {
     trap on_exit EXIT
     preflight
     ask_settings
-    make_share_folders "$MOVIES_FOLDER" "$SERIES_FOLDER"
+    media_folders
+    make_share_folders "${MEDIA_FOLDERS[@]}"
     download_template
     create_container
     install_jellyfin

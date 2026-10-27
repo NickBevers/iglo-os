@@ -136,6 +136,7 @@ func (p Plan) bindingInput(id, role string) agent.BindingInput {
 func (p Plan) jellyfinAnswers(videos string) agent.JellyfinAnswers {
 	return agent.JellyfinAnswers{
 		VideosBinding: videos, MoviesFolder: "movies", SeriesFolder: "series",
+		AnimeFolder: "anime", AnimeMoviesFolder: "anime-movies",
 		AdminUsername: p.Admin.Username, AdminPassword: p.Admin.Password, Theme: true, Storage: p.Storage,
 	}
 }
@@ -143,6 +144,7 @@ func (p Plan) jellyfinAnswers(videos string) agent.JellyfinAnswers {
 func (p Plan) mediaAnswers(videos, jellyfinKey string, withJellyfin bool) agent.MediaStackAnswers {
 	answers := agent.MediaStackAnswers{
 		VideosBinding: videos, MoviesFolder: "movies", SeriesFolder: "series",
+		AnimeFolder: "anime", AnimeMoviesFolder: "anime-movies",
 		WireGuardPrivateKey: p.VPN.WireGuardKey, VPNCountries: strings.TrimSpace(p.VPN.Countries), SubtitleLanguages: "en",
 		Username: p.Admin.Username, Password: p.Admin.Password, RestartJellyfin: true, Storage: p.Storage,
 		DownloadsSize: 200, FlareSolverr: p.FlareSolverr, AnimeIndexers: p.AnimeIndexers,

@@ -10,6 +10,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"regexp"
+	"slices"
 	"strconv"
 	"strings"
 	"sync"
@@ -87,8 +88,12 @@ type MediaStackAnswers struct {
 	// VideosBinding is the Videos share from Storage. The stack writes to it.
 	VideosBinding string `json:"videosBinding"`
 	// MoviesFolder and SeriesFolder are folders in the share. Each gets a Jellyfin library.
-	MoviesFolder        string `json:"moviesFolder"`
-	SeriesFolder        string `json:"seriesFolder"`
+	MoviesFolder string `json:"moviesFolder"`
+	SeriesFolder string `json:"seriesFolder"`
+	// AnimeFolder and AnimeMoviesFolder are optional folders for anime. Empty
+	// keeps anime in the series and movies folders.
+	AnimeFolder         string `json:"animeFolder"`
+	AnimeMoviesFolder   string `json:"animeMoviesFolder"`
 	WireGuardPrivateKey string `json:"wireguardPrivateKey"`
 	VPNCountries        string `json:"vpnCountries"`
 	SubtitleLanguages   string `json:"subtitleLanguages"`
@@ -120,10 +125,8 @@ func (a MediaStackAnswers) Validate() error {
 	switch {
 	case !bindingID.MatchString(a.VideosBinding):
 		return invalid("select a Videos share from Storage")
-	case !arr.ValidFolder(a.MoviesFolder) || !arr.ValidFolder(a.SeriesFolder):
-		return invalid("the movies and series folders must be folder names, like movies")
-	case strings.EqualFold(a.MoviesFolder, a.SeriesFolder):
-		return invalid("movies and series need different folders")
+	case !validFolders(a.MoviesFolder, a.SeriesFolder, a.AnimeFolder, a.AnimeMoviesFolder):
+		return invalid(foldersMessage)
 	case !validWireGuardKey(a.WireGuardPrivateKey):
 		return invalid("the WireGuard private key must be 44 characters of base64")
 	case !countriesPattern.MatchString(a.VPNCountries):
@@ -157,6 +160,28 @@ func (a MediaStackAnswers) Validate() error {
 	return nil
 }
 
+const foldersMessage = "the media folders must be different folder names, like movies, series and anime"
+
+// validFolders checks the folders of the Videos share: movies and series are
+// required, the anime folders optional, and no two may be the same.
+func validFolders(movies, series, anime, animeMovies string) bool {
+	if !arr.ValidFolder(movies) || !arr.ValidFolder(series) {
+		return false
+	}
+	seen := []string{strings.ToLower(movies)}
+	for _, folder := range []string{series, anime, animeMovies} {
+		if folder == "" {
+			continue
+		}
+		if !arr.ValidFolder(folder) || slices.Contains(seen, strings.ToLower(folder)) {
+			return false
+		}
+		seen = append(seen, strings.ToLower(folder))
+	}
+
+	return true
+}
+
 func validWireGuardKey(key string) bool {
 	decoded, err := base64.StdEncoding.DecodeString(key)
 	return err == nil && len(decoded) == 32
@@ -169,6 +194,8 @@ func (a MediaStackAnswers) file() string {
 	lines := append([]string{"VIDEOS_BINDING=" + a.VideosBinding},
 		"MOVIES_FOLDER="+a.MoviesFolder,
 		"SERIES_FOLDER="+a.SeriesFolder,
+		"ANIME_FOLDER="+a.AnimeFolder,
+		"ANIME_MOVIES_FOLDER="+a.AnimeMoviesFolder,
 		"WIREGUARD_PRIVATE_KEY="+a.WireGuardPrivateKey,
 		"VPN_COUNTRIES="+a.VPNCountries,
 		"SUBTITLE_LANGUAGES="+a.SubtitleLanguages,
@@ -195,10 +222,13 @@ type JellyfinAnswers struct {
 	VideosBinding string `json:"videosBinding"`
 	MoviesFolder  string `json:"moviesFolder"`
 	SeriesFolder  string `json:"seriesFolder"`
-	AdminUsername string `json:"adminUsername"`
-	AdminPassword string `json:"adminPassword"`
-	Theme         bool   `json:"theme"`
-	Storage       string `json:"storage"`
+	// AnimeFolder and AnimeMoviesFolder are optional, as for the media stack.
+	AnimeFolder       string `json:"animeFolder"`
+	AnimeMoviesFolder string `json:"animeMoviesFolder"`
+	AdminUsername     string `json:"adminUsername"`
+	AdminPassword     string `json:"adminPassword"`
+	Theme             bool   `json:"theme"`
+	Storage           string `json:"storage"`
 }
 
 func (a JellyfinAnswers) Validate() error {
@@ -207,10 +237,8 @@ func (a JellyfinAnswers) Validate() error {
 	switch {
 	case !bindingID.MatchString(a.VideosBinding):
 		return invalid("select a Videos share from Storage")
-	case !arr.ValidFolder(a.MoviesFolder) || !arr.ValidFolder(a.SeriesFolder):
-		return invalid("the movies and series folders must be folder names, like movies")
-	case strings.EqualFold(a.MoviesFolder, a.SeriesFolder):
-		return invalid("movies and series need different folders")
+	case !validFolders(a.MoviesFolder, a.SeriesFolder, a.AnimeFolder, a.AnimeMoviesFolder):
+		return invalid(foldersMessage)
 	case !jellyfinUserPattern.MatchString(a.AdminUsername):
 		return invalid("the admin username can have letters, digits, spaces, dots, dashes, underscores and @")
 	case a.AdminPassword == "" || len(a.AdminPassword) > 256 || strings.ContainsFunc(a.AdminPassword, unicode.IsControl):
@@ -231,6 +259,8 @@ func (a JellyfinAnswers) file() string {
 	lines := append([]string{"VIDEOS_BINDING=" + a.VideosBinding},
 		"MOVIES_FOLDER="+a.MoviesFolder,
 		"SERIES_FOLDER="+a.SeriesFolder,
+		"ANIME_FOLDER="+a.AnimeFolder,
+		"ANIME_MOVIES_FOLDER="+a.AnimeMoviesFolder,
 		"JELLYFIN_ADMIN_USERNAME="+a.AdminUsername,
 		"JELLYFIN_ADMIN_PASSWORD="+a.AdminPassword,
 		"THEME="+theme,

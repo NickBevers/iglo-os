@@ -41,6 +41,8 @@ func setup(args []string) error {
 	admin := flags.String("admin", "", "username of the Jellyfin admin")
 	movies := flags.String("movies", "", "folder of the Movies library, as Jellyfin sees it")
 	series := flags.String("series", "", "folder of the Series library, as Jellyfin sees it")
+	anime := flags.String("anime", "", "folder of the Anime library, as Jellyfin sees it (optional)")
+	animeMovies := flags.String("anime-movies", "", "folder of the Anime Movies library, as Jellyfin sees it (optional)")
 	gpu := flags.Bool("gpu", false, "turn on VA-API hardware transcoding")
 	vainfo := flags.String("vainfo", "", "file with the output of vainfo, for the codecs that the GPU decodes")
 	theme := flags.Bool("theme", false, "turn on the Netflix theme")
@@ -69,14 +71,16 @@ func setup(args []string) error {
 	defer stop()
 
 	key, err := jellyfinsetup.Setup(ctx, jellyfinsetup.Config{
-		URL:           *url,
-		AdminUsername: *admin,
-		AdminPassword: strings.TrimRight(password, "\r\n"),
-		MoviesPath:    *movies,
-		SeriesPath:    *series,
-		GPU:           *gpu,
-		VAInfo:        gpuInfo,
-		Theme:         *theme,
+		URL:             *url,
+		AdminUsername:   *admin,
+		AdminPassword:   strings.TrimRight(password, "\r\n"),
+		MoviesPath:      *movies,
+		SeriesPath:      *series,
+		AnimePath:       *anime,
+		AnimeMoviesPath: *animeMovies,
+		GPU:             *gpu,
+		VAInfo:          gpuInfo,
+		Theme:           *theme,
 		Logf: func(format string, args ...any) {
 			fmt.Printf("==> "+format+"\n", args...)
 		},

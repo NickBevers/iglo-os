@@ -118,6 +118,7 @@ func configureSeerr(ctx context.Context, cfg Config, seerr *apiClient, tags anim
 	}
 
 	movies, series := cfg.folders()
+	anime, animeMovies := cfg.animeFolders()
 	radarr := map[string]any{
 		"name": "Radarr", "hostname": seerrRadarrHost, "port": 7878, "apiKey": cfg.RadarrAPIKey,
 		"useSsl": false, "baseUrl": "", "activeDirectory": "/data/media/" + movies,
@@ -130,14 +131,14 @@ func configureSeerr(ctx context.Context, cfg Config, seerr *apiClient, tags anim
 	}
 	// Without the rule, anime films use the normal profile. That is no reason
 	// to stop the setup.
-	if err := addAnimeFilmRule(ctx, cfg, seerr, radarrID, radarrFound, tags.Radarr); err != nil {
+	if err := addAnimeFilmRule(ctx, cfg, seerr, radarrID, radarrFound, tags.Radarr, animeMovies, movies); err != nil {
 		cfg.Logf("Could not send anime films to their own profile, add an override rule in Seerr: %v", err)
 	}
 
 	sonarr := map[string]any{
 		"name": "Sonarr", "hostname": seerrSonarrHost, "port": 8989, "apiKey": cfg.SonarrAPIKey,
 		"useSsl": false, "baseUrl": "", "activeDirectory": "/data/media/" + series,
-		"seriesType": "standard", "animeSeriesType": "anime", "activeAnimeDirectory": "/data/media/" + series,
+		"seriesType": "standard", "animeSeriesType": "anime", "activeAnimeDirectory": "/data/media/" + anime,
 		"animeTags":           tagList(tags.Sonarr),
 		"enableSeasonFolders": true, "monitorNewItems": "all",
 		"is4k": false, "isDefault": true,
@@ -204,9 +205,9 @@ func addSeerrService(ctx context.Context, seerr *apiClient, kind string, setting
 }
 
 // addAnimeFilmRule sends films with the anime keyword to the anime profile of
-// Radarr, with the anime tag, when Recyclarr has made the profile. It adds the
-// rule once.
-func addAnimeFilmRule(ctx context.Context, cfg Config, seerr *apiClient, radarrID int, profiles []seerrProfile, tag int) error {
+// Radarr, with the anime tag and in the anime movies folder, when Recyclarr
+// has made the profile. It adds the rule once.
+func addAnimeFilmRule(ctx context.Context, cfg Config, seerr *apiClient, radarrID int, profiles []seerrProfile, tag int, animeMovies, movies string) error {
 	index := slices.IndexFunc(profiles, func(profile seerrProfile) bool { return profile.Name == animeFilmProfile })
 	if index < 0 {
 		cfg.Logf("Radarr has no %s profile yet, so anime films use the normal one. Add an override rule in Seerr once Recyclarr made it", animeFilmProfile)
@@ -230,6 +231,9 @@ func addAnimeFilmRule(ctx context.Context, cfg Config, seerr *apiClient, radarrI
 	if tag > 0 {
 		// Seerr keeps the tags of a rule as IDs separated by commas.
 		rule["tags"] = strconv.Itoa(tag)
+	}
+	if animeMovies != movies {
+		rule["rootFolder"] = "/data/media/" + animeMovies
 	}
 	if err := seerr.do(ctx, http.MethodPost, "/overrideRule", rule, nil); err != nil {
 		return err
