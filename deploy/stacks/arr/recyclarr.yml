@@ -6,6 +6,14 @@ radarr:
     api_key: !env_var RADARR_API_KEY
     quality_definition:
       type: movie
+    # Rename films on import, in folders with the TMDB ID that Jellyfin reads.
+    # Files that are already there keep their names.
+    # https://trash-guides.info/Radarr/Radarr-recommended-naming-scheme/
+    media_naming:
+      folder: jellyfin-tmdb
+      movie:
+        rename: true
+        standard: jellyfin-tmdb
     quality_profiles:
       - trash_id: d1d67249d3890e49bc12e275d989a7e9 # HD Bluray + WEB
         reset_unmatched_scores:
@@ -24,6 +32,19 @@ sonarr:
     api_key: !env_var SONARR_API_KEY
     quality_definition:
       type: series
+    # Rename episodes on import, with the TVDB ID that Jellyfin reads in the
+    # series folder. Anime gets SxxExx names next to its absolute number, so a
+    # release named "- 16" can't be read as the wrong episode. Files that are
+    # already there keep their names.
+    # https://trash-guides.info/Sonarr/Sonarr-recommended-naming-scheme/
+    media_naming:
+      series: jellyfin-tvdb
+      season: default
+      episodes:
+        rename: true
+        standard: default
+        daily: default
+        anime: default
     quality_profiles:
       - trash_id: 72dae194fc92bf828f32cde7744e51a1 # WEB-1080p
         reset_unmatched_scores:

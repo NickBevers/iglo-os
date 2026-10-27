@@ -63,8 +63,9 @@ type seerrProfile struct {
 
 // configureSeerr does the setup wizard of Seerr: it logs in with the Jellyfin
 // admin, turns on the movie and series libraries, adds Radarr and Sonarr, and
-// finishes the setup. It does nothing when Seerr was already set up.
-func configureSeerr(ctx context.Context, cfg Config, seerr *apiClient) error {
+// finishes the setup. Anime gets its own profiles and the anime tags. It does
+// nothing when Seerr was already set up.
+func configureSeerr(ctx context.Context, cfg Config, seerr *apiClient, tags animeTags) error {
 	var public struct {
 		Initialized bool `json:"initialized"`
 	}
@@ -129,7 +130,7 @@ func configureSeerr(ctx context.Context, cfg Config, seerr *apiClient) error {
 	}
 	// Without the rule, anime films use the normal profile. That is no reason
 	// to stop the setup.
-	if err := addAnimeFilmRule(ctx, cfg, seerr, radarrID, radarrFound); err != nil {
+	if err := addAnimeFilmRule(ctx, cfg, seerr, radarrID, radarrFound, tags.Radarr); err != nil {
 		cfg.Logf("Could not send anime films to their own profile, add an override rule in Seerr: %v", err)
 	}
 
@@ -137,12 +138,21 @@ func configureSeerr(ctx context.Context, cfg Config, seerr *apiClient) error {
 		"name": "Sonarr", "hostname": seerrSonarrHost, "port": 8989, "apiKey": cfg.SonarrAPIKey,
 		"useSsl": false, "baseUrl": "", "activeDirectory": "/data/media/" + series,
 		"seriesType": "standard", "animeSeriesType": "anime", "activeAnimeDirectory": "/data/media/" + series,
+		"animeTags":           tagList(tags.Sonarr),
 		"enableSeasonFolders": true, "monitorNewItems": "all",
 		"is4k": false, "isDefault": true,
 		"tags": []int{}, "syncEnabled": true, "preventSearch": false, "tagRequests": false, "overrideRule": []int{},
 	}
 	if _, _, err := addSeerrService(ctx, seerr, "sonarr", sonarr, sonarrProfiles, animeProfiles); err != nil {
 		return err
+	}
+
+	// Sonarr numbers seasons as TheTVDB does. With TMDB, Seerr can ask for the
+	// wrong season of a split or long anime. Checked against Seerr v3.5.1:
+	// the change tests TheTVDB first and fails when it can't be reached.
+	metadata := map[string]string{"tv": "tmdb", "anime": "tvdb"}
+	if err := seerr.do(ctx, http.MethodPut, "/settings/metadatas", metadata, nil); err != nil {
+		cfg.Logf("Could not set TheTVDB for anime in Seerr, set it under Settings > Metadata Providers: %v", err)
 	}
 
 	return seerr.do(ctx, http.MethodPost, "/settings/initialize", nil, nil)
@@ -194,8 +204,9 @@ func addSeerrService(ctx context.Context, seerr *apiClient, kind string, setting
 }
 
 // addAnimeFilmRule sends films with the anime keyword to the anime profile of
-// Radarr, when Recyclarr has made it. It adds the rule once.
-func addAnimeFilmRule(ctx context.Context, cfg Config, seerr *apiClient, radarrID int, profiles []seerrProfile) error {
+// Radarr, with the anime tag, when Recyclarr has made the profile. It adds the
+// rule once.
+func addAnimeFilmRule(ctx context.Context, cfg Config, seerr *apiClient, radarrID int, profiles []seerrProfile, tag int) error {
 	index := slices.IndexFunc(profiles, func(profile seerrProfile) bool { return profile.Name == animeFilmProfile })
 	if index < 0 {
 		cfg.Logf("Radarr has no %s profile yet, so anime films use the normal one. Add an override rule in Seerr once Recyclarr made it", animeFilmProfile)
@@ -216,12 +227,25 @@ func addAnimeFilmRule(ctx context.Context, cfg Config, seerr *apiClient, radarrI
 	}
 
 	rule := map[string]any{"radarrServiceId": radarrID, "keywords": animeKeyword, "profileId": profiles[index].ID}
+	if tag > 0 {
+		// Seerr keeps the tags of a rule as IDs separated by commas.
+		rule["tags"] = strconv.Itoa(tag)
+	}
 	if err := seerr.do(ctx, http.MethodPost, "/overrideRule", rule, nil); err != nil {
 		return err
 	}
 	cfg.Logf("Anime films use the %s profile", animeFilmProfile)
 
 	return nil
+}
+
+// tagList is the tags field of a Seerr service: the tag, or none.
+func tagList(tag int) []int {
+	if tag > 0 {
+		return []int{tag}
+	}
+
+	return []int{}
 }
 
 func pickProfile(profiles []seerrProfile, wanted []string) (seerrProfile, bool) {

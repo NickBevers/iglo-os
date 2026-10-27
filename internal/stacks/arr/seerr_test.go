@@ -22,6 +22,8 @@ type fakeSeerr struct {
 	rules       []map[string]any
 	// noAnimeFilms leaves the anime profile out of Radarr, like before Recyclarr ran.
 	noAnimeFilms bool
+	// noTVDB fails the metadata change, like Seerr does when TheTVDB can't be reached.
+	noTVDB bool
 }
 
 func (f *fakeSeerr) ServeHTTP(w http.ResponseWriter, r *http.Request) {
@@ -64,6 +66,10 @@ func (f *fakeSeerr) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		w.Write([]byte(`{"id":0,"hostname":"radarr"}`))
 	case "GET /overrideRule":
 		json.NewEncoder(w).Encode(append([]map[string]any{}, f.rules...))
+	case "PUT /settings/metadatas":
+		if f.noTVDB {
+			http.Error(w, `{"message":"Failed to test metadata provider"}`, http.StatusInternalServerError)
+		}
 	case "POST /overrideRule":
 		f.rules = append(f.rules, body)
 		json.NewEncoder(w).Encode(body)
@@ -97,7 +103,7 @@ func TestConfigureSeerr(t *testing.T) {
 	server := httptest.NewServer(fake)
 	defer server.Close()
 
-	if err := configureSeerr(context.Background(), seerrConfig(), newSeerr(server.URL, 5*time.Second)); err != nil {
+	if err := configureSeerr(context.Background(), seerrConfig(), newSeerr(server.URL, 5*time.Second), animeTags{Sonarr: 2, Radarr: 5}); err != nil {
 		t.Fatal(err)
 	}
 
@@ -118,14 +124,19 @@ func TestConfigureSeerr(t *testing.T) {
 	if radarr["hostname"] != "radarr" || radarr["activeProfileId"] != float64(7) || radarr["activeDirectory"] != "/data/media/movies" || radarr["apiKey"] != "radarr-key" {
 		t.Fatalf("radarr = %v", radarr)
 	}
-	// Anime films go to their own profile, by a rule on Radarr 0.
-	if len(fake.rules) != 1 || fake.rules[0]["radarrServiceId"] != float64(0) || fake.rules[0]["keywords"] != "210024" || fake.rules[0]["profileId"] != float64(12) {
+	// Anime films go to their own profile with the anime tag, by a rule on Radarr 0.
+	if len(fake.rules) != 1 || fake.rules[0]["radarrServiceId"] != float64(0) || fake.rules[0]["keywords"] != "210024" ||
+		fake.rules[0]["profileId"] != float64(12) || fake.rules[0]["tags"] != "5" {
 		t.Fatalf("rules = %v", fake.rules)
+	}
+	if metadata := fake.bodies["PUT /settings/metadatas"]; metadata["anime"] != "tvdb" || metadata["tv"] != "tmdb" {
+		t.Fatalf("metadata = %v", metadata)
 	}
 	// No WEB-1080p yet, so the default of Sonarr.
 	sonarr := fake.bodies["POST /settings/sonarr"]
 	if sonarr["activeProfileName"] != "HD-1080p" || sonarr["activeDirectory"] != "/data/media/TV Shows" || sonarr["enableSeasonFolders"] != true ||
-		sonarr["activeAnimeProfileId"] != float64(9) || sonarr["activeAnimeDirectory"] != "/data/media/TV Shows" {
+		sonarr["activeAnimeProfileId"] != float64(9) || sonarr["activeAnimeDirectory"] != "/data/media/TV Shows" ||
+		!slices.Equal(sonarr["animeTags"].([]any), []any{float64(2)}) {
 		t.Fatalf("sonarr = %v", sonarr)
 	}
 }
@@ -135,7 +146,7 @@ func TestConfigureSeerrSkipsWhatIsDone(t *testing.T) {
 	server := httptest.NewServer(fake)
 	defer server.Close()
 
-	if err := configureSeerr(context.Background(), seerrConfig(), newSeerr(server.URL, 5*time.Second)); err != nil {
+	if err := configureSeerr(context.Background(), seerrConfig(), newSeerr(server.URL, 5*time.Second), animeTags{}); err != nil {
 		t.Fatal(err)
 	}
 	if len(fake.calls) != 1 {
@@ -146,7 +157,7 @@ func TestConfigureSeerrSkipsWhatIsDone(t *testing.T) {
 	fake = &fakeSeerr{bodies: map[string]map[string]any{}, radarr: []map[string]any{{"hostname": "radarr"}}}
 	server2 := httptest.NewServer(fake)
 	defer server2.Close()
-	if err := configureSeerr(context.Background(), seerrConfig(), newSeerr(server2.URL, 5*time.Second)); err != nil {
+	if err := configureSeerr(context.Background(), seerrConfig(), newSeerr(server2.URL, 5*time.Second), animeTags{}); err != nil {
 		t.Fatal(err)
 	}
 	if slices.Contains(fake.calls, "POST /settings/radarr") || !slices.Contains(fake.calls, "POST /settings/sonarr") {
@@ -161,7 +172,7 @@ func TestAnimeFilmRule(t *testing.T) {
 		rules: []map[string]any{{"radarrServiceId": zero, "keywords": "1,210024"}}}
 	server := httptest.NewServer(fake)
 	defer server.Close()
-	if err := configureSeerr(context.Background(), seerrConfig(), newSeerr(server.URL, 5*time.Second)); err != nil {
+	if err := configureSeerr(context.Background(), seerrConfig(), newSeerr(server.URL, 5*time.Second), animeTags{}); err != nil {
 		t.Fatal(err)
 	}
 	if slices.Contains(fake.calls, "POST /overrideRule") {
@@ -172,11 +183,14 @@ func TestAnimeFilmRule(t *testing.T) {
 	fake = &fakeSeerr{bodies: map[string]map[string]any{}, rules: []map[string]any{{"radarrServiceId": 3, "keywords": "210024"}}}
 	server2 := httptest.NewServer(fake)
 	defer server2.Close()
-	if err := configureSeerr(context.Background(), seerrConfig(), newSeerr(server2.URL, 5*time.Second)); err != nil {
+	if err := configureSeerr(context.Background(), seerrConfig(), newSeerr(server2.URL, 5*time.Second), animeTags{}); err != nil {
 		t.Fatal(err)
 	}
-	if len(fake.rules) != 2 {
+	if len(fake.rules) != 2 || fake.rules[1]["tags"] != nil {
 		t.Fatalf("rules = %v", fake.rules)
+	}
+	if tags := fake.bodies["POST /settings/sonarr"]["animeTags"].([]any); len(tags) != 0 {
+		t.Fatalf("anime tags without a tag = %v", tags)
 	}
 
 	// Before Recyclarr made the profile, anime films keep the normal one and
@@ -184,17 +198,19 @@ func TestAnimeFilmRule(t *testing.T) {
 	var logs []string
 	cfg := seerrConfig()
 	cfg.Logf = func(format string, args ...any) { logs = append(logs, fmt.Sprintf(format, args...)) }
-	fake = &fakeSeerr{bodies: map[string]map[string]any{}, noAnimeFilms: true}
+	fake = &fakeSeerr{bodies: map[string]map[string]any{}, noAnimeFilms: true, noTVDB: true}
 	server3 := httptest.NewServer(fake)
 	defer server3.Close()
-	if err := configureSeerr(context.Background(), cfg, newSeerr(server3.URL, 5*time.Second)); err != nil {
+	if err := configureSeerr(context.Background(), cfg, newSeerr(server3.URL, 5*time.Second), animeTags{}); err != nil {
 		t.Fatal(err)
 	}
 	if len(fake.rules) != 0 || !slices.Contains(fake.calls, "POST /settings/initialize") {
 		t.Fatalf("rules = %v, calls = %v", fake.rules, fake.calls)
 	}
-	if !slices.ContainsFunc(logs, func(line string) bool { return strings.Contains(line, "no [Anime] Remux-1080p profile yet") }) {
-		t.Fatalf("logs = %v", logs)
+	for _, want := range []string{"no [Anime] Remux-1080p profile yet", "Could not set TheTVDB for anime"} {
+		if !slices.ContainsFunc(logs, func(line string) bool { return strings.Contains(line, want) }) {
+			t.Fatalf("no %q in logs %v", want, logs)
+		}
 	}
 }
 

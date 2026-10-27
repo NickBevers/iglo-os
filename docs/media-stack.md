@@ -49,7 +49,7 @@ After the install, the Apps page shows links to each app. Then add your indexers
 
 ## Subtitles
 
-Bazarr adds subtitles in your languages to every new movie and episode. The installer turns on these sources:
+Bazarr adds subtitles in your languages to every new movie and episode, except anime (see below). The installer turns on these sources:
 
 - **Embedded Subtitles**: subtitles that are already inside the video file;
 - **Podnapisi**: free, no account;
@@ -79,11 +79,20 @@ Anime goes through the same Sonarr and Radarr and the same folders, with setting
 
 - **Trackers.** With **Anime trackers** on in the form, the installer adds the public trackers Nyaa.si and Anime Tosho to Prowlarr, which passes them on to Sonarr and Radarr. They need no account. When one can't be added, the install goes on and its log says so; add it in Prowlarr yourself.
 - **Quality.** Recyclarr syncs the TRaSH Guides profile **[Anime] Remux-1080p** into Sonarr and into Radarr, next to the normal profiles. It scores the anime release groups, and it prefers BluRay, then the best web releases. One Sonarr has one set of quality sizes, so anime series use the series sizes; the same goes for films in Radarr.
-- **Japanese audio.** Both anime profiles reject a release that is only dubbed: TRaSH's "Dubs Only" format scores -10000. Japanese releases and dual audio (Japanese and English) pass. Most anime releases bring English subtitles in the file, and Bazarr adds them where they're missing. A dub that doesn't say so in its name can still slip through; delete it in Sonarr or Radarr and search again.
-- **Requests.** Seerr knows anime by TMDB's "anime" keyword. It sends anime series to Sonarr as the anime series type, which numbers episodes the anime way, with the anime profile. For films, Seerr has no anime profile, so the installer adds an override rule to Radarr: the anime keyword (210024) gets the anime profile.
+- **Japanese audio.** Both anime profiles reject a release that is only dubbed: TRaSH's "Dubs Only" format scores -10000. Japanese releases and dual audio (Japanese and English) pass. The profiles read release names, not the tracks in the file, so a dub that doesn't say so in its name can still slip through; delete it in Sonarr or Radarr and search again. For a release group you don't know yet, check one scene with dialogue.
+- **Subtitles.** Anime releases bring the official English subtitles in the file. Bazarr leaves anime alone: series of the anime type, and films with the anime tag. Jellyfin prefers an external subtitle, so a downloaded one would push the official subtitles aside. To get a subtitle for an anime that has none, search for it by hand in Bazarr; the exclusion only stops its automatic searches.
+- **One download per episode.** A new episode lands from several web rippers within minutes. Sonarr waits 30 minutes for series with the anime tag, then takes the best release once. A release in TRaSH's anime web tier 1 to 3 is grabbed at once. Later, better releases (a BluRay, a fixed version) still replace it, as the profile allows.
+- **Requests.** Seerr knows anime by TMDB's "anime" keyword. It sends anime series to Sonarr as the anime series type, which numbers episodes the anime way, with the anime profile and the anime tag. For films, Seerr has no anime profile, so the installer adds an override rule to Radarr: the anime keyword (210024) gets the anime profile and the anime tag.
+- **Seasons.** Sonarr numbers seasons as TheTVDB does, and TMDB often splits anime differently. The installer sets Seerr's metadata for anime to TheTVDB, so a request asks Sonarr for the right season. When TheTVDB can't be reached during the install, the log says so; set it later under **Settings > Metadata Providers**.
+- **File names.** Recyclarr turns on renaming in Sonarr and Radarr with the TRaSH names for Jellyfin: the TVDB or TMDB ID in the folder, and SxxExx with the absolute number for anime. A release named "- 16" then can't be read as the wrong episode. Files that are already there keep their names.
 - **The first sync.** The installer runs Recyclarr once before it sets up Seerr, so both anime profiles exist. When that sync fails, for example because GitHub can't be reached, Recyclarr tries again every day, anime uses the normal profiles, and the log says so. Then pick the anime profile in Seerr under **Settings > Services > Sonarr**, and add the rule for films under **Settings > Services** with **New Override Rule**: the Radarr service, the keyword "anime", and the quality profile [Anime] Remux-1080p.
 
-A media stack from before this change gets the Radarr anime profile with its next update, when Recyclarr syncs. Its Seerr is already set up, so add the override rule for films yourself, as above.
+A media stack from before these changes gets the Radarr anime profile and the file names with its next update, when Recyclarr syncs. The rest is set up during the install only. To add it by hand:
+
+1. In Sonarr and Radarr, add a tag **anime** under **Settings > Tags**.
+2. In Sonarr, add a delay profile under **Settings > Profiles** for the tag anime: torrent delay 30 minutes, **Bypass if Above Custom Format Score** on, with 400.
+3. In Seerr, under **Settings > Services > Sonarr**, pick the anime tag as **Anime Tags**. Add the rule for films as above, with the tag anime. Under **Settings > Metadata Providers**, set anime to TheTVDB.
+4. In Bazarr, add **anime** to **Excluded Series Types** under **Settings > Sonarr**, and to **Excluded Tags** under **Settings > Radarr**.
 
 Which audio and subtitles play is up to the player. Set the language preferences in Jellyfin, or in Kodi on the TV.
 
