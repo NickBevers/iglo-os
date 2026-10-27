@@ -47,3 +47,28 @@ func (s *server) storageBindings(w http.ResponseWriter, r *http.Request) {
 	}
 	w.WriteHeader(204)
 }
+
+type backupStorageAgent interface {
+	UseBindingForBackups(ctx context.Context, id string, on bool) error
+}
+
+// bindingBackups turns the Proxmox backups on a Backups share on or off.
+func (s *server) bindingBackups(w http.ResponseWriter, r *http.Request) {
+	a, ok := s.Agent.(backupStorageAgent)
+	if !ok {
+		writeError(w, 503, "update the host agent to keep Proxmox backups on a share")
+		return
+	}
+	var in struct {
+		Enabled *bool `json:"enabled"`
+	}
+	if json.NewDecoder(http.MaxBytesReader(w, r.Body, 128)).Decode(&in) != nil || in.Enabled == nil {
+		writeError(w, 400, "give enabled true or false")
+		return
+	}
+	if err := a.UseBindingForBackups(r.Context(), r.PathValue("id"), *in.Enabled); err != nil {
+		writeError(w, 409, err.Error())
+		return
+	}
+	w.WriteHeader(204)
+}

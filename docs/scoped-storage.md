@@ -18,7 +18,8 @@ Network loss after mounting can still stall SMB I/O; it does not switch to a
 local directory. This is availability protection, not NAS redundancy.
 
 Disconnect refuses if any LXC config references the mount or a subdirectory,
-including stopped containers. It removes only the mount and host credential
+including stopped containers, or when Proxmox keeps its backups on the share
+(see [backups.md](backups.md#backups-on-the-nas)). It removes only the mount and host credential
 files, never NAS contents. Change credentials by removing an unused binding and
 reconnecting it. Every installer, Jellyfin and the media stack included, uses
 `deploy/storage.sh`.
