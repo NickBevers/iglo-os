@@ -232,6 +232,12 @@ type Service struct {
 	active    string
 	rollbacks map[string]string
 
+	// descriptions, addresses and storages change rarely, so the Apps view
+	// keeps them for a minute. An operation that finishes forgets them.
+	descriptions ttlCache[string]
+	addresses    ttlCache[string]
+	storages     ttlCache[[]proxmox.BackupStorage]
+
 	gamingMu sync.Mutex
 	// gamingSessions are the Moonlight sessions that WatchGaming saw last.
 	gamingSessions []agent.GamingSession
@@ -260,76 +266,87 @@ func (s *Service) Status(ctx context.Context) (View, error) {
 	}
 	node := s.node(resources)
 
-	view := View{Apps: []AppView{}, Defaults: s.defaults(ctx, node, resources)}
+	view := View{Apps: make([]AppView, len(Catalog)), Defaults: s.defaults(ctx, node, resources)}
 	install, err := s.Agent.AppInstallStatus(ctx)
 	if err != nil {
 		view.Error = err.Error()
 	}
 
-	for _, app := range Catalog {
-		appView := AppView{App: app}
-		appView.Links = slices.Clone(app.Links)
-
-		if guest, found := findGuest(resources, app); found {
-			appView.Installed, appView.VMID, appView.Status = true, guest.VMID, guest.Status
-			appView.Managed = hasTags(guest, app)
-			if appView.Managed && app.Stack {
-				if description, err := s.Proxmox.ContainerDescription(ctx, guest.Node, guest.VMID); err == nil {
-					if match := versionPattern.FindStringSubmatch(description); match != nil {
-						appView.Version = match[1]
-					}
-					if match := addressPattern.FindStringSubmatch(description); match != nil {
-						appView.PublicAddress = match[1]
-					}
-					appView.UpdateAvailable = s.Version != "" && appView.Version != s.Version
-				}
-			}
-			if app.Subdomain != "" && s.Hostname != "" {
-				appView.HostURL = "https://" + app.Subdomain + "." + s.Hostname
-			}
-			if ip := s.guestIP(ctx, guest); ip != "" {
-				for i, link := range appView.Links {
-					appView.Links[i].URL = fmt.Sprintf("http://%s:%d", ip, link.Port)
-					if link.Address {
-						appView.Links[i].URL = fmt.Sprintf("%s:%d", ip, link.Port)
-					}
-				}
-			}
-		}
-		s.mu.Lock()
-		active := s.active == app.ID
-		s.mu.Unlock()
-		if install.App == app.ID && (install.State == agent.UpgradeRunning || install.State == agent.UpgradeFailed || active) {
-			// The API key of a new Jellyfin is for Iglo-OS only.
-			shown := install
-			shown.APIKey = ""
-			// The operation ends after the monitor handled it, for example after the rollback.
-			if active {
-				shown.State = agent.UpgradeRunning
-			}
-			appView.Operation = &shown
-			if install.State == agent.UpgradeFailed && install.Action == agent.ActionUpdate {
-				s.mu.Lock()
-				appView.Rollback = s.rollbacks[app.ID]
-				s.mu.Unlock()
-			}
-		}
-		// Stats are best effort: the dashboard shows the app without them.
-		if app.Stats && appView.Installed && (appView.Status == "running" || app.HostStats) {
-			if stats, err := s.Agent.AppStats(ctx, app.ID, appView.VMID); err == nil {
-				appView.Stats = &stats
-			}
-		}
-		if !appView.Installed && !app.Planned && install.State != agent.UpgradeRunning {
-			if saved, err := s.Agent.SavedAppAnswers(ctx, app.ID); err == nil {
-				appView.Saved = saved
-			}
-		}
-
-		view.Apps = append(view.Apps, appView)
+	// Each app asks Proxmox and the host agent on its own, so they all ask at once.
+	var wait sync.WaitGroup
+	for index, app := range Catalog {
+		wait.Go(func() { view.Apps[index] = s.appView(ctx, app, resources, install) })
 	}
+	wait.Wait()
 
 	return view, nil
+}
+
+// appView is the state of one app on the Apps page.
+func (s *Service) appView(ctx context.Context, app App, resources []proxmox.Resource, install agent.AppInstallStatus) AppView {
+	appView := AppView{App: app}
+	appView.Links = slices.Clone(app.Links)
+
+	if guest, found := findGuest(resources, app); found {
+		appView.Installed, appView.VMID, appView.Status = true, guest.VMID, guest.Status
+		appView.Managed = hasTags(guest, app)
+		if appView.Managed && app.Stack {
+			description, err := s.descriptions.get(fmt.Sprint(guest.VMID), time.Minute, func() (string, error) {
+				return s.Proxmox.ContainerDescription(ctx, guest.Node, guest.VMID)
+			})
+			if err == nil {
+				if match := versionPattern.FindStringSubmatch(description); match != nil {
+					appView.Version = match[1]
+				}
+				if match := addressPattern.FindStringSubmatch(description); match != nil {
+					appView.PublicAddress = match[1]
+				}
+				appView.UpdateAvailable = s.Version != "" && appView.Version != s.Version
+			}
+		}
+		if app.Subdomain != "" && s.Hostname != "" {
+			appView.HostURL = "https://" + app.Subdomain + "." + s.Hostname
+		}
+		if ip := s.guestIP(ctx, guest); ip != "" {
+			for i, link := range appView.Links {
+				appView.Links[i].URL = fmt.Sprintf("http://%s:%d", ip, link.Port)
+				if link.Address {
+					appView.Links[i].URL = fmt.Sprintf("%s:%d", ip, link.Port)
+				}
+			}
+		}
+	}
+	s.mu.Lock()
+	active := s.active == app.ID
+	s.mu.Unlock()
+	if install.App == app.ID && (install.State == agent.UpgradeRunning || install.State == agent.UpgradeFailed || active) {
+		// The API key of a new Jellyfin is for Iglo-OS only.
+		shown := install
+		shown.APIKey = ""
+		// The operation ends after the monitor handled it, for example after the rollback.
+		if active {
+			shown.State = agent.UpgradeRunning
+		}
+		appView.Operation = &shown
+		if install.State == agent.UpgradeFailed && install.Action == agent.ActionUpdate {
+			s.mu.Lock()
+			appView.Rollback = s.rollbacks[app.ID]
+			s.mu.Unlock()
+		}
+	}
+	// Stats are best effort: the dashboard shows the app without them.
+	if app.Stats && appView.Installed && (appView.Status == "running" || app.HostStats) {
+		if stats, err := s.Agent.AppStats(ctx, app.ID, appView.VMID); err == nil {
+			appView.Stats = &stats
+		}
+	}
+	if !appView.Installed && !app.Planned && install.State != agent.UpgradeRunning {
+		if saved, err := s.Agent.SavedAppAnswers(ctx, app.ID); err == nil {
+			appView.Saved = saved
+		}
+	}
+
+	return appView
 }
 
 // Address returns http://<ip>:<port> of an installed app, for a link that works without the Iglo-OS page.
@@ -386,7 +403,10 @@ func (s *Service) defaults(ctx context.Context, node string, resources []proxmox
 		},
 	}
 
-	if storages, err := s.Proxmox.ContainerStorages(ctx, node); err == nil {
+	storages, err := s.storages.get(node, 5*time.Minute, func() ([]proxmox.BackupStorage, error) {
+		return s.Proxmox.ContainerStorages(ctx, node)
+	})
+	if err == nil {
 		for _, storage := range storages {
 			if storage.Active {
 				defaults.Storages = append(defaults.Storages, storage.Storage)
@@ -443,18 +463,23 @@ func (s *Service) guestIP(ctx context.Context, guest proxmox.Resource) string {
 	if guest.Status != "running" {
 		return ""
 	}
-	interfaces, err := s.Proxmox.ContainerInterfaces(ctx, guest.Node, guest.VMID)
-	if err != nil {
-		return ""
-	}
-	for _, iface := range interfaces {
-		prefix, err := netip.ParsePrefix(iface.Inet)
-		if err == nil && iface.Name != "lo" && prefix.Addr().Is4() && !prefix.Addr().IsLoopback() {
-			return prefix.Addr().String()
+	// A container keeps its address while it runs, so ask Proxmox once a minute.
+	ip, _ := s.addresses.get(fmt.Sprint(guest.VMID), time.Minute, func() (string, error) {
+		interfaces, err := s.Proxmox.ContainerInterfaces(ctx, guest.Node, guest.VMID)
+		if err != nil {
+			return "", err
 		}
-	}
+		for _, iface := range interfaces {
+			prefix, err := netip.ParsePrefix(iface.Inet)
+			if err == nil && iface.Name != "lo" && prefix.Addr().Is4() && !prefix.Addr().IsLoopback() {
+				return prefix.Addr().String(), nil
+			}
+		}
+		// No address yet, like right after a start: ask again next time.
+		return "", errors.New("no address yet")
+	})
 
-	return ""
+	return ip
 }
 
 func (s *Service) Install(ctx context.Context, background context.Context, id string, request agent.InstallRequest) error {
@@ -789,6 +814,9 @@ func (s *Service) monitor(ctx context.Context, op operation, generation int) {
 		if err != nil || status.State == agent.UpgradeRunning {
 			continue
 		}
+		// The operation changed a container: its version, address or ID.
+		s.descriptions.forget()
+		s.addresses.forget()
 
 		switch op.action {
 		case agent.ActionBackup, agent.ActionVerify:

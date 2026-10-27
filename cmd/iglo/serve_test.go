@@ -38,10 +38,13 @@ func TestAdmissionSenderSkipsUnchangedAnswers(t *testing.T) {
 	step(-1, 0)
 	step(0, 2)
 	step(0, 0)
-	// Leases expire, so they always go out.
+	// Leases expire, so they go out again before they run low.
 	lease := now.Add(time.Minute).Unix()
 	step(lease, 2)
-	step(lease, 2)
+	now = now.Add(15 * time.Second)
+	step(now.Add(time.Minute).Unix(), 0)
+	now = now.Add(15 * time.Second)
+	step(now.Add(time.Minute).Unix(), 2)
 	step(0, 2)
 	now = now.Add(admissionRefresh)
 	step(0, 2)

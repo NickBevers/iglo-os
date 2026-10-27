@@ -4,6 +4,16 @@ import (
 	"context"
 	"fmt"
 	"net/url"
+	"slices"
+	"time"
+)
+
+const (
+	// resourcesTTL is how long one answer of /cluster/resources is used.
+	resourcesTTL = 2 * time.Second
+	// versionTTL is how long the version of a node is used. It only changes
+	// with an upgrade of Proxmox.
+	versionTTL = 10 * time.Minute
 )
 
 // Resource is one row of /cluster/resources. Which fields are set depends on Type.
@@ -48,15 +58,58 @@ const (
 )
 
 func (c *Client) Resources(ctx context.Context) ([]Resource, error) {
-	var resources []Resource
-	err := c.get(ctx, "/cluster/resources", &resources)
+	c.cacheMu.Lock()
+	if c.cached != nil && time.Since(c.cachedAt) < resourcesTTL {
+		resources := slices.Clone(c.cached)
+		c.cacheMu.Unlock()
+		return resources, nil
+	}
+	c.cacheMu.Unlock()
 
-	return resources, err
+	result, err, _ := c.resources.Do("resources", func() (any, error) {
+		var resources []Resource
+		if err := c.get(ctx, "/cluster/resources", &resources); err != nil {
+			return nil, err
+		}
+		c.cacheMu.Lock()
+		c.cached, c.cachedAt = resources, time.Now()
+		c.cacheMu.Unlock()
+		return resources, nil
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	return slices.Clone(result.([]Resource)), nil
+}
+
+// forgetResources makes the next call ask Proxmox again, after an action
+// that changes a guest.
+func (c *Client) forgetResources() {
+	c.cacheMu.Lock()
+	c.cached = nil
+	c.cacheMu.Unlock()
 }
 
 func (c *Client) NodeStatus(ctx context.Context, node string) (NodeStatus, error) {
+	c.cacheMu.Lock()
+	if at, ok := c.versionsAt[node]; ok && time.Since(at) < versionTTL {
+		status := c.versions[node]
+		c.cacheMu.Unlock()
+		return status, nil
+	}
+	c.cacheMu.Unlock()
+
 	var status NodeStatus
 	err := c.get(ctx, "/nodes/"+url.PathEscape(node)+"/status", &status)
+	if err == nil {
+		c.cacheMu.Lock()
+		if c.versions == nil {
+			c.versions, c.versionsAt = map[string]NodeStatus{}, map[string]time.Time{}
+		}
+		c.versions[node], c.versionsAt[node] = status, time.Now()
+		c.cacheMu.Unlock()
+	}
 
 	return status, err
 }
@@ -66,6 +119,7 @@ func (c *Client) RunGuestAction(ctx context.Context, node string, guestType Gues
 	var upid string
 	path := fmt.Sprintf("/nodes/%s/%s/%d/status/%s", url.PathEscape(node), guestType, vmid, action)
 	err := c.post(ctx, path, url.Values{}, &upid)
+	c.forgetResources()
 
 	return upid, err
 }

@@ -28,7 +28,14 @@ an empty server URL; existing connections are preserved. The key is never create
 before the Immich admin exists. The queue API is exercised by the local fixture,
 but must also be checked against the installed release before relying on it.
 
-CPU processing is the default. No GPU performance or acceleration is claimed.
+When the host has a GPU (`/dev/dri/renderD128`), the installer passes its
+render node to the container and loads `compose.gpu.yaml`. Machine learning
+then uses the OpenVINO image of Immich, which runs face detection and smart
+search on an Intel GPU by itself. Video conversion needs one switch in Immich:
+**Administration > Settings > Video transcoding > Hardware acceleration >
+Quick Sync**. Without a GPU, Immich runs on the CPU as before. The machine
+learning container gets 2560 MiB, because OpenVINO needs room while it compiles
+its models. None of this is measured on the target hardware yet.
 Use one admitted heavy queue, 4 GiB headroom and the overnight window initially.
 Active jobs finish after a pause; limit native worker concurrency too.
 

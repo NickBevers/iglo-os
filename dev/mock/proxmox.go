@@ -79,10 +79,10 @@ func (p *fakeProxmox) resources(w http.ResponseWriter, r *http.Request) {
 	}
 	// The fake agent "installs" apps from the Apps page.
 	if _, err := os.Stat(statePath("jellyfin-installed")); err == nil {
-		resources = append(resources, map[string]any{"type": "lxc", "node": "pve", "vmid": 140, "name": "jellyfin", "status": "running", "tags": "iglo;jellyfin", "maxcpu": 2, "maxmem": 2_147_483_648, "uptime": 60})
+		resources = append(resources, map[string]any{"type": "lxc", "node": "pve", "vmid": 140, "name": "jellyfin", "status": "running", "tags": "iglo;jellyfin", "maxcpu": 4, "maxmem": 3_221_225_472, "uptime": 60})
 	}
 	if _, err := os.Stat(statePath("media-installed")); err == nil {
-		resources = append(resources, map[string]any{"type": "lxc", "node": "pve", "vmid": 130, "name": "media", "status": "running", "tags": "iglo;media", "maxcpu": 2, "maxmem": 4_294_967_296, "uptime": 60})
+		resources = append(resources, map[string]any{"type": "lxc", "node": "pve", "vmid": 130, "name": "media", "status": "running", "tags": "iglo;media", "maxcpu": 4, "maxmem": 4_294_967_296, "uptime": 60})
 	}
 	if _, err := os.Stat(statePath("minecraft-installed")); err == nil {
 		resources = append(resources, map[string]any{"type": "lxc", "node": "pve", "vmid": 150, "name": "minecraft", "status": "running", "tags": "iglo;minecraft", "maxcpu": 4, "maxmem": 5_905_580_032, "uptime": 60})

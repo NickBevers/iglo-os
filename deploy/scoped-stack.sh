@@ -71,6 +71,14 @@ scoped_files() {
         pct push "$CT_ID" "$file" "/opt/$APP/$(basename "$file")" --perms 0600
     done
 }
+# render_device gives Photos or Inbox the render node of the host GPU, when
+# there is one. A render node only computes and encodes video; it can't show
+# anything on a screen. The stack loads compose.gpu.yaml when it sees it.
+render_device() {
+    [[ -c /dev/dri/renderD128 ]] || return 0
+    log "Passing the GPU (/dev/dri/renderD128) to the container"
+    pct set "$1" --dev0 /dev/dri/renderD128,mode=0666
+}
 # gaming_devices gives the Gaming container the GPU and virtual input devices,
 # as in the Wolf Proxmox quickstart.
 gaming_devices() {
@@ -132,9 +140,9 @@ scoped_main() {
         --tags "iglo;$APP" --description "$(app_description "$APP, installed by Iglo-OS")"
     CREATED_CT="$CT_ID"
     case "$APP" in
-        photos) bind_share "$CT_ID" 0 "$LIBRARY_BINDING" photos rw /data/photos;bind_share "$CT_ID" 1 "$BACKUP_BINDING" backups rw /data/backups;;
+        photos) bind_share "$CT_ID" 0 "$LIBRARY_BINDING" photos rw /data/photos;bind_share "$CT_ID" 1 "$BACKUP_BINDING" backups rw /data/backups;render_device "$CT_ID";;
         music) bind_share "$CT_ID" 0 "$LIBRARY_BINDING" music rw /data/music;;
-        inbox) bind_share "$CT_ID" 0 "$LIBRARY_BINDING" inbox ro /data/inbox;bind_share "$CT_ID" 1 "$OUTPUT_BINDING" videos rw /data/videos;;
+        inbox) bind_share "$CT_ID" 0 "$LIBRARY_BINDING" inbox ro /data/inbox;bind_share "$CT_ID" 1 "$OUTPUT_BINDING" videos rw /data/videos;render_device "$CT_ID";;
         gaming) bind_share "$CT_ID" 0 "$LIBRARY_BINDING" games ro /data/games;gaming_devices "$CT_ID";;
     esac
     pct start "$CT_ID";wait_for_network "$CT_ID"

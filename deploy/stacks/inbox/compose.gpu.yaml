@@ -1,0 +1,6 @@
+# Loaded through COMPOSE_FILE in .env when the container has the render node
+# of the host GPU. FileFlows then finds VAAPI and Quick Sync for its flows.
+services:
+  fileflows:
+    devices:
+      - /dev/dri:/dev/dri

@@ -272,6 +272,11 @@ var tailnetApps = []struct{ name, title, addr string }{
 // case it was reinstalled with a fresh answer while it kept the same ID.
 const admissionRefresh = 10 * time.Minute
 
+// leaseMargin is how long, in seconds, a sent lease must still run to skip
+// sending a new one. The loop checks every 15 seconds and a lease lasts a
+// minute, so a lease goes out about every 30 seconds, with 30 to spare.
+const leaseMargin = 40
+
 // admissionSender tells the running worker containers whether they may start
 // new work. Each answer is a pct call on the host, so a fixed answer (-1 or 0)
 // only goes out when it changes. A lease always goes out, because it expires.
@@ -304,6 +309,11 @@ func admissionSender(resources func(context.Context) ([]proxmox.Resource, error)
 				key := app + "/" + strconv.Itoa(r.VMID)
 				seen[key] = true
 				if last, ok := sent[key]; ok && until <= 0 && last.until == until && now().Sub(last.sentAt) < admissionRefresh {
+					continue
+				}
+				// A lease that still runs for a while goes out every other check,
+				// not every check: each one is a pct exec on the host.
+				if last, ok := sent[key]; ok && until > 0 && last.until > 0 && last.until-now().Unix() >= leaseMargin {
 					continue
 				}
 				if err := send(ctx, app, r.VMID, until); err != nil {

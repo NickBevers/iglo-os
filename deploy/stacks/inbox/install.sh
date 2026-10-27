@@ -10,6 +10,10 @@ install_stack() {
         install -d -m 0775 /data/videos/home-videos
         printf -- "-1\n" > /var/lib/iglo-inbox/admission/admit-until
         cd /opt/inbox
+        # With the GPU of the host, FileFlows can convert on it.
+        if [[ -c /dev/dri/renderD128 ]]; then
+            echo "COMPOSE_FILE=compose.yaml:compose.gpu.yaml" > .env
+        fi
         docker compose config --quiet
         docker compose up -d
     '

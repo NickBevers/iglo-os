@@ -12,7 +12,10 @@ import (
 	"net/url"
 	"os"
 	"strings"
+	"sync"
 	"time"
+
+	"golang.org/x/sync/singleflight"
 
 	"iglo/internal/config"
 )
@@ -21,6 +24,16 @@ type Client struct {
 	baseURL string
 	auth    string
 	http    *http.Client
+
+	// The overview, the pages and the loops of the manager all ask for the
+	// resources, often within the same second. One answer serves them all
+	// for resourcesTTL, and callers at the same moment share one request.
+	resources  singleflight.Group
+	cacheMu    sync.Mutex
+	cached     []Resource
+	cachedAt   time.Time
+	versions   map[string]NodeStatus
+	versionsAt map[string]time.Time
 }
 
 func New(cfg config.Proxmox) (*Client, error) {

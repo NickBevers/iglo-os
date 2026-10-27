@@ -14,7 +14,7 @@ If the media stack already uses a Videos share, the form chooses that one.
 ### What the installer does
 
 1. Checks the Videos share, and makes the movies and series folders on it when they do not exist and the share has write access.
-2. Makes a Debian 13 container named `jellyfin` (2 cores, 2 GB memory, 16 GB disk) with the tags `iglo` and `jellyfin`.
+2. Makes a Debian 13 container named `jellyfin` (4 cores, 3 GB memory, 16 GB disk) with the tags `iglo` and `jellyfin`.
 3. Gives the container the share at `/data/media`, read-only. The share mounts before the container starts. Jellyfin keeps its own data on the disk of the container.
 4. Installs Jellyfin from the official repository, `repo.jellyfin.org`. The Updates page updates it later, with the other containers.
 5. Passes the GPU of the host to the container, when the host has one (see below).
@@ -33,11 +33,12 @@ When the host has a GPU (`/dev/dri/renderD128`, Intel or AMD), the installer:
 
 1. gives the container that device, with the `render` group of the container;
 2. checks with `vainfo` of Jellyfin that Jellyfin can use it;
-3. turns on VA-API for H.264 and HEVC.
+3. turns on VA-API for every codec that `vainfo` says the GPU decodes. On an Intel UHD 770 that is H.264, HEVC (also 10-bit), VP8, VP9 (also 10-bit), AV1, MPEG-2 and VC-1. Without that list it keeps to H.264 and HEVC;
+4. on an Intel GPU, turns on VPP tone mapping, so HDR films play on an SDR screen without the CPU.
 
 If the check fails, Jellyfin transcodes on the CPU, and the log says so. For Intel, the `jellyfin-ffmpeg` package brings its own drivers, so you install nothing on the host. For AMD, the check shows whether the drivers in the container are enough.
 
-Newer GPUs can decode more, like VP9, AV1 and 10-bit HEVC. Turn those on in Jellyfin: **Dashboard > Playback > Transcoding**. On Intel, you can also switch to **Intel QuickSync (QSV)** there, which is a bit faster.
+Check or change the result in Jellyfin: **Dashboard > Playback > Transcoding**. On Intel, you can also switch to **Intel QuickSync (QSV)** there, which is a bit faster. The cores and memory are limits, not reservations, so an idle Jellyfin uses no more than before. The headroom helps when the CPU has to step in, like for burned-in subtitles.
 
 ### A Jellyfin that is already installed
 

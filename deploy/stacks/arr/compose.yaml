@@ -83,6 +83,9 @@ services:
         condition: service_healthy
     environment:
       TZ: ${TZ}
+    # FlareSolverr runs a browser for every challenge, and a stuck one can grow
+    # until it takes the memory of the whole stack.
+    mem_limit: 1g
     restart: unless-stopped
 
   radarr:

@@ -37,7 +37,7 @@ import { api, type Guest, type GuestAction } from '@/lib/api'
 import { formatBytes, formatUptime, percentage } from '@/lib/format'
 import { overviewQuery } from '@/lib/queries'
 import { cn } from '@/lib/utils'
-import { UsageCharts } from './usage-charts'
+import { LazyUsageCharts } from './lazy-usage-charts'
 
 const actionLabels: Record<GuestAction, string> = {
     start: 'Start',
@@ -211,7 +211,7 @@ function GuestRow({ guest }: { guest: Guest }) {
                                 {guest.maxCpu} cores.
                             </DialogDescription>
                         </DialogHeader>
-                        {showHistory && <UsageCharts target={guest} />}
+                        {showHistory && <LazyUsageCharts target={guest} />}
                     </DialogContent>
                 </Dialog>
 

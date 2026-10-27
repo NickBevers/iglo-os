@@ -18,7 +18,8 @@ const dots: Record<Tone, string> = {
 
 // StatusBar is the bar above every page: where you are, and what needs you.
 export function StatusBar({ page }: { page?: string }) {
-    const { data: overview } = useQuery(overviewQuery)
+    // The bar only shows the node and its state. The overview page polls faster.
+    const { data: overview } = useQuery({ ...overviewQuery, refetchInterval: 15000 })
     const { data: health } = useQuery(healthQuery)
     const { data: selfUpdate } = useQuery(selfUpdateQuery)
 

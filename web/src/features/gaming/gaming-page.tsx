@@ -11,7 +11,12 @@ import { formatDateTime } from '@/lib/format'
 import { GameLibrary } from './game-library'
 
 export function GamingPage() {
-    const query = useQuery({ queryKey: ['gaming'], queryFn: api.gaming, refetchInterval: 5000 })
+    // The manager checks the sessions every 10 seconds while the container runs.
+    const query = useQuery({
+        queryKey: ['gaming'],
+        queryFn: api.gaming,
+        refetchInterval: (query) => (query.state.data?.status === 'running' ? 10000 : 30000),
+    })
     const client = useQueryClient()
     const play = useMutation({
         mutationFn: api.playGaming,
