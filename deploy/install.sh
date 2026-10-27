@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Installs the iglo manager on a Proxmox VE host.
 # Run it as root on the host, from the extracted release bundle:
-#   ./install.sh [--storage local-lvm] [--bridge vmbr0] [--hostname iglo] [--ctid 120]
+#   ./install.sh [--storage local-lvm] [--bridge vmbr0] [--hostname iglo] [--ctid 120] [--zram]
 # The host agent runs "./install.sh --upgrade" to install a new release.
 # "iglo-restore [backup]" restores the manager container from a Proxmox backup.
 # "iglo-uninstall" removes Iglo-OS from the host.
@@ -31,6 +31,8 @@ UPGRADE=""
 RESTORE=""
 RESTORE_VOLID=""
 UNINSTALL=""
+# ZRAM turns on compressed swap in RAM, a safety net when everything peaks at once.
+ZRAM=""
 BACKUP_JOB="iglo-backup"
 
 # The installer stays on the host, for restores.
@@ -46,6 +48,7 @@ while [[ $# -gt 0 ]]; do
         --hostname) CT_HOSTNAME="$2"; shift 2 ;;
         --ctid) CT_ID="$2"; shift 2 ;;
         --upgrade) UPGRADE=1; shift ;;
+        --zram) ZRAM=1; shift ;;
         --uninstall) UNINSTALL=1; shift ;;
         --restore)
             RESTORE=1
@@ -85,6 +88,46 @@ install_agent() {
     sed "s/@SOCKET_GID@/$HOST_SOCKET_GID/" "$BUNDLE_DIR/iglo-agent.service" >/etc/systemd/system/iglo-agent.service
     systemctl daemon-reload
     systemctl enable --now iglo-agent
+}
+
+# setup_zram turns on compressed swap in RAM with zram-tools: up to a quarter
+# of the RAM, compressed with zstd, used before any swap on disk. Pages that
+# don't fit in memory then stay in RAM at about a third of their size, and the
+# NVMe doesn't wear. Containers with no swap of their own don't use it.
+setup_zram() {
+    [[ -n "$ZRAM" ]] || return 0
+    log "Turning on compressed swap in RAM (zram)"
+    DEBIAN_FRONTEND=noninteractive apt-get install -y -q zram-tools
+    cat >/etc/default/zramswap <<'EOF'
+# Written by the installer of Iglo-OS (--zram).
+ALGO=zstd
+PERCENT=25
+PRIORITY=100
+EOF
+    systemctl restart zramswap
+}
+
+# zfs_arc_note warns when the host runs on ZFS and its read cache (ARC) has
+# no limit. The ARC can then take a large share of RAM, and as far as we know
+# Proxmox counts it as used, so the apps and Background work see less memory.
+# It only prints the fix; it doesn't change the host.
+zfs_arc_note() {
+    command -v zpool >/dev/null || return 0
+    [[ -n "$(zpool list -H -o name 2>/dev/null)" ]] || return 0
+    grep -qs '^options zfs .*zfs_arc_max=' /etc/modprobe.d/*.conf && return 0
+    local total cap
+    total=$(awk '/^MemTotal:/ {print $2 * 1024}' /proc/meminfo)
+    # An eighth of the RAM, at most 4 GiB, is plenty for one NVMe.
+    cap=$((total / 8))
+    ((cap <= 4 * 1024 * 1024 * 1024)) || cap=$((4 * 1024 * 1024 * 1024))
+    cat <<EOF
+
+  Note: this host uses ZFS without a limit on its read cache (ARC). To keep
+  it to $((cap / 1024 / 1024)) MiB, run as root:
+    echo "options zfs zfs_arc_max=$cap" > /etc/modprobe.d/zfs.conf
+    echo $cap > /sys/module/zfs/parameters/zfs_arc_max
+    update-initramfs -u -k all
+EOF
 }
 
 # update_role gives the manager's role the privileges of this version.
@@ -610,6 +653,7 @@ main() {
 
     preflight
     install_agent
+    setup_zram
     create_api_token
     download_template
     create_container
@@ -628,8 +672,9 @@ main() {
   Open:      https://$CT_HOSTNAME.local  (or https://$ct_ip)
   Trust it:  download http://$CT_HOSTNAME.local/ca.crt and install it as a trusted root on each device.
   Tip:       give container $CT_ID a fixed IP (DHCP reservation) in your router.
-
 EOF
+    zfs_arc_note
+    echo
 }
 
 main
