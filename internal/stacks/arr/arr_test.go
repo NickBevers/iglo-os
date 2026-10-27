@@ -177,6 +177,13 @@ func TestBazarrFormAddsOpenSubtitles(t *testing.T) {
 	}
 }
 
+func TestBazarrLeavesAnimeAlone(t *testing.T) {
+	form := bazarrForm(Config{Username: "iglo"}, "[]")
+	if form.Get("settings-sonarr-excluded_series_types") != "anime" || form.Get("settings-radarr-excluded_tags") != "anime" {
+		t.Fatalf("form = %v", form)
+	}
+}
+
 func TestEnsurePicksAnIndexerByDefinition(t *testing.T) {
 	var posted map[string]any
 	query := ""

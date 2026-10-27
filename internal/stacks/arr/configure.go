@@ -157,6 +157,9 @@ func Configure(ctx context.Context, cfg Config) error {
 		}
 	}
 
+	cfg.Logf("Configuring anime")
+	tags := configureAnime(ctx, cfg, sonarr, radarr)
+
 	// Recyclarr fetches the TRaSH Guides from GitHub, so a failure only warns.
 	if cfg.SyncProfiles != nil {
 		cfg.Logf("Syncing the quality profiles with Recyclarr")
@@ -174,7 +177,7 @@ func Configure(ctx context.Context, cfg Config) error {
 			return seerr.do(ctx, http.MethodGet, "/settings/public", nil, nil)
 		})
 		if err == nil {
-			err = configureSeerr(ctx, cfg, seerr)
+			err = configureSeerr(ctx, cfg, seerr, tags)
 		}
 		if err != nil {
 			cfg.Logf("Could not set up Seerr, finish its setup in the browser: %v", err)
@@ -435,6 +438,13 @@ func bazarrForm(cfg Config, profiles string) url.Values {
 		"settings-general-movie_default_profile": {"1"},
 		"settings-general-serie_default_enabled": {"true"},
 		"settings-general-serie_default_profile": {"1"},
+		// Anime brings the official English subtitles in the file. Jellyfin
+		// prefers an external subtitle, so one from Bazarr would push them
+		// aside. Bazarr leaves anime series and films with the anime tag alone.
+		// Checked against Bazarr v1.6.2 on 27 October 2026: both settings
+		// apply to its automatic searches, not to a manual search.
+		"settings-sonarr-excluded_series_types": {"anime"},
+		"settings-radarr-excluded_tags":         {animeTag},
 		// Providers that work without an account.
 		"settings-general-enabled_providers": {"embeddedsubtitles", "podnapisi"},
 	}

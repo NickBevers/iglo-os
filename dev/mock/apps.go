@@ -222,7 +222,7 @@ func (f *fakeInstalls) play(stack, answers, logPath, exitPath string) {
 	default:
 		steps = append(steps, "==> Creating container 130 (media)", "==> Installing Docker",
 			"==> Starting the stack (the first image download takes a few minutes)", "==> Waiting for the VPN",
-			"==> Syncing the quality profiles with Recyclarr")
+			"==> Configuring anime", "==> Syncing the quality profiles with Recyclarr")
 		if !strings.Contains(answers, "JELLYFIN_ADMIN_USERNAME=\n") {
 			steps = append(steps, "==> Configuring Seerr", "==> Anime films use the [Anime] Remux-1080p profile")
 		}
