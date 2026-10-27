@@ -26,6 +26,8 @@ VIDEOS_BINDING=""
 THEME="y"
 GPU=""
 GPU_DEVICE="/dev/dri/renderD128"
+# VAINFO_FILE keeps what the GPU decodes, for the codecs that Jellyfin turns on.
+VAINFO_FILE=""
 
 while [[ $# -gt 0 ]]; do
     case "$1" in
@@ -97,7 +99,7 @@ create_container() {
         --hostname "$CT_HOSTNAME" \
         --unprivileged 1 \
         --features nesting=1 \
-        --cores 2 --memory 2048 --swap 512 \
+        --cores 4 --memory 3072 --swap 512 \
         --rootfs "$STORAGE:16" \
         --net0 "name=eth0,bridge=$BRIDGE,ip=dhcp" \
         --onboot 1 \
@@ -137,6 +139,7 @@ update() {
 # so the next try can start clean. The files on the share stay.
 on_exit() {
     local code=$?
+    [[ -z "$VAINFO_FILE" ]] || rm -f "$VAINFO_FILE"
     if ((code == 0)) || [[ -z "$ANSWERS" ]]; then
         return
     fi
@@ -186,7 +189,8 @@ setup_gpu() {
     pct reboot "$CT_ID"
     wait_for_network "$CT_ID"
 
-    if ! pct exec "$CT_ID" -- runuser -u jellyfin -- /usr/lib/jellyfin-ffmpeg/vainfo --display drm --device "$GPU_DEVICE" >/dev/null 2>&1; then
+    VAINFO_FILE="$(mktemp)"
+    if ! pct exec "$CT_ID" -- runuser -u jellyfin -- /usr/lib/jellyfin-ffmpeg/vainfo --display drm --device "$GPU_DEVICE" >"$VAINFO_FILE" 2>&1; then
         log "Jellyfin can't use the GPU, it transcodes on the CPU"
         GPU=""
     fi
@@ -195,7 +199,7 @@ setup_gpu() {
 configure_jellyfin() {
     log "Setting up Jellyfin"
     local flags=()
-    [[ -n "$GPU" ]] && flags+=(--gpu)
+    [[ -n "$GPU" ]] && flags+=(--gpu --vainfo "$VAINFO_FILE")
     [[ "$THEME" == "y" ]] && flags+=(--theme)
 
     # The password goes on stdin, so it is not in the process list.

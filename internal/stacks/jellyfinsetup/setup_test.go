@@ -221,3 +221,38 @@ func TestSetupWaitsWhileJellyfinRestarts(t *testing.T) {
 		t.Fatalf("got %v, want connection refused", err)
 	}
 }
+
+func TestGPUSupportReadsVainfo(t *testing.T) {
+	// A shortened vainfo of an Intel UHD 770.
+	uhd770 := `libva info: VA-API version 1.22.0
+vainfo: Driver version: Intel iHD driver for Intel(R) Gen Graphics - 25.2.3 ()
+vainfo: Supported profile and entrypoints
+      VAProfileNone                   :	VAEntrypointVideoProc
+      VAProfileMPEG2Simple            :	VAEntrypointVLD
+      VAProfileH264Main               :	VAEntrypointVLD
+      VAProfileH264Main               :	VAEntrypointEncSliceLP
+      VAProfileVC1Advanced            :	VAEntrypointVLD
+      VAProfileVP8Version0_3          :	VAEntrypointVLD
+      VAProfileHEVCMain               :	VAEntrypointVLD
+      VAProfileHEVCMain10             :	VAEntrypointVLD
+      VAProfileVP9Profile0            :	VAEntrypointVLD
+      VAProfileVP9Profile2            :	VAEntrypointVLD
+      VAProfileAV1Profile0            :	VAEntrypointVLD
+`
+	got := gpuSupport(uhd770)
+	want := []string{"mpeg2video", "h264", "vc1", "vp8", "hevc", "vp9", "av1"}
+	if !slices.Equal(got.codecs, want) || !got.hevc10 || !got.vp910 || !got.intel {
+		t.Fatalf("uhd 770 = %+v", got)
+	}
+
+	// An older GPU only encodes HEVC, so it decodes H.264 alone.
+	older := "vainfo: Driver version: Mesa Gallium driver\n      VAProfileH264High : VAEntrypointVLD\n      VAProfileHEVCMain : VAEntrypointEncSlice\n"
+	if got := gpuSupport(older); !slices.Equal(got.codecs, []string{"h264"}) || got.hevc10 || got.intel {
+		t.Fatalf("older = %+v", got)
+	}
+
+	// Without vainfo, the safe pair.
+	if got := gpuSupport(""); !slices.Equal(got.codecs, []string{"h264", "hevc"}) || got.intel {
+		t.Fatalf("empty = %+v", got)
+	}
+}

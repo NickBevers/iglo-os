@@ -2,7 +2,7 @@
 // installer runs it on the Proxmox host.
 //
 //	iglo-jellyfin setup --url http://192.168.1.20:8096 --admin dries \
-//	    --movies /data/media/movies --series /data/media/series [--gpu] [--theme] < password
+//	    --movies /data/media/movies --series /data/media/series [--gpu [--vainfo FILE]] [--theme] < password
 //
 // The last line it prints is the API key for Iglo-OS:
 //
@@ -25,7 +25,7 @@ import (
 
 func main() {
 	if len(os.Args) < 2 || os.Args[1] != "setup" {
-		fmt.Fprintln(os.Stderr, "usage: iglo-jellyfin setup --url URL --admin NAME --movies PATH --series PATH [--gpu] [--theme] < password")
+		fmt.Fprintln(os.Stderr, "usage: iglo-jellyfin setup --url URL --admin NAME --movies PATH --series PATH [--gpu [--vainfo FILE]] [--theme] < password")
 		os.Exit(2)
 	}
 
@@ -42,6 +42,7 @@ func setup(args []string) error {
 	movies := flags.String("movies", "", "folder of the Movies library, as Jellyfin sees it")
 	series := flags.String("series", "", "folder of the Series library, as Jellyfin sees it")
 	gpu := flags.Bool("gpu", false, "turn on VA-API hardware transcoding")
+	vainfo := flags.String("vainfo", "", "file with the output of vainfo, for the codecs that the GPU decodes")
 	theme := flags.Bool("theme", false, "turn on the Netflix theme")
 	flags.Parse(args)
 
@@ -55,6 +56,15 @@ func setup(args []string) error {
 		return errors.New("pass the admin password on stdin")
 	}
 
+	gpuInfo := ""
+	if *vainfo != "" {
+		data, err := os.ReadFile(*vainfo)
+		if err != nil {
+			return err
+		}
+		gpuInfo = string(data)
+	}
+
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 
@@ -65,6 +75,7 @@ func setup(args []string) error {
 		MoviesPath:    *movies,
 		SeriesPath:    *series,
 		GPU:           *gpu,
+		VAInfo:        gpuInfo,
 		Theme:         *theme,
 		Logf: func(format string, args ...any) {
 			fmt.Printf("==> "+format+"\n", args...)
