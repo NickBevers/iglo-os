@@ -18,7 +18,7 @@ export function NodeCard({ node, guests }: { node: ProxmoxNode; guests: Guest[] 
         <Card className="gap-0 py-0">
             {/* The 1px gaps over the border color are the hairlines between the figures. */}
             <dl className="grid grid-cols-2 gap-px bg-border lg:grid-cols-4">
-                <Figure label="CPU" value={`${cpu}%`} detail={`of ${node.maxCpu} cores`}>
+                <Figure label="CPU" value={`${cpu}%`} detail={`of ${node.maxCpu} threads`}>
                     <BlockMeter value={cpu} label="CPU of the host" />
                 </Figure>
                 <Figure
