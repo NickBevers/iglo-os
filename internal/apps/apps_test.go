@@ -424,7 +424,12 @@ func TestStatusShowsTheStackVersion(t *testing.T) {
 		t.Fatalf("jellyfin = %+v", jellyfin)
 	}
 
+	// The notes are kept for a minute, until an operation finishes, like this update.
 	pve.description = "Iglo-OS media stack\niglo-version: v0.8.0\n"
+	if media := appByID(t, mustStatus(t, service), "media"); !media.UpdateAvailable {
+		t.Fatal("asked Proxmox again within the minute")
+	}
+	service.descriptions.forget()
 	view, _ = service.Status(context.Background())
 	if media := appByID(t, view, "media"); media.UpdateAvailable {
 		t.Fatalf("same version: %+v", media)
@@ -663,4 +668,13 @@ func TestStatusHasTheStatsOfARunningApp(t *testing.T) {
 	if photos := appByID(t, view, "photos"); !photos.Installed || photos.Stats != nil {
 		t.Fatalf("photos = %+v", photos)
 	}
+}
+
+func mustStatus(t *testing.T, service *Service) View {
+	t.Helper()
+	view, err := service.Status(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	return view
 }
