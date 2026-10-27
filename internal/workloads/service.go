@@ -137,12 +137,15 @@ type View struct {
 	ImmichGuest string `json:"immichGuest,omitempty"`
 	// NodeWarning says when Immich runs on another node than the one whose
 	// memory the checks read.
-	NodeWarning string  `json:"nodeWarning,omitempty"`
-	Reason      string  `json:"reason"`
-	Error       string  `json:"error,omitempty"`
-	FreeBytes   int64   `json:"freeBytes"`
-	TotalBytes  int64   `json:"totalBytes"`
-	Queues      []Queue `json:"queues"`
+	NodeWarning string `json:"nodeWarning,omitempty"`
+	Reason      string `json:"reason"`
+	Error       string `json:"error,omitempty"`
+	FreeBytes   int64  `json:"freeBytes"`
+	// Pressure is the share of the last 10 seconds, 0 to 100, in which tasks
+	// of the host waited for memory. It is -1 when it is unknown.
+	Pressure   float64 `json:"pressure"`
+	TotalBytes int64   `json:"totalBytes"`
+	Queues     []Queue `json:"queues"`
 }
 
 type diskState struct {
@@ -159,6 +162,9 @@ type Resources interface {
 
 type Options struct {
 	WorkerAdmission func(context.Context, string, int64) error
+	// HostMemory reads the memory of the host from the host agent. Without it,
+	// or for another node, the checks use what Proxmox says is used.
+	HostMemory func(context.Context) (HostMemory, error)
 	// Changed tells the open pages that a topic changed, like events.Workloads.
 	Changed func(topic string)
 	DataDir string
@@ -180,6 +186,7 @@ type Service struct {
 	now              func() time.Time
 	wake             chan struct{}
 	changed          func(topic string)
+	hostMemory       func(context.Context) (HostMemory, error)
 	shown            string      // mu; what the pages last saw, to tell them of a change
 	immich           immichGuest // op
 	memoryHeld       bool        // op; avoid rapid pause/resume around the threshold
@@ -199,7 +206,7 @@ func New(opts Options) (*Service, error) {
 	if opts.Changed == nil {
 		opts.Changed = func(string) {}
 	}
-	s := &Service{path: filepath.Join(opts.DataDir, "workloads.json"), pve: opts.Proxmox, http: client, now: opts.Now, wake: make(chan struct{}, 1), workers: opts.WorkerAdmission, changed: opts.Changed}
+	s := &Service{path: filepath.Join(opts.DataDir, "workloads.json"), pve: opts.Proxmox, http: client, now: opts.Now, wake: make(chan struct{}, 1), workers: opts.WorkerAdmission, changed: opts.Changed, hostMemory: opts.HostMemory}
 	s.state = diskState{Settings: DefaultSettings(), Owned: map[string]bool{}}
 	data, err := os.ReadFile(s.path)
 	if err != nil && !errors.Is(err, os.ErrNotExist) {
@@ -452,7 +459,7 @@ func (s *Service) Reconcile(ctx context.Context) {
 	defer cancel()
 	s.locateImmich(ctx)
 	settings := s.state.Settings
-	view := View{CheckedAt: s.now(), Reason: "Control disabled", Queues: []Queue{}}
+	view := View{CheckedAt: s.now(), Reason: "Control disabled", Queues: []Queue{}, Pressure: -1}
 	view.ImmichGuest, view.NodeWarning = s.immich.describe(settings)
 	s.busy = false
 	s.reconcileWorkers(ctx, &view)
@@ -490,15 +497,9 @@ func (s *Service) Reconcile(ctx context.Context) {
 			blocked = true
 			view.Reason = "Outside processing window"
 		}
-		resources, err := s.pve.Resources(ctx)
-		found := false
-		if err == nil {
-			for _, resource := range resources {
-				if resource.Type == "node" && resource.Node == settings.Node && resource.Status == "online" && resource.MaxMem > 0 && resource.Mem >= 0 && resource.Mem <= resource.MaxMem {
-					found = true
-					view.TotalBytes, view.FreeBytes = resource.MaxMem, resource.MaxMem-resource.Mem
-				}
-			}
+		reading, found := s.memory(ctx, settings.Node)
+		if found {
+			view.TotalBytes, view.FreeBytes, view.Pressure = reading.total, reading.free, reading.pressure
 		}
 		if !found {
 			blocked = true
@@ -515,6 +516,10 @@ func (s *Service) Reconcile(ctx context.Context) {
 		if found && s.memoryHeld {
 			blocked = true
 			view.Reason = "Preserving RAM headroom"
+		}
+		if found && reading.pressure >= pressureLimit {
+			blocked = true
+			view.Reason = "Waiting for memory pressure to ease"
 		}
 		for _, name := range settings.Queues {
 			if !seen[name] {

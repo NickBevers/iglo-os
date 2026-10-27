@@ -62,6 +62,14 @@ func run(socketPath string, socketGID int, logger *slog.Logger) error {
 	agent.RegisterWorkers(mux)
 	agent.RegisterGaming(mux)
 	mux.HandleFunc("GET /v1/health", health)
+	mux.HandleFunc("GET /v1/memory", func(w http.ResponseWriter, r *http.Request) {
+		memory, err := agent.ReadHostMemory()
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		writeJSON(w, http.StatusOK, memory)
+	})
 	mux.HandleFunc("POST /v1/jobs", startJob(runner, logger))
 	mux.HandleFunc("GET /v1/jobs/{id}", getJob(runner))
 	mux.HandleFunc("GET /v1/mounts", listMounts(agent.NewMounts()))

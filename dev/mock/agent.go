@@ -51,6 +51,10 @@ func serveAgent(socket string) error {
 	if err := addMusicRoutes(mux); err != nil {
 		return err
 	}
+	mux.HandleFunc("GET /v1/memory", func(w http.ResponseWriter, r *http.Request) {
+		// The 32 GiB of the fake node, with some page cache that the kernel can give back.
+		writeJSON(w, agent.HostMemory{Node: "pve", TotalBytes: 34_359_738_368, AvailableBytes: 21_000_000_000, Pressure: 0.4})
+	})
 	mux.HandleFunc("GET /v1/health", func(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, agent.Health{Status: "ok", Hostname: "pve", Version: "dev"})
 	})

@@ -17,17 +17,8 @@ func (s *Service) reconcileWorkers(ctx context.Context, view *View) {
 	if settings.Workers {
 		until = 0
 		view.WorkerReason = "Waiting for host memory"
-		resources, err := s.pve.Resources(ctx)
-		found := false
-		free := int64(0)
-		if err == nil {
-			for _, r := range resources {
-				if r.Type == "node" && r.Node == settings.Node && r.Status == "online" && r.MaxMem > 0 && r.Mem >= 0 && r.Mem <= r.MaxMem {
-					found = true
-					free = r.MaxMem - r.Mem
-				}
-			}
-		}
+		reading, found := s.memory(ctx, settings.Node)
+		free := reading.free
 		threshold := int64(settings.ReserveGiB) * (1 << 30)
 		if s.workerMemoryHeld {
 			threshold += 512 << 20
@@ -44,6 +35,8 @@ func (s *Service) reconcileWorkers(ctx context.Context, view *View) {
 			view.WorkerError = "Host memory is unknown; new work is deferred"
 		case s.workerMemoryHeld:
 			view.WorkerReason = "Preserving RAM headroom"
+		case reading.pressure >= pressureLimit:
+			view.WorkerReason = "Waiting for memory pressure to ease"
 		default:
 			until = s.now().Add(time.Minute).Unix()
 			// The lease lasts a minute, so renew it at the busy pace.

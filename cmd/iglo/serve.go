@@ -84,7 +84,7 @@ func serve() error {
 	agentClient := agent.NewClient(cfg.AgentSocket)
 	// hub tells the open pages what changed, so they don't wait for their poll.
 	hub := events.NewHub()
-	workloadService, err := workloads.New(workloads.Options{DataDir: cfg.DataDir, Proxmox: pve, WorkerAdmission: admissionSender(pve.Resources, agentClient.WorkerAdmission, time.Now), Changed: hub.Publish})
+	workloadService, err := workloads.New(workloads.Options{DataDir: cfg.DataDir, Proxmox: pve, WorkerAdmission: admissionSender(pve.Resources, agentClient.WorkerAdmission, time.Now), Changed: hub.Publish, HostMemory: hostMemory(agentClient)})
 	if err != nil {
 		return err
 	}
@@ -267,6 +267,18 @@ func serve() error {
 	logger.Info("listening", "https", cfg.HTTPSAddr, "http", cfg.HTTPAddr, "hostname", cfg.Hostname, "version", version)
 
 	return stopReason(restartCtx, runAll(ctx, append(servers, httpsServer, httpServer)))
+}
+
+// hostMemory reads the memory of the host from the host agent, for the
+// checks of Background work.
+func hostMemory(client *agent.Client) func(context.Context) (workloads.HostMemory, error) {
+	return func(ctx context.Context) (workloads.HostMemory, error) {
+		memory, err := client.HostMemory(ctx)
+		if err != nil {
+			return workloads.HostMemory{}, err
+		}
+		return workloads.HostMemory{Node: memory.Node, Total: memory.TotalBytes, Available: memory.AvailableBytes, Pressure: memory.Pressure}, nil
+	}
 }
 
 // followAgent passes the events of the host agent on. An install, update or
