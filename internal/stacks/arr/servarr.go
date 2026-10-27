@@ -83,8 +83,14 @@ func (s *servarr) ensureTag(ctx context.Context, label string) (int, error) {
 type provider struct {
 	resource       string
 	implementation string
-	name           string
-	fields         map[string]any
+	// definition picks one of the many schemas of one implementation, like
+	// the Cardigann indexer nyaasi in Prowlarr.
+	definition string
+	// forceSave saves without the test of the app, which an unreachable
+	// indexer would fail.
+	forceSave bool
+	name      string
+	fields    map[string]any
 	// settings are top-level properties. Only those the schema knows are set.
 	settings map[string]any
 }
@@ -97,10 +103,14 @@ func (s *servarr) ensure(ctx context.Context, p provider) error {
 		return err
 	}
 
+	query := ""
+	if p.forceSave {
+		query = "?forceSave=true"
+	}
 	for _, item := range existing {
 		if item["name"] == p.name {
 			apply(item, p)
-			return s.do(ctx, http.MethodPut, fmt.Sprintf("/%s/%v", p.resource, item["id"]), item, nil)
+			return s.do(ctx, http.MethodPut, fmt.Sprintf("/%s/%v%s", p.resource, item["id"], query), item, nil)
 		}
 	}
 
@@ -110,14 +120,14 @@ func (s *servarr) ensure(ctx context.Context, p provider) error {
 	}
 
 	for _, schema := range schemas {
-		if schema["implementation"] == p.implementation {
+		if schema["implementation"] == p.implementation && (p.definition == "" || schema["definitionName"] == p.definition) {
 			schema["name"] = p.name
 			apply(schema, p)
-			return s.do(ctx, http.MethodPost, "/"+p.resource, schema, nil)
+			return s.do(ctx, http.MethodPost, "/"+p.resource+query, schema, nil)
 		}
 	}
 
-	return fmt.Errorf("%s: no %s schema named %s", s.name, p.resource, p.implementation)
+	return fmt.Errorf("%s: no %s schema named %s %s", s.name, p.resource, p.implementation, p.definition)
 }
 
 func apply(item map[string]any, p provider) {

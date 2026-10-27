@@ -53,7 +53,7 @@ func (f *fakeSeerr) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	case "POST /settings/radarr/test":
 		w.Write([]byte(`{"profiles":[{"id":1,"name":"Any"},{"id":7,"name":"HD Bluray + WEB"}]}`))
 	case "POST /settings/sonarr/test":
-		w.Write([]byte(`{"profiles":[{"id":1,"name":"Any"},{"id":4,"name":"HD-1080p"}]}`))
+		w.Write([]byte(`{"profiles":[{"id":1,"name":"Any"},{"id":4,"name":"HD-1080p"},{"id":9,"name":"[Anime] Remux-1080p"}]}`))
 	default:
 		w.Write([]byte(`{}`))
 	}
@@ -97,7 +97,8 @@ func TestConfigureSeerr(t *testing.T) {
 	}
 	// No WEB-1080p yet, so the default of Sonarr.
 	sonarr := fake.bodies["POST /settings/sonarr"]
-	if sonarr["activeProfileName"] != "HD-1080p" || sonarr["activeDirectory"] != "/data/media/TV Shows" || sonarr["enableSeasonFolders"] != true {
+	if sonarr["activeProfileName"] != "HD-1080p" || sonarr["activeDirectory"] != "/data/media/TV Shows" || sonarr["enableSeasonFolders"] != true ||
+		sonarr["activeAnimeProfileId"] != float64(9) || sonarr["activeAnimeDirectory"] != "/data/media/TV Shows" {
 		t.Fatalf("sonarr = %v", sonarr)
 	}
 }

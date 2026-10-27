@@ -168,10 +168,19 @@ func (p *fakeProxmox) node(w http.ResponseWriter, r *http.Request) {
 			{"storage": "fast-zfs", "type": "zfspool", "active": 1},
 		})
 	case path == "storage" && content == "backup":
-		writeData(w, []map[string]any{
+		storages := []map[string]any{
 			{"storage": "local", "type": "dir", "active": 1, "shared": 0, "total": 98_000_000_000, "used": 41_000_000_000},
 			{"storage": "nas-backups", "type": "nfs", "active": 1, "shared": 1, "total": 7_900_000_000_000, "used": 2_100_000_000_000},
-		})
+		}
+		// A Backups share that holds Proxmox backups, from the Storage page.
+		if data, err := os.ReadFile(statePath("storage.cfg")); err == nil {
+			for line := range strings.Lines(string(data)) {
+				if id, ok := strings.CutPrefix(strings.TrimSpace(line), "dir: "); ok {
+					storages = append(storages, map[string]any{"storage": id, "type": "dir", "active": 1, "shared": 0, "total": 3_900_000_000_000, "used": 600_000_000_000})
+				}
+			}
+		}
+		writeData(w, storages)
 	case len(parts) == 3 && parts[0] == "storage" && parts[2] == "content" && r.Method == http.MethodGet:
 		writeData(w, p.backups[parts[1]])
 	case len(parts) >= 4 && parts[0] == "storage" && parts[2] == "content" && r.Method == http.MethodDelete:

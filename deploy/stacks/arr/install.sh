@@ -29,6 +29,7 @@ MODE="install"
 RESTART_JELLYFIN="y"
 VIDEOS_BINDING=""
 FLARESOLVERR="y"
+ANIME_INDEXERS="y"
 
 while [[ $# -gt 0 ]]; do
     case "$1" in
@@ -75,7 +76,7 @@ load_answers() {
             VIDEOS_BINDING | MOVIES_FOLDER | SERIES_FOLDER | WIREGUARD_PRIVATE_KEY | VPN_COUNTRIES | \
                 SUBTITLE_LANGUAGES | ARR_USERNAME | ARR_PASSWORD | JELLYFIN_API_KEY | JELLYFIN_ADMIN_USERNAME | \
                 JELLYFIN_ADMIN_PASSWORD | OPENSUBTITLES_USERNAME | OPENSUBTITLES_PASSWORD | RESTART_JELLYFIN | \
-                STORAGE | DOWNLOADS_SIZE | FLARESOLVERR)
+                STORAGE | DOWNLOADS_SIZE | FLARESOLVERR | ANIME_INDEXERS)
                 printf -v "$key" '%s' "$value"
                 ;;
             *) die "unknown answer: $key" ;;
@@ -86,6 +87,7 @@ load_answers() {
 
     ((${#ARR_PASSWORD} >= 12)) || die "password must be at least 12 characters"
     [[ "$FLARESOLVERR" == y || "$FLARESOLVERR" == n ]] || die "FLARESOLVERR must be y or n"
+    [[ "$ANIME_INDEXERS" == y || "$ANIME_INDEXERS" == n ]] || die "ANIME_INDEXERS must be y or n"
     check_folders
     JELLYFIN_URL=""
     if [[ -n "$JELLYFIN_CTID" ]]; then
@@ -117,6 +119,7 @@ ask_settings() {
 
     echo "FlareSolverr runs a browser for indexers behind Cloudflare. It uses a few hundred MB."
     ask FLARESOLVERR "Run FlareSolverr? (y/n)" "y"
+    ask ANIME_INDEXERS "Add the anime trackers Nyaa.si and Anime Tosho to Prowlarr? (y/n)" "y"
     ask SUBTITLE_LANGUAGES "Subtitle languages (2-letter codes, comma separated)" "en"
     echo "Optional: an OpenSubtitles.com account finds many more subtitles (free at opensubtitles.com)."
     ask OPENSUBTITLES_USERNAME "OpenSubtitles.com username (empty to skip)"
@@ -230,6 +233,7 @@ SUBTITLE_LANGUAGES=$SUBTITLE_LANGUAGES
 MOVIES_FOLDER=$MOVIES_FOLDER
 SERIES_FOLDER=$SERIES_FOLDER
 FLARESOLVERR=$FLARESOLVERR
+ANIME_INDEXERS=$ANIME_INDEXERS
 COMPOSE_PROFILES=$([[ "$FLARESOLVERR" == y ]] && echo flaresolverr)
 JELLYFIN_URL=$JELLYFIN_URL
 JELLYFIN_API_KEY=$JELLYFIN_API_KEY

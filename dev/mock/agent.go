@@ -43,6 +43,7 @@ func serveAgent(socket string) error {
 	bindings.Units = statePath("binding-units")
 	bindings.Containers = statePath("binding-containers")
 	bindings.Simulation = true
+	bindings.StorageConfig = statePath("storage.cfg")
 	if err := os.MkdirAll(bindings.Units, 0700); err != nil {
 		return err
 	}

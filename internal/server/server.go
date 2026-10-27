@@ -186,6 +186,7 @@ func New(options Options) http.Handler {
 	mux.Handle("GET /api/storage/bindings", s.requireSession(http.HandlerFunc(s.storageBindings)))
 	mux.Handle("POST /api/storage/bindings", s.requireSession(http.HandlerFunc(s.storageBindings)))
 	mux.Handle("DELETE /api/storage/bindings/{id}", s.requireSession(http.HandlerFunc(s.storageBindings)))
+	mux.Handle("PUT /api/storage/bindings/{id}/proxmox-backups", s.requireSession(http.HandlerFunc(s.bindingBackups)))
 	mux.Handle("GET /api/workloads", s.requireSession(http.HandlerFunc(s.workloadsStatus)))
 	mux.Handle("PUT /api/workloads/settings", s.requireSession(http.HandlerFunc(s.workloadsSettings)))
 	mux.Handle("PUT /api/workloads/protection", s.requireSession(http.HandlerFunc(s.workloadsProtection)))

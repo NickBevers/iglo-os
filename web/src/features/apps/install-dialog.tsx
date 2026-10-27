@@ -105,6 +105,7 @@ function MediaStackForm({
                 openSubtitlesPassword: '',
                 restartJellyfin: true,
                 flareSolverr: true,
+                animeIndexers: true,
                 storage: defaults.storage,
                 downloadsSize: defaults.downloadsSize,
             },
@@ -217,6 +218,19 @@ function MediaStackForm({
                     <Switch
                         checked={answers.flareSolverr}
                         onCheckedChange={(checked) => set('flareSolverr', checked)}
+                    />
+                </label>
+                <label className="flex items-center justify-between gap-4 text-sm">
+                    <span>
+                        Anime trackers
+                        <span className="block text-xs text-muted-foreground">
+                            Adds Nyaa.si and Anime Tosho to Prowlarr. Seerr sends anime to Sonarr with its own quality
+                            profile.
+                        </span>
+                    </span>
+                    <Switch
+                        checked={answers.animeIndexers}
+                        onCheckedChange={(checked) => set('animeIndexers', checked)}
                     />
                 </label>
             </Section>

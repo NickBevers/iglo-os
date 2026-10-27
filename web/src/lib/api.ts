@@ -152,6 +152,8 @@ export type StorageBinding = {
     readOnly: boolean
     mounted: boolean
     consumers: string[]
+    // proxmoxStorage is the Proxmox storage that keeps its backups on this share.
+    proxmoxStorage?: string
 }
 
 export type WorkloadSettings = {
@@ -576,6 +578,8 @@ export type MediaStackAnswers = {
     restartJellyfin: boolean
     // flareSolverr runs FlareSolverr, for indexers behind Cloudflare.
     flareSolverr: boolean
+    // animeIndexers adds Nyaa.si and Anime Tosho to Prowlarr.
+    animeIndexers: boolean
     storage: string
     downloadsSize: number
 }
@@ -666,6 +670,8 @@ export const api = {
     storageBindings: () => request<{ bindings: StorageBinding[]; sample: boolean }>('GET', '/storage/bindings'),
     createBinding: (input: BindingInput) => request<void>('POST', '/storage/bindings', input),
     deleteBinding: (id: string) => request<void>('DELETE', `/storage/bindings/${encodeURIComponent(id)}`),
+    setBindingBackups: (id: string, enabled: boolean) =>
+        request<void>('PUT', `/storage/bindings/${encodeURIComponent(id)}/proxmox-backups`, { enabled }),
     workloads: () => request<Workloads>('GET', '/workloads'),
     saveWorkloadSettings: (settings: WorkloadSettings) => request<void>('PUT', '/workloads/settings', settings),
     protectWorkloads: (minutes: number) => request<void>('PUT', '/workloads/protection', { minutes }),

@@ -39,6 +39,9 @@ type Binding struct {
 	ReadOnly  bool     `json:"readOnly"`
 	Mounted   bool     `json:"mounted"`
 	Consumers []string `json:"consumers"`
+	// ProxmoxStorage is the Proxmox storage that keeps its backups on this
+	// share, like iglo-backups. Empty when there is none.
+	ProxmoxStorage string `json:"proxmoxStorage,omitempty"`
 }
 
 func (b BindingInput) Validate() error {
@@ -52,6 +55,8 @@ func (b BindingInput) Validate() error {
 
 type Bindings struct {
 	Dir, Root, Units, Containers string
+	// StorageConfig is the storage.cfg of Proxmox. Empty means /etc/pve/storage.cfg.
+	StorageConfig string
 	// Simulation is used only by the local development fixture.
 	Simulation bool
 	output     func(context.Context, string, ...string) ([]byte, error)
@@ -104,6 +109,7 @@ func (s *Bindings) List(ctx context.Context) ([]Binding, error) {
 		return nil, err
 	}
 	result := []Binding{}
+	storages := s.proxmoxStorages()
 	for _, file := range files {
 		data, err := os.ReadFile(file)
 		if err != nil {
@@ -117,6 +123,7 @@ func (s *Bindings) List(ctx context.Context) ([]Binding, error) {
 		if err != nil {
 			return nil, err
 		}
+		b.ProxmoxStorage = storages[filepath.Clean(b.Path)]
 		if s.Simulation {
 			b.Mounted = true
 		} else {
@@ -225,6 +232,9 @@ func (s *Bindings) Delete(ctx context.Context, id string) error {
 	if len(used) > 0 {
 		return errors.New("remove the binding from its containers first")
 	}
+	if storage := s.proxmoxStorages()[filepath.Join(s.Root, id)]; storage != "" {
+		return fmt.Errorf("Proxmox keeps backups on this share as the storage %s; stop that first", storage)
+	}
 	unit := "mnt-iglo-shares-" + id + ".mount"
 	if _, err = s.run(ctx, "systemctl", "disable", "--now", unit); err != nil {
 		return errors.New("could not stop the mount; no files were removed")
@@ -269,6 +279,7 @@ func (s *Bindings) Register(mux *http.ServeMux) {
 		}
 		w.WriteHeader(204)
 	})
+	s.registerProxmoxBackups(mux)
 	mux.HandleFunc("DELETE /v1/storage/bindings/{id}", func(w http.ResponseWriter, r *http.Request) {
 		if err := s.Delete(r.Context(), r.PathValue("id")); err != nil {
 			http.Error(w, err.Error(), 409)

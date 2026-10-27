@@ -106,8 +106,10 @@ type MediaStackAnswers struct {
 	OpenSubtitlesPassword string `json:"openSubtitlesPassword"`
 	RestartJellyfin       bool   `json:"restartJellyfin"`
 	// FlareSolverr runs FlareSolverr, for indexers behind Cloudflare.
-	FlareSolverr bool   `json:"flareSolverr"`
-	Storage      string `json:"storage"`
+	FlareSolverr bool `json:"flareSolverr"`
+	// AnimeIndexers adds the public anime trackers Nyaa.si and Anime Tosho to Prowlarr.
+	AnimeIndexers bool   `json:"animeIndexers"`
+	Storage       string `json:"storage"`
 	// DownloadsSize is the size of the downloads disk in GB.
 	DownloadsSize int `json:"downloadsSize"`
 }
@@ -161,13 +163,8 @@ func validWireGuardKey(key string) bool {
 }
 
 func (a MediaStackAnswers) file() string {
-	restart, flareSolverr := "n", "n"
-	if a.RestartJellyfin {
-		restart = "y"
-	}
-	if a.FlareSolverr {
-		flareSolverr = "y"
-	}
+	yes := map[bool]string{true: "y", false: "n"}
+	restart, flareSolverr, anime := yes[a.RestartJellyfin], yes[a.FlareSolverr], yes[a.AnimeIndexers]
 
 	lines := append([]string{"VIDEOS_BINDING=" + a.VideosBinding},
 		"MOVIES_FOLDER="+a.MoviesFolder,
@@ -186,6 +183,7 @@ func (a MediaStackAnswers) file() string {
 		"STORAGE="+a.Storage,
 		"DOWNLOADS_SIZE="+strconv.Itoa(a.DownloadsSize),
 		"FLARESOLVERR="+flareSolverr,
+		"ANIME_INDEXERS="+anime,
 	)
 
 	return strings.Join(lines, "\n") + "\n"

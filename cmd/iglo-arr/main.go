@@ -79,6 +79,7 @@ func configure(args []string) error {
 		SeriesFolder:          env["SERIES_FOLDER"],
 		// Stacks from before FlareSolverr was optional have no answer: they run it.
 		FlareSolverr:     env["FLARESOLVERR"] != "n",
+		AnimeIndexers:    env["ANIME_INDEXERS"] == "y",
 		DataDir:          *dataDir,
 		BazarrConfigPath: *bazarrConfig,
 		Endpoints:        arr.DefaultEndpoints,

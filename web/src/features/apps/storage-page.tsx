@@ -42,6 +42,17 @@ export function StoragePage() {
         },
         onError: (e) => toast.error(e.message),
     })
+    const backups = useMutation({
+        mutationFn: ({ id, enabled }: { id: string; enabled: boolean }) => api.setBindingBackups(id, enabled),
+        onSuccess: (_, { enabled }) => {
+            refresh()
+            client.invalidateQueries({ queryKey: ['backups'] })
+            toast.success(
+                enabled ? 'Proxmox can keep its backups on this share now' : 'Proxmox no longer uses this share',
+            )
+        },
+        onError: (e) => toast.error(e.message),
+    })
     function submit(e: FormEvent) {
         e.preventDefault()
         create.mutate()
@@ -76,6 +87,23 @@ export function StoragePage() {
                         </p>
                         <p className="text-muted-foreground">{b.path}</p>
                         <p>Containers: {b.consumers.join(', ') || 'None'}</p>
+                        {b.role === 'backups' && !b.readOnly && (
+                            <div className="flex flex-col gap-2 rounded-md border p-3">
+                                <p>
+                                    {b.proxmoxStorage
+                                        ? `Proxmox keeps backups here as the storage ${b.proxmoxStorage}. Choose it on the Backups page.`
+                                        : 'Proxmox can keep its container backups on this share, off the disk of the host.'}
+                                </p>
+                                <Button
+                                    variant="outline"
+                                    className="self-start"
+                                    disabled={backups.isPending || (!b.mounted && !b.proxmoxStorage)}
+                                    onClick={() => backups.mutate({ id: b.id, enabled: !b.proxmoxStorage })}
+                                >
+                                    {b.proxmoxStorage ? 'Stop using for Proxmox backups' : 'Use for Proxmox backups'}
+                                </Button>
+                            </div>
+                        )}
                         {removeID === b.id ? (
                             <div className="flex items-center gap-2">
                                 <span>Disconnect this share? NAS files stay in place.</span>
@@ -94,7 +122,7 @@ export function StoragePage() {
                             <Button
                                 variant="outline"
                                 className="self-start"
-                                disabled={b.consumers.length > 0}
+                                disabled={b.consumers.length > 0 || Boolean(b.proxmoxStorage)}
                                 onClick={() => setRemoveID(b.id)}
                             >
                                 Disconnect

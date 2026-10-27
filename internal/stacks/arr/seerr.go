@@ -25,6 +25,9 @@ const (
 var (
 	radarrProfiles = []string{"HD Bluray + WEB", "HD-1080p"}
 	sonarrProfiles = []string{"WEB-1080p", "HD-1080p"}
+	// animeProfiles are for series that Seerr knows as anime. Without the
+	// profile of Recyclarr, anime gets the normal one.
+	animeProfiles = []string{"[Anime] Remux-1080p", "WEB-1080p", "HD-1080p"}
 )
 
 func newSeerr(baseURL string, timeout time.Duration) *apiClient {
@@ -109,27 +112,29 @@ func configureSeerr(ctx context.Context, cfg Config, seerr *apiClient) error {
 		"minimumAvailability": "released", "is4k": false, "isDefault": true,
 		"tags": []int{}, "syncEnabled": true, "preventSearch": false, "tagRequests": false, "overrideRule": []int{},
 	}
-	if err := addSeerrService(ctx, seerr, "radarr", radarr, radarrProfiles); err != nil {
+	if err := addSeerrService(ctx, seerr, "radarr", radarr, radarrProfiles, nil); err != nil {
 		return err
 	}
 
 	sonarr := map[string]any{
 		"name": "Sonarr", "hostname": seerrSonarrHost, "port": 8989, "apiKey": cfg.SonarrAPIKey,
 		"useSsl": false, "baseUrl": "", "activeDirectory": "/data/media/" + series,
-		"seriesType": "standard", "animeSeriesType": "anime", "enableSeasonFolders": true, "monitorNewItems": "all",
+		"seriesType": "standard", "animeSeriesType": "anime", "activeAnimeDirectory": "/data/media/" + series,
+		"enableSeasonFolders": true, "monitorNewItems": "all",
 		"is4k": false, "isDefault": true,
 		"tags": []int{}, "syncEnabled": true, "preventSearch": false, "tagRequests": false, "overrideRule": []int{},
 	}
-	if err := addSeerrService(ctx, seerr, "sonarr", sonarr, sonarrProfiles); err != nil {
+	if err := addSeerrService(ctx, seerr, "sonarr", sonarr, sonarrProfiles, animeProfiles); err != nil {
 		return err
 	}
 
 	return seerr.do(ctx, http.MethodPost, "/settings/initialize", nil, nil)
 }
 
-// addSeerrService adds Radarr or Sonarr, with the first profile that exists.
-// It skips a service that Seerr already has.
-func addSeerrService(ctx context.Context, seerr *apiClient, kind string, settings map[string]any, wanted []string) error {
+// addSeerrService adds Radarr or Sonarr, with the first profile that exists,
+// and for Sonarr with anime too the first anime profile that exists. It skips
+// a service that Seerr already has.
+func addSeerrService(ctx context.Context, seerr *apiClient, kind string, settings map[string]any, wanted, anime []string) error {
 	var existing []seerrService
 	if err := seerr.do(ctx, http.MethodGet, "/settings/"+kind, nil, &existing); err != nil {
 		return err
@@ -152,6 +157,11 @@ func addSeerrService(ctx context.Context, seerr *apiClient, kind string, setting
 	}
 	settings["activeProfileId"] = profile.ID
 	settings["activeProfileName"] = profile.Name
+	if anime != nil {
+		animeProfile, _ := pickProfile(found.Profiles, anime)
+		settings["activeAnimeProfileId"] = animeProfile.ID
+		settings["activeAnimeProfileName"] = animeProfile.Name
+	}
 
 	return seerr.do(ctx, http.MethodPost, "/settings/"+kind, settings, nil)
 }
