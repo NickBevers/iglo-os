@@ -35,6 +35,7 @@ import (
 	"iglo/internal/selfupdate"
 	"iglo/internal/server"
 	"iglo/internal/settingsfile"
+	"iglo/internal/setup"
 	"iglo/internal/tailscale"
 	"iglo/internal/tlsca"
 	"iglo/internal/updates"
@@ -192,6 +193,13 @@ func serve() error {
 	go appsService.WatchMusic(ctx)
 	go jellyfinService.Watch(ctx, func() { hub.Publish(events.Jellyfin) })
 	go followAgent(ctx, agentClient, hub, appsService)
+	setupService := setup.New(setup.Options{
+		Apps: appsService, Agent: agentClient, Backups: backupService, Workloads: workloadService,
+		JellyfinKey: func() string { return jellyfinService.Settings().APIKey },
+		Changed:     func() { hub.Publish(events.Setup) },
+		Background:  ctx,
+		Logger:      logger,
+	})
 	appProxy := appproxy.New(cfg.Hostname, []appproxy.App{
 		{Name: "seerr", Title: "Seerr", Resolve: func(ctx context.Context) (string, error) {
 			return appsService.Address(ctx, agent.MediaStackApp, 5055)
@@ -219,6 +227,7 @@ func serve() error {
 		Apps:       appsService,
 		Workloads:  workloadService,
 		Events:     hub,
+		Setup:      setupService,
 		// The box art copies start with a dot, so data backups skip them.
 		Covers: covers.New(filepath.Join(cfg.DataDir, ".covers")),
 		SettingsFile: &settingsfile.Service{
