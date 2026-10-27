@@ -1,0 +1,13 @@
+# Loaded through COMPOSE_FILE in .env when the container has the render node
+# of the host GPU. Without a GPU, Immich runs on the CPU as before.
+services:
+  immich-server:
+    # Quick Sync for video. Turn it on in Immich once: Administration >
+    # Settings > Video transcoding > Hardware acceleration > Quick Sync.
+    devices:
+      - /dev/dri:/dev/dri
+  immich-machine-learning:
+    # OpenVINO runs face detection and smart search on the Intel GPU, by itself.
+    image: ghcr.io/immich-app/immich-machine-learning:${IMMICH_VERSION:-release}-openvino
+    devices:
+      - /dev/dri:/dev/dri

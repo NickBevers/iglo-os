@@ -31,12 +31,12 @@ bundle: build
 	install -m 0644 deploy/stacks/minecraft/compose.yaml $(BUNDLE)/stacks/minecraft/
 	mkdir -p $(BUNDLE)/stacks/photos
 	install -m 0755 deploy/stacks/photos/install.sh deploy/stacks/photos/recovery.sh $(BUNDLE)/stacks/photos/
-	install -m 0644 deploy/stacks/photos/compose.yaml deploy/stacks/photos/compose.override.yaml $(BUNDLE)/stacks/photos/
+	install -m 0644 deploy/stacks/photos/compose.yaml deploy/stacks/photos/compose.override.yaml deploy/stacks/photos/compose.gpu.yaml $(BUNDLE)/stacks/photos/
 	mkdir -p $(BUNDLE)/stacks/music $(BUNDLE)/stacks/inbox
 	install -m 0755 deploy/stacks/music/install.sh $(BUNDLE)/stacks/music/
 	install -m 0644 deploy/stacks/music/iglo-music.service $(BUNDLE)/stacks/music/
 	install -m 0755 deploy/stacks/inbox/install.sh $(BUNDLE)/stacks/inbox/
-	install -m 0644 deploy/stacks/inbox/compose.yaml deploy/stacks/inbox/pre-execute.cs $(BUNDLE)/stacks/inbox/
+	install -m 0644 deploy/stacks/inbox/compose.yaml deploy/stacks/inbox/compose.gpu.yaml deploy/stacks/inbox/pre-execute.cs $(BUNDLE)/stacks/inbox/
 	mkdir -p $(BUNDLE)/stacks/gaming
 	install -m 0755 deploy/stacks/gaming/install.sh deploy/stacks/gaming/diagnose.sh $(BUNDLE)/stacks/gaming/
 	install -m 0644 deploy/stacks/gaming/compose.yaml deploy/stacks/gaming/config.toml deploy/stacks/gaming/dolphinbar.sh $(BUNDLE)/stacks/gaming/

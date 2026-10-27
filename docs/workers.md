@@ -83,10 +83,11 @@ Finish the native setup before enabling a library:
 6. Enable the library only after the flow and admission script have been tested.
 
 This installs the real service and supplies its admission script. It does **not**
-claim an imported flow, a licensed API connection, GPU acceleration or verified
-conversions. Configure and export the tested flow from the native UI. CPU is the
-default; no Intel GPU is passed to this stack yet, leaving the initial GPU test
-to Jellyfin and the Gaming app.
+claim an imported flow, a licensed API connection or verified conversions.
+Configure and export the tested flow from the native UI. When the host has a
+GPU, the installer passes its render node to the container and loads
+`compose.gpu.yaml`, so FileFlows can use VAAPI or Quick Sync in its flows. Pick
+the hardware encoder in the flow; FileFlows doesn't switch by itself.
 
 Updates stop FileFlows, archive `/app/Data` on local SSD, then replace the image.
 Scoped Music/Photos/Inbox updates do not automatically rewind guest disks on
@@ -111,7 +112,7 @@ starts again, or every 10 minutes. Each write is a `pct exec` on the host.
 If the manager disappears, the lease expires and new work is deferred. Disabling
 external control writes `-1` and returns authority to native/manual controls.
 FileFlows only obeys the lease after its pre-execute script is configured.
-There is no automatic Wolf session detection or hard GPU reservation.
+A Moonlight session holds new work, but there is no hard GPU reservation.
 
 ## Checks completed and still required
 

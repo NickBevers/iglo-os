@@ -40,9 +40,9 @@ The encrypted manager data backup includes this file. The `iglo.yaml` [settings 
 
 | Workload | Method | Current Iglo control |
 | --- | --- | --- |
-| Immich analysis and video conversion | Selected queue admission, low concurrency, processing windows; test Intel OpenVINO/Quick Sync where supported | Queue admission implemented here; worker tuning and acceleration remain native configuration. |
+| Immich analysis and video conversion | Selected queue admission, low concurrency, processing windows; test Intel OpenVINO/Quick Sync where supported | Queue admission implemented here. With a host GPU, machine learning uses OpenVINO; Quick Sync for video is one switch in Immich. |
 | Jellyfin playback | Prefer direct play; Intel Quick Sync for required transcodes | Existing Jellyfin integration; this controller does not change playback settings. |
-| FileFlows | One conversion runner initially, native processing schedules and a short admission lease | Install Inbox, configure the supplied native pre-execute script. Licensed API automation and GPU acceleration are not configured. |
+| FileFlows | One conversion runner initially, native processing schedules and a short admission lease | Install Inbox, configure the supplied native pre-execute script. With a host GPU, the container gets its render node; choose the hardware encoder in the flow. Licensed API automation is not configured. |
 | Emulation and streaming | Test native graphics backend, resolution and hardware stream encoding; defer background work | Timed protection from Play, and a hold while Wolf reports a Moonlight session; no GPU reservation. |
 | Music imports | One native worker, local staging, short admission lease and manual pause | Music installer and Music work page; independent worker control follows gaming/window/headroom policy. |
 | Backups | Separate ordinary backups from expensive verification/pruning and conversion windows | Existing backup scheduler; this controller does not pause backups. |

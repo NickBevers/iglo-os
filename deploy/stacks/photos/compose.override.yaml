@@ -11,7 +11,8 @@ services:
     volumes:
       - /var/lib/immich/model-cache:/cache
     cpus: 2
-    mem_limit: 2g
+    # OpenVINO needs more room than the CPU models while it compiles them.
+    mem_limit: 2560m
     environment:
       MACHINE_LEARNING_MODEL_REVISION: v2
       MACHINE_LEARNING_WORKERS: 1

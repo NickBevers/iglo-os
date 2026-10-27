@@ -11,6 +11,10 @@ install_stack() {
         install -d -m 0700 /var/lib/immich/{postgres,thumbs,encoded-video,model-cache}
         umask 077
         printf "IMMICH_VERSION=v3.3.5\nUPLOAD_LOCATION=/data/photos\nDB_DATA_LOCATION=/var/lib/immich/postgres\nDB_USERNAME=postgres\nDB_DATABASE_NAME=immich\nDB_PASSWORD=%s\n" "$(openssl rand -hex 32)" > .env
+        # With the GPU of the host, Immich uses it for video and machine learning.
+        if [[ -c /dev/dri/renderD128 ]]; then
+            echo "COMPOSE_FILE=compose.yaml:compose.override.yaml:compose.gpu.yaml" >> .env
+        fi
         docker compose config --quiet
         docker compose up -d --wait --wait-timeout 600
         curl --fail --silent http://127.0.0.1:2283/api/server/ping >/dev/null
