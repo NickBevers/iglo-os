@@ -10,6 +10,7 @@ import (
 	"os"
 	"path/filepath"
 	"sync"
+	"time"
 )
 
 var (
@@ -28,6 +29,20 @@ type Service struct {
 
 	mu       sync.Mutex
 	settings Settings
+	// library is what the dashboard shows of Jellyfin that changes slowly:
+	// the theme, the counts and the recent items. The page asks every 10
+	// seconds, and the counts cost Jellyfin real work on a large library.
+	library   libraryView
+	libraryAt time.Time
+}
+
+// libraryTTL is how long the library part of the status is kept.
+const libraryTTL = 5 * time.Minute
+
+type libraryView struct {
+	theme  bool
+	counts Counts
+	recent []RecentItem
 }
 
 func NewService(dataDir string) (*Service, error) {
@@ -95,6 +110,7 @@ func (s *Service) SaveSettings(ctx context.Context, input Settings) error {
 		return err
 	}
 	s.settings = input
+	s.libraryAt = time.Time{}
 
 	return nil
 }
@@ -113,6 +129,7 @@ func (s *Service) Disconnect(host string) (bool, error) {
 		return false, err
 	}
 	s.settings = Settings{}
+	s.libraryAt = time.Time{}
 
 	return true, nil
 }
@@ -176,25 +193,57 @@ func (s *Service) Status(ctx context.Context) View {
 	view.ServerName, view.Version = info.ServerName, info.Version
 
 	// The rest is best effort: one failing call should not hide the others.
-	if enabled, err := client.ThemeEnabled(ctx); err == nil {
-		view.ThemeEnabled = enabled
-	}
-	if counts, err := client.Counts(ctx); err == nil {
-		view.Movies, view.Series, view.Episodes = counts.MovieCount, counts.SeriesCount, counts.EpisodeCount
-		view.Albums, view.Songs, view.MusicVideos = counts.AlbumCount, counts.SongCount, counts.MusicVideoCount
-	}
 	if sessions, err := client.Playing(ctx); err == nil {
 		for _, session := range sessions {
 			view.NowPlaying = append(view.NowPlaying, nowPlaying(session))
 		}
 	}
-	if items, err := client.RecentlyAdded(ctx, 12); err == nil {
-		for _, item := range items {
-			view.Recent = append(view.Recent, RecentItem{ID: item.ID, Name: item.Name, Type: item.Type, Year: item.ProductionYear})
-		}
-	}
+	library := s.libraryOf(ctx, client)
+	view.ThemeEnabled = library.theme
+	counts := library.counts
+	view.Movies, view.Series, view.Episodes = counts.MovieCount, counts.SeriesCount, counts.EpisodeCount
+	view.Albums, view.Songs, view.MusicVideos = counts.AlbumCount, counts.SongCount, counts.MusicVideoCount
+	view.Recent = append(view.Recent, library.recent...)
 
 	return view
+}
+
+// libraryOf returns the slow part of the status, at most libraryTTL old. It
+// is only kept when every call worked, so a failure is asked again next time.
+func (s *Service) libraryOf(ctx context.Context, client *Client) libraryView {
+	s.mu.Lock()
+	if !s.libraryAt.IsZero() && time.Since(s.libraryAt) < libraryTTL {
+		library := s.library
+		s.mu.Unlock()
+		return library
+	}
+	s.mu.Unlock()
+
+	library := libraryView{recent: []RecentItem{}}
+	complete := true
+	if enabled, err := client.ThemeEnabled(ctx); err == nil {
+		library.theme = enabled
+	} else {
+		complete = false
+	}
+	if counts, err := client.Counts(ctx); err == nil {
+		library.counts = counts
+	} else {
+		complete = false
+	}
+	if items, err := client.RecentlyAdded(ctx, 12); err == nil {
+		for _, item := range items {
+			library.recent = append(library.recent, RecentItem{ID: item.ID, Name: item.Name, Type: item.Type, Year: item.ProductionYear})
+		}
+	} else {
+		complete = false
+	}
+	if complete {
+		s.mu.Lock()
+		s.library, s.libraryAt = library, time.Now()
+		s.mu.Unlock()
+	}
+	return library
 }
 
 func nowPlaying(session Session) NowPlaying {
@@ -267,7 +316,14 @@ func (s *Service) SetTheme(ctx context.Context, enabled bool) error {
 		return err
 	}
 
-	return client.SetTheme(ctx, enabled)
+	if err := client.SetTheme(ctx, enabled); err != nil {
+		return err
+	}
+	// The dashboard shows the theme, so ask for it again.
+	s.mu.Lock()
+	s.libraryAt = time.Time{}
+	s.mu.Unlock()
+	return nil
 }
 
 func (s *Service) Image(ctx context.Context, itemID, imageType string, maxWidth int) (*http.Response, error) {

@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"strings"
+	"sync"
 	"testing"
 )
 
@@ -91,5 +92,51 @@ func TestCountsReadsVideosAndMusic(t *testing.T) {
 	want := Counts{MovieCount: 412, SeriesCount: 38, EpisodeCount: 1290, AlbumCount: 97, SongCount: 1534, MusicVideoCount: 12}
 	if counts != want {
 		t.Fatalf("counts = %+v, want %+v", counts, want)
+	}
+}
+
+func TestStatusKeepsTheLibraryForAWhile(t *testing.T) {
+	calls := map[string]int{}
+	var mu sync.Mutex
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		mu.Lock()
+		calls[r.URL.Path]++
+		mu.Unlock()
+		switch r.URL.Path {
+		case "/System/Info":
+			w.Write([]byte(`{"ServerName":"jellyfin","Version":"10.11.0"}`))
+		case "/System/Configuration/branding", "/System/Configuration/Branding":
+			w.Write([]byte(`{"CustomCss":""}`))
+		case "/Items/Counts":
+			w.Write([]byte(`{"MovieCount":412}`))
+		case "/Items":
+			w.Write([]byte(`{"Items":[]}`))
+		case "/Sessions":
+			w.Write([]byte(`[]`))
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	defer server.Close()
+	service, err := NewService(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	service.settings = Settings{URL: server.URL, APIKey: "key"}
+
+	for range 3 {
+		if view := service.Status(context.Background()); view.Error != "" || view.Movies != 412 {
+			t.Fatalf("view = %+v", view)
+		}
+	}
+	// Info and sessions every time, the library once.
+	if calls["/System/Info"] != 3 || calls["/Sessions"] != 3 || calls["/Items/Counts"] != 1 {
+		t.Fatalf("calls = %v", calls)
+	}
+	// Changing the theme asks for the library again.
+	service.SetTheme(context.Background(), true)
+	service.Status(context.Background())
+	if calls["/Items/Counts"] != 2 {
+		t.Fatalf("calls = %v", calls)
 	}
 }
