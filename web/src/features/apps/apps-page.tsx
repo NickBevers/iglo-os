@@ -203,7 +203,8 @@ function AppCard({ app, defaults }: { app: CatalogApp; defaults: Apps['defaults'
                         Log in to Seerr with your Jellyfin account. If you gave no Jellyfin admin during the install,
                         finish the setup of Seerr first: until then, anyone on your network can open it. Log in to the
                         other apps with the username and password from the install. Add your indexers in Prowlarr. They
-                        sync to Radarr and Sonarr.
+                        sync to Radarr and Sonarr. For anime in Japanese with English subtitles, set the audio and
+                        subtitle languages of your user in Jellyfin.
                     </p>
                 )}
             </CardContent>

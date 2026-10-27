@@ -255,8 +255,8 @@ function NASPage({ setup, draft, setDraft, roles }: PageProps & { roles: string[
                         <span>
                             Keep Proxmox backups on the NAS
                             <span className="block text-xs text-muted-foreground">
-                                The backups of the containers go to the Backups share every night at 03:00, not to the
-                                disk of the host.
+                                The backups of the containers go to the Backups share, not to the disk of the host. A
+                                new backup job runs every night at 03:00; a schedule you set before stays.
                             </span>
                         </span>
                         <Switch
@@ -391,7 +391,7 @@ function AccountsPage({ draft, setDraft, wants }: Omit<PageProps, 'setup'> & { w
                         </div>
                         <Toggle
                             label="Anime trackers"
-                            help="Adds Nyaa.si and Anime Tosho to Prowlarr, and an anime quality profile to Sonarr."
+                            help="Adds Nyaa.si and Anime Tosho to Prowlarr. Anime always gets a quality profile in Sonarr and Radarr that rejects dubbed-only releases, and one download per episode."
                             checked={draft.animeIndexers}
                             onChange={(on) => setDraft((d) => ({ ...d, animeIndexers: on }))}
                         />
@@ -401,6 +401,10 @@ function AccountsPage({ draft, setDraft, wants }: Omit<PageProps, 'setup'> & { w
                             checked={draft.flareSolverr}
                             onChange={(on) => setDraft((d) => ({ ...d, flareSolverr: on }))}
                         />
+                        <p className="text-xs text-muted-foreground">
+                            The Videos share gets the folders movies, series, anime and anime-movies, each with a
+                            library in Jellyfin. Subtitles are English; change the languages in Bazarr.
+                        </p>
                     </fieldset>
                 )}
 
@@ -475,7 +479,9 @@ function ReviewPage({ setup, draft, roles }: { setup: Setup; draft: Draft; roles
                 <Row label="NAS accounts">
                     {draft.nas.oneAccount ? `One account, ${draft.nas.account.username}` : 'One account per share'}
                 </Row>
-                {draft.proxmoxBackups && <Row label="Proxmox backups">On the Backups share, every night at 03:00</Row>}
+                {draft.proxmoxBackups && (
+                    <Row label="Proxmox backups">On the Backups share; a new job runs every night at 03:00</Row>
+                )}
                 <Row label="Apps">{chosen.map((app) => app.name).join(', ')}</Row>
                 <Row label="Login">
                     {draft.admin.username}

@@ -135,6 +135,10 @@ export function JobCard({ backups }: { backups: Backups }) {
                                     ))}
                                 </SelectContent>
                             </Select>
+                            <p className="text-xs text-muted-foreground">
+                                local is the disk of the host. To keep backups on the NAS, choose Use for Proxmox
+                                backups on a Backups share on the Storage page.
+                            </p>
                         </div>
                     </div>
 
