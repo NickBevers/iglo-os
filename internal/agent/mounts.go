@@ -12,8 +12,7 @@ import (
 	"time"
 )
 
-// Mount is a network share on the host, like the NAS media share, or the
-// media folder of the apps.
+// Mount is a network share on the host, like a share from the Storage page.
 type Mount struct {
 	Path    string `json:"path"`
 	Source  string `json:"source"`
@@ -162,12 +161,7 @@ func (m *Mounts) unitMounts() []Mount {
 			}
 		}
 
-		switch {
-		case mount.Path != "" && slices.Contains(networkFSTypes, mount.FSType):
-			mounts = append(mounts, mount)
-		case mount.Path == MediaMount:
-			// A bind mount of a folder on a disk of this host.
-			mount.FSType = "folder"
+		if mount.Path != "" && slices.Contains(networkFSTypes, mount.FSType) {
 			mounts = append(mounts, mount)
 		}
 	}
@@ -200,7 +194,7 @@ func (m *Mounts) fstabMounts() []Mount {
 	return mounts
 }
 
-// mounted reads the network shares and the media mount that are mounted right now.
+// mounted reads the network shares that are mounted right now.
 func (m *Mounts) mounted() []Mount {
 	file, err := os.Open(m.MountInfo)
 	if err != nil {
@@ -218,7 +212,7 @@ func (m *Mounts) mounted() []Mount {
 			continue
 		}
 		path := unescape(fields[4])
-		if !slices.Contains(networkFSTypes, tail[0]) && path != MediaMount {
+		if !slices.Contains(networkFSTypes, tail[0]) {
 			continue
 		}
 

@@ -15,6 +15,8 @@ set -euo pipefail
 STACK_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=deploy/lib.sh
 source "$STACK_DIR/../../lib.sh"
+# shellcheck source=deploy/storage.sh
+source "$STACK_DIR/../../storage.sh"
 
 STORAGE="local-lvm"
 BRIDGE="vmbr0"
@@ -25,13 +27,7 @@ JELLYFIN_CTID=""
 ANSWERS=""
 MODE="install"
 RESTART_JELLYFIN="y"
-NAS_SERVER=""
-NAS_EXPORT=""
-MEDIA_FOLDER=""
-SMB_SERVER=""
-SMB_SHARE=""
-SMB_USERNAME=""
-SMB_PASSWORD=""
+VIDEOS_BINDING=""
 
 while [[ $# -gt 0 ]]; do
     case "$1" in
@@ -75,8 +71,7 @@ load_answers() {
         [[ -z "$line" ]] && continue
         key="${line%%=*}" value="${line#*=}"
         case "$key" in
-            NAS_SERVER | NAS_EXPORT | SMB_SERVER | SMB_SHARE | SMB_USERNAME | SMB_PASSWORD | MEDIA_FOLDER | \
-                MOVIES_FOLDER | SERIES_FOLDER | WIREGUARD_PRIVATE_KEY | VPN_COUNTRIES | \
+            VIDEOS_BINDING | MOVIES_FOLDER | SERIES_FOLDER | WIREGUARD_PRIVATE_KEY | VPN_COUNTRIES | \
                 SUBTITLE_LANGUAGES | ARR_USERNAME | ARR_PASSWORD | JELLYFIN_API_KEY | JELLYFIN_ADMIN_USERNAME | \
                 JELLYFIN_ADMIN_PASSWORD | OPENSUBTITLES_USERNAME | OPENSUBTITLES_PASSWORD | RESTART_JELLYFIN | \
                 STORAGE | DOWNLOADS_SIZE)
@@ -106,7 +101,8 @@ ask_settings() {
 
     log "A few questions first"
 
-    ask_media_source
+    echo "Connect the Videos share on the Storage page of Iglo-OS first, with write access."
+    ask VIDEOS_BINDING "ID of the Videos share"
     echo "Movies and series each get a folder in it, and a library in Jellyfin."
     ask MOVIES_FOLDER "Folder for movies" "movies"
     ask SERIES_FOLDER "Folder for series" "series"
@@ -145,28 +141,22 @@ ask_settings() {
     fi
 }
 
-mount_nas() {
-    mount_media_share
+# prepare_videos checks the Videos share and makes the movies and series
+# folders. The apps of the stack write there, so the share needs write access.
+prepare_videos() {
+    require_binding "$VIDEOS_BINDING" videos rw
+    make_share_folders "$MOVIES_FOLDER" "$SERIES_FOLDER"
     check_writable
 }
 
-# check_writable makes sure that the containers can write where the apps
-# write: in the movies and series folders, or in the share when a folder
-# still has to be made.
+# check_writable makes sure that the containers can write in the movies and
+# series folders. The NAS can still refuse the SMB user.
 check_writable() {
     local folder dir
     for folder in "$MOVIES_FOLDER" "$SERIES_FOLDER"; do
-        dir="$MEDIA_MOUNT/$folder"
-        [[ -d "$dir" ]] || dir="$MEDIA_MOUNT"
+        dir="$BINDING_PATH/$folder"
         if ! setpriv --reuid="$HOST_CONTAINER_UID" --regid="$HOST_CONTAINER_UID" --clear-groups touch "$dir/.iglo-write-test" 2>/dev/null; then
-            if media_is_local; then
-                dir="$(media_source)${dir#"$MEDIA_MOUNT"}"
-                die "containers can't write to $dir. Give them that folder with: chown -R $HOST_CONTAINER_UID:$HOST_CONTAINER_UID '$dir'"
-            fi
-            if media_is_smb; then
-                die "containers can't write to ${dir#"$MEDIA_MOUNT"/} on the SMB share. On the NAS, give the SMB user write access to that share"
-            fi
-            die "containers can't write to ${dir#"$MEDIA_MOUNT"/}. On the NAS, give the NFS user write access to that folder: set squash to map all users to one NAS user with read/write access, and make sure that the folder itself allows writing"
+            die "containers can't write to $folder on the Videos share. On the NAS, give the SMB user of that share write access"
         fi
         rm -f "$dir/.iglo-write-test"
     done
@@ -185,12 +175,12 @@ create_container() {
         --net0 "name=eth0,bridge=$BRIDGE,ip=dhcp" \
         --onboot 1 \
         --dev0 /dev/net/tun \
-        --mp0 "$MEDIA_MOUNT,mp=/data/media" \
         --mp1 "$STORAGE:$DOWNLOADS_SIZE,mp=/data/downloads,backup=0" \
         --tags "iglo;media" \
         --description "$(app_description "Iglo-OS media stack")"
 
     CREATED_CT="$CT_ID"
+    bind_share "$CT_ID" 0 "$VIDEOS_BINDING" videos rw /data/media
     pct start "$CT_ID"
     wait_for_network "$CT_ID"
 }
@@ -206,10 +196,7 @@ on_exit() {
         log "The install failed, removing container $CREATED_CT"
         pct stop "$CREATED_CT" >/dev/null 2>&1 || true
         pct destroy "$CREATED_CT" --purge 1 || true
-    fi
-    if [[ -n "${CREATED_MOUNT:-}" ]]; then
-        log "Removing the media mount"
-        remove_media_mount
+        remove_binding_dependencies "$CREATED_CT"
     fi
 }
 
@@ -292,17 +279,16 @@ vpn_failed() {
 share_media_with_jellyfin() {
     [[ -n "$JELLYFIN_CTID" ]] || return 0
 
-    if pct config "$JELLYFIN_CTID" | grep -q "^mp[0-9]*: $MEDIA_MOUNT,"; then
+    # Jellyfin from Iglo-OS already reads the same share at /data/media.
+    local current
+    current="$(pct config "$JELLYFIN_CTID" | sed -nE 's#^mp[0-9]+: ([^,]+),(.*,)?mp=/data/media(,.*)?$#\1#p')"
+    if [[ "$current" == "$BINDING_PATH" ]]; then
         return 0
     fi
+    [[ -z "$current" ]] || die "Jellyfin (container $JELLYFIN_CTID) already has other media at /data/media ($current). Use its Videos share"
 
-    local index=0
-    while pct config "$JELLYFIN_CTID" | grep -q "^mp$index:"; do
-        index=$((index + 1))
-    done
-
-    log "Sharing the media folder with Jellyfin (container $JELLYFIN_CTID) as /data/media"
-    pct set "$JELLYFIN_CTID" "--mp$index" "$MEDIA_MOUNT,mp=/data/media,ro=1"
+    log "Sharing the Videos share with Jellyfin (container $JELLYFIN_CTID) as /data/media"
+    bind_share "$JELLYFIN_CTID" "$(free_mount_index "$JELLYFIN_CTID")" "$VIDEOS_BINDING" videos ro /data/media
 
     if [[ -z "$ANSWERS" ]]; then
         ask RESTART_JELLYFIN "Jellyfin must restart to see the folder. Restart it now? (y/n)" "y"
@@ -417,13 +403,18 @@ main() {
     case "$MODE" in
         vpn) change_vpn; return ;;
         update) update; return ;;
-        remove) require_proxmox; remove_app "$CT_ID" media; return ;;
+        remove)
+            require_proxmox
+            remove_app "$CT_ID" media
+            remove_binding_dependencies "$CT_ID"
+            return
+            ;;
     esac
 
     trap on_exit EXIT
     preflight
     ask_settings
-    mount_nas
+    prepare_videos
     download_template
     create_container
     install_docker "$CT_ID"

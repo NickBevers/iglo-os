@@ -13,8 +13,7 @@ import (
 
 func validAnswers() MediaStackAnswers {
 	return MediaStackAnswers{
-		NASServer:             "192.168.1.5",
-		NASExport:             "/volume1/media",
+		VideosBinding:         "videos",
 		MoviesFolder:          "movies",
 		SeriesFolder:          "TV Shows",
 		WireGuardPrivateKey:   "cGVyZmVjdGx5IHZhbGlkIGtleSBvZiAzMiBieXRlcyE=",
@@ -39,9 +38,9 @@ func TestMediaStackAnswersValidate(t *testing.T) {
 	}
 
 	for name, change := range map[string]func(*MediaStackAnswers){
-		"NAS with space":             func(a *MediaStackAnswers) { a.NASServer = "nas local" },
-		"export not absolute":        func(a *MediaStackAnswers) { a.NASExport = "volume1" },
-		"export with newline":        func(a *MediaStackAnswers) { a.NASExport = "/media\nARR_PASSWORD=x" },
+		"no videos share":            func(a *MediaStackAnswers) { a.VideosBinding = "" },
+		"share with slash":           func(a *MediaStackAnswers) { a.VideosBinding = "../etc" },
+		"share with newline":         func(a *MediaStackAnswers) { a.VideosBinding = "videos\nARR_PASSWORD=x" },
 		"short key":                  func(a *MediaStackAnswers) { a.WireGuardPrivateKey = "abc=" },
 		"folder with slash":          func(a *MediaStackAnswers) { a.MoviesFolder = "media/movies" },
 		"folder up":                  func(a *MediaStackAnswers) { a.SeriesFolder = ".." },
@@ -127,7 +126,7 @@ func TestAppInstall(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	for _, line := range []string{"NAS_EXPORT=/volume1/media\n", "SERIES_FOLDER=TV Shows\n", "ARR_PASSWORD=correct horse battery\n", "RESTART_JELLYFIN=y\n", "DOWNLOADS_SIZE=200\n"} {
+	for _, line := range []string{"VIDEOS_BINDING=videos\n", "SERIES_FOLDER=TV Shows\n", "ARR_PASSWORD=correct horse battery\n", "RESTART_JELLYFIN=y\n", "DOWNLOADS_SIZE=200\n"} {
 		if !strings.Contains(string(answers), line) {
 			t.Errorf("answers miss %q:\n%s", line, answers)
 		}
@@ -247,7 +246,7 @@ func TestAppRetryUsesTheSavedAnswers(t *testing.T) {
 	if saved.Answers.WireGuardPrivateKey != "" || saved.Answers.Password != "" || saved.Answers.JellyfinAPIKey != "" || saved.Answers.JellyfinAdminPassword != "" || saved.Answers.OpenSubtitlesPassword != "" || !saved.HasOpenSubtitlesPassword {
 		t.Fatalf("the view has secrets: %+v", saved.Answers)
 	}
-	if saved.Answers.NASServer != "192.168.1.5" || !saved.HasJellyfinAPIKey || !saved.HasJellyfinAdminPassword || saved.Answers.JellyfinAdminUsername != "Dries H" || !saved.Until.Equal(now.Add(SavedAnswersTTL)) {
+	if saved.Answers.VideosBinding != "videos" || !saved.HasJellyfinAPIKey || !saved.HasJellyfinAdminPassword || saved.Answers.JellyfinAdminUsername != "Dries H" || !saved.Until.Equal(now.Add(SavedAnswersTTL)) {
 		t.Fatalf("saved = %+v", saved)
 	}
 	if info, _ := os.Stat(installer.savedPath(MediaStackApp)); info.Mode().Perm() != 0o600 {
@@ -266,12 +265,12 @@ func TestAppRetryUsesTheSavedAnswers(t *testing.T) {
 
 	// Change answers: empty secrets keep the saved ones.
 	changed := saved.Answers
-	changed.NASExport = "/volume1/Media"
+	changed.MoviesFolder = "Films"
 	if err := installer.Install(MediaStackApp, InstallRequest{MediaStackAnswers: changed, KeepSecrets: true}); err != nil {
 		t.Fatal(err)
 	}
 	answers, _ = os.ReadFile(unit.started[len(unit.started)-1])
-	for _, line := range []string{"NAS_EXPORT=/volume1/Media\n", "ARR_PASSWORD=correct horse battery\n", "JELLYFIN_ADMIN_PASSWORD=jelly pass\n", "OPENSUBTITLES_PASSWORD=subs pass\n", "WIREGUARD_PRIVATE_KEY=" + validAnswers().WireGuardPrivateKey + "\n"} {
+	for _, line := range []string{"MOVIES_FOLDER=Films\n", "ARR_PASSWORD=correct horse battery\n", "JELLYFIN_ADMIN_PASSWORD=jelly pass\n", "OPENSUBTITLES_PASSWORD=subs pass\n", "WIREGUARD_PRIVATE_KEY=" + validAnswers().WireGuardPrivateKey + "\n"} {
 		if !strings.Contains(string(answers), line) {
 			t.Fatalf("answers miss %q:\n%s", line, answers)
 		}
@@ -336,8 +335,7 @@ func TestSavedAdminPasswordOnlyForTheSameAdmin(t *testing.T) {
 
 func validJellyfin() JellyfinAnswers {
 	return JellyfinAnswers{
-		NASServer: "192.168.1.5", NASExport: "/volume1/media",
-		MoviesFolder: "movies", SeriesFolder: "series",
+		VideosBinding: "videos", MoviesFolder: "movies", SeriesFolder: "series",
 		AdminUsername: "dries", AdminPassword: "jelly pass", Theme: true, Storage: "local-lvm",
 	}
 }
@@ -346,19 +344,14 @@ func TestJellyfinAnswersValidate(t *testing.T) {
 	if err := validJellyfin().Validate(); err != nil {
 		t.Fatal(err)
 	}
-	mounted := validJellyfin()
-	mounted.NASServer, mounted.NASExport = "", ""
-	if err := mounted.Validate(); err != nil {
-		t.Fatalf("an already mounted share: %v", err)
-	}
 
 	for name, change := range map[string]func(*JellyfinAnswers){
-		"only the NAS address": func(a *JellyfinAnswers) { a.NASExport = "" },
-		"no admin":             func(a *JellyfinAnswers) { a.AdminUsername = "" },
-		"no password":          func(a *JellyfinAnswers) { a.AdminPassword = "" },
-		"password newline":     func(a *JellyfinAnswers) { a.AdminPassword = "a\nTHEME=y" },
-		"same folders":         func(a *JellyfinAnswers) { a.SeriesFolder = "Movies" },
-		"bad storage":          func(a *JellyfinAnswers) { a.Storage = "a b" },
+		"no videos share":  func(a *JellyfinAnswers) { a.VideosBinding = "" },
+		"no admin":         func(a *JellyfinAnswers) { a.AdminUsername = "" },
+		"no password":      func(a *JellyfinAnswers) { a.AdminPassword = "" },
+		"password newline": func(a *JellyfinAnswers) { a.AdminPassword = "a\nTHEME=y" },
+		"same folders":     func(a *JellyfinAnswers) { a.SeriesFolder = "Movies" },
+		"bad storage":      func(a *JellyfinAnswers) { a.Storage = "a b" },
 	} {
 		answers := validJellyfin()
 		change(&answers)
@@ -437,52 +430,6 @@ func TestJellyfinRetryKeepsTheAdminPassword(t *testing.T) {
 	}
 }
 
-func TestSavedAnswersKeepTheSMBPassword(t *testing.T) {
-	installer, unit := newTestInstaller(t)
-	os.MkdirAll(filepath.Join(installer.StacksDir, "jellyfin"), 0o755)
-	os.WriteFile(filepath.Join(installer.StacksDir, "jellyfin", "install.sh"), nil, 0o755)
-	media, jellyfin := smbAnswers()
-
-	for _, test := range []struct {
-		app     string
-		request InstallRequest
-		saved   func(*SavedAnswers) (*string, *string)
-	}{
-		{MediaStackApp, InstallRequest{MediaStackAnswers: media}, func(s *SavedAnswers) (*string, *string) { return &s.Answers.SMBPassword, &s.Answers.SMBUsername }},
-		{JellyfinApp, InstallRequest{Jellyfin: jellyfin}, func(s *SavedAnswers) (*string, *string) { return &s.Jellyfin.SMBPassword, &s.Jellyfin.SMBUsername }},
-	} {
-		if err := installer.Install(test.app, test.request); err != nil {
-			t.Fatalf("%s: %v", test.app, err)
-		}
-		unit.running = false
-
-		saved, err := installer.Saved(test.app)
-		if err != nil || saved == nil {
-			t.Fatalf("%s: saved = %v, err = %v", test.app, saved, err)
-		}
-		password, username := test.saved(saved)
-		if *password != "" || !saved.HasSMBPassword || *username != "umbrel" {
-			t.Fatalf("%s: the view has the SMB password, or misses the user: %+v", test.app, saved)
-		}
-
-		// The same user on the same NAS keeps the saved password.
-		if err := installer.Install(test.app, InstallRequest{MediaStackAnswers: saved.Answers, Jellyfin: saved.Jellyfin, KeepSecrets: true}); err != nil {
-			t.Fatalf("%s: %v", test.app, err)
-		}
-		answers, _ := os.ReadFile(unit.started[len(unit.started)-1])
-		if !strings.Contains(string(answers), "SMB_PASSWORD=smb pass=1\n") {
-			t.Fatalf("%s: the saved SMB password is not used:\n%s", test.app, answers)
-		}
-		unit.running = false
-
-		// Another user needs its own password.
-		*username = "someone"
-		if err := installer.Install(test.app, InstallRequest{MediaStackAnswers: saved.Answers, Jellyfin: saved.Jellyfin, KeepSecrets: true}); !errors.Is(err, ErrInvalidAnswers) {
-			t.Fatalf("%s: another SMB user got the saved password: %v", test.app, err)
-		}
-	}
-}
-
 func TestChangeVPN(t *testing.T) {
 	installer, unit := newTestInstaller(t)
 
@@ -535,5 +482,15 @@ func TestVPNCountries(t *testing.T) {
 	}
 	if _, err := installer.VPNCountries(context.Background(), 1); !errors.Is(err, ErrInvalidContainer) {
 		t.Fatalf("vmid 1: %v", err)
+	}
+}
+
+func TestAnswersNameTheVideosShare(t *testing.T) {
+	jellyfin := validJellyfin().file()
+	media := validAnswers().file()
+	for _, file := range []string{jellyfin, media} {
+		if !strings.HasPrefix(file, "VIDEOS_BINDING=videos\nMOVIES_FOLDER=movies\n") || strings.Contains(file, "SMB_") || strings.Contains(file, "NAS_") {
+			t.Fatalf("answers:\n%s", file)
+		}
 	}
 }

@@ -19,7 +19,6 @@ type fakeAgent struct {
 	installed []string
 	retried   []string
 	saved     *agent.SavedAnswers
-	mounts    []agent.Mount
 	requests  []agent.InstallRequest
 	actions   []string
 }
@@ -69,16 +68,6 @@ func (f *fakeAgent) RemoveApp(_ context.Context, app string, vmid int) error {
 	f.actions = append(f.actions, fmt.Sprintf("remove %s %d", app, vmid))
 	f.status = agent.AppInstallStatus{App: app, Action: agent.ActionRemove, State: agent.UpgradeRunning}
 	return nil
-}
-
-func (f *fakeAgent) MediaFolders(context.Context) ([]agent.MediaFolder, error) {
-	return []agent.MediaFolder{{Storage: "media", Path: "/mnt/pve/media"}}, nil
-}
-
-func (f *fakeAgent) Mounts(context.Context) ([]agent.Mount, error) {
-	f.mu.Lock()
-	defer f.mu.Unlock()
-	return f.mounts, nil
 }
 
 func (f *fakeAgent) RetryApp(_ context.Context, app string) error {
@@ -172,7 +161,7 @@ func (f *fakeProxmox) ContainerInterfaces(_ context.Context, _ string, vmid int)
 
 func validAnswers() agent.MediaStackAnswers {
 	return agent.MediaStackAnswers{
-		NASServer: "192.168.1.5", NASExport: "/volume1/media", MoviesFolder: "movies", SeriesFolder: "series",
+		VideosBinding: "videos", MoviesFolder: "movies", SeriesFolder: "series",
 		WireGuardPrivateKey: "cGVyZmVjdGx5IHZhbGlkIGtleSBvZiAzMiBieXRlcyE=",
 		VPNCountries:        "Netherlands", SubtitleLanguages: "en",
 		Username: "iglo", Password: "correct horse battery",
@@ -285,7 +274,7 @@ func TestInstallChecksAndNotifies(t *testing.T) {
 }
 
 func TestRetryAndChangedAnswers(t *testing.T) {
-	saved := &agent.SavedAnswers{Answers: agent.MediaStackAnswers{NASServer: "192.168.1.5"}}
+	saved := &agent.SavedAnswers{Answers: agent.MediaStackAnswers{VideosBinding: "videos"}}
 	fake := &fakeAgent{status: agent.AppInstallStatus{App: "media", State: agent.UpgradeFailed}, saved: saved}
 	service := New(Options{Agent: fake, Proxmox: &fakeProxmox{resources: baseResources()}, SelfVMID: 100, PollInterval: time.Hour})
 	ctx := context.Background()
@@ -362,7 +351,7 @@ func TestJellyfinFromCommunityScriptsCountsAsInstalled(t *testing.T) {
 
 func validJellyfin() agent.JellyfinAnswers {
 	return agent.JellyfinAnswers{
-		MoviesFolder: "movies", SeriesFolder: "series",
+		VideosBinding: "videos", MoviesFolder: "movies", SeriesFolder: "series",
 		AdminUsername: "dries", AdminPassword: "jelly pass", Theme: true, Storage: "local-lvm",
 	}
 }
@@ -374,7 +363,6 @@ func TestJellyfinInstallConnectsIglo(t *testing.T) {
 	}
 	fake := &fakeAgent{
 		status: agent.AppInstallStatus{State: agent.UpgradeIdle},
-		mounts: []agent.Mount{{Path: agent.MediaMount, Source: "192.168.1.5:/volume1/media", Mounted: true}},
 	}
 	connected := make(chan agent.AppInstallStatus, 1)
 	service := New(Options{
@@ -389,12 +377,6 @@ func TestJellyfinInstallConnectsIglo(t *testing.T) {
 	ctx := context.Background()
 
 	view, _ := service.Status(ctx)
-	if view.Defaults.MediaShare != "192.168.1.5:/volume1/media" {
-		t.Fatalf("media share = %q", view.Defaults.MediaShare)
-	}
-	if folders := view.Defaults.MediaFolders; len(folders) != 1 || folders[0].Path != "/mnt/pve/media" {
-		t.Fatalf("media folders = %+v", folders)
-	}
 
 	bad := validJellyfin()
 	bad.AdminPassword = ""
