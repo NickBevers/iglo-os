@@ -15,7 +15,7 @@ Open http://localhost:5173 and log in with `admin` / `iglo-dev-password` and the
 - Background work can connect to the fake Immich queues at `http://127.0.0.1:18283`, with the sample key `iglo-dev-immich` and node `pve`. This tests the controls, not real Immich performance. The fixture resets its queue state when restarted.
 - The fake host agent answers update checks, logs and backup jobs. App installs use the real installer of the agent, and only play the install script: it takes a few seconds. The password `failfailfail12` makes an install fail.
 - The fake Proxmox has a Jellyfin container. To try the Jellyfin install, run `touch .dev/no-jellyfin` and reload the Apps page.
-- The fake host agent has a NAS share mounted for the apps. To choose the media folder in the install forms, run `touch .dev/no-media-mount`. A working install mounts its answer again.
+- Jellyfin and the media stack use a Videos share from the Storage page, like the other apps. Connect one there first; the fake host only simulates the mount.
 - A fake `tailscale` CLI (`dev/bin/tailscale`) logs in 5 seconds after you click Connect.
 - The console opens a shell on your own computer, not in a container.
 - While the fake gaming container runs, a PC plays on Moonlight. To let a TV join and see the manager stop its session, run `touch .dev/gaming-second-session`.

@@ -55,11 +55,7 @@ func serveAgent(socket string) error {
 		writeJSON(w, agent.Health{Status: "ok", Hostname: "pve", Version: "dev"})
 	})
 	mux.HandleFunc("GET /v1/mounts", func(w http.ResponseWriter, r *http.Request) {
-		mounts := []agent.Mount{{Path: "/mnt/backup", Source: "//nas/backup", FSType: "cifs", Mounted: false}}
-		writeJSON(w, append(mounts, mediaMount()...))
-	})
-	mux.HandleFunc("GET /v1/media-folders", func(w http.ResponseWriter, r *http.Request) {
-		writeJSON(w, []agent.MediaFolder{{Storage: "media", Path: "/mnt/pve/media"}, {Storage: "usb", Path: "/mnt/pve/usb"}})
+		writeJSON(w, []agent.Mount{{Path: "/mnt/backup", Source: "//nas/backup", FSType: "cifs", Mounted: false}})
 	})
 	mux.HandleFunc("PUT /v1/backup-job", func(w http.ResponseWriter, r *http.Request) {
 		data, _ := io.ReadAll(http.MaxBytesReader(w, r.Body, 8192))

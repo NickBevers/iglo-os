@@ -30,7 +30,7 @@ revision to install them; pushing a branch does not publish a signed release.
 
 | Area | Implemented | Setup and limits |
 | --- | --- | --- |
-| [Scoped SMB storage](docs/scoped-storage.md) | Storage page, folder roles, host-only credentials and consumer-aware disconnect | Configure NAS permissions first. Existing media mounts are not automatically migrated. |
+| [Scoped SMB storage](docs/scoped-storage.md) | Storage page, folder roles, host-only credentials and consumer-aware disconnect. Jellyfin and the media stack use the Videos share. | Configure NAS permissions first. SMB only: NFS and host folders are not supported. |
 | [Photos / Immich](docs/photos.md) | Pinned installer, SSD database/derivatives, NAS originals, matched backups and recovery verification | Create the Immich admin/API key after installation. Rehearse a full library restore before relying on backups. |
 | [Music and Inbox](docs/workers.md) | One durable Music worker, Music work page, pinned FileFlows installer and admission leases | FileFlows needs its native flow and supplied pre-execute script configured. Active jobs finish after admission is paused. |
 | [Background work](docs/background-work.md) | Immich queue controls and independent worker controls for gaming holds, windows and host RAM headroom | Admission checks do not reserve RAM/GPU capacity. A Moonlight session holds work by itself. |
@@ -86,7 +86,7 @@ for tests, a real Proxmox and releases.
 - [Tailscale](docs/tailscale.md)
 - [App names (seerr.iglo.local)](docs/app-names.md)
 - [Media stack](docs/media-stack.md)
-- [Media folder: on a NAS or on the host](docs/media-folder.md)
+- [Movies and series on the Videos share](docs/media-folder.md)
 - [Minecraft server (hidden from Apps)](docs/minecraft.md)
 - [Settings file (iglo.yaml)](docs/settings-file.md)
 - [Uninstall](docs/uninstall.md)
