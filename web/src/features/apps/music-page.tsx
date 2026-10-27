@@ -6,6 +6,7 @@ import { Input } from '@/components/ui/input'
 import { Switch } from '@/components/ui/switch'
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card'
 import { api } from '@/lib/api'
+import { isLive } from '@/lib/live'
 import { Field } from './form-parts'
 
 export function MusicPage() {
@@ -14,7 +15,9 @@ export function MusicPage() {
         queryKey: ['music-jobs'],
         queryFn: api.musicJobs,
         refetchInterval: (query) =>
-            query.state.data?.jobs.some((job) => job.state === 'queued' || job.state === 'running') ? 5000 : 30000,
+            !isLive() && query.state.data?.jobs.some((job) => job.state === 'queued' || job.state === 'running')
+                ? 5000
+                : 30000,
     })
     const client = useQueryClient()
     const [url, setURL] = useState('')

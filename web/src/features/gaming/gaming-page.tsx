@@ -8,6 +8,7 @@ import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card'
 import { api } from '@/lib/api'
 import { formatDateTime } from '@/lib/format'
+import { isLive } from '@/lib/live'
 import { GameLibrary } from './game-library'
 
 export function GamingPage() {
@@ -15,7 +16,7 @@ export function GamingPage() {
     const query = useQuery({
         queryKey: ['gaming'],
         queryFn: api.gaming,
-        refetchInterval: (query) => (query.state.data?.status === 'running' ? 10000 : 30000),
+        refetchInterval: (query) => (isLive() ? 60000 : query.state.data?.status === 'running' ? 10000 : 30000),
     })
     const client = useQueryClient()
     const play = useMutation({

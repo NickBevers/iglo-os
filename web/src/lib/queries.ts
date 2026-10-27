@@ -1,6 +1,7 @@
 import { keepPreviousData, queryOptions } from '@tanstack/react-query'
 
 import { api, type Timeframe, type UsageTarget } from '@/lib/api'
+import { isLive } from '@/lib/live'
 
 export const sessionQuery = queryOptions({
     queryKey: ['session'],
@@ -18,8 +19,8 @@ export const overviewQuery = queryOptions({
 export const workloadsQuery = queryOptions({
     queryKey: ['workloads'],
     queryFn: api.workloads,
-    // The manager checks the queues every 15 to 60 seconds, so faster shows nothing new.
-    refetchInterval: 15000,
+    // The manager checks the queues every 15 to 60 seconds, and says when something changed.
+    refetchInterval: () => (isLive() ? 60000 : 15000),
 })
 
 export function usageQuery(target: UsageTarget, timeframe: Timeframe) {
@@ -50,7 +51,8 @@ export function updateRunQuery(id: string) {
 export const jellyfinQuery = queryOptions({
     queryKey: ['jellyfin'],
     queryFn: api.jellyfin,
-    refetchInterval: 10000,
+    // Jellyfin says when playback starts or stops. The progress of what plays still needs a poll.
+    refetchInterval: (query) => (isLive() && !query.state.data?.nowPlaying.length ? 60000 : 10000),
 })
 
 export const healthQuery = queryOptions({
@@ -84,7 +86,13 @@ export const backupsQuery = queryOptions({
 export const appsQuery = queryOptions({
     queryKey: ['apps'],
     queryFn: api.apps,
-    // Poll fast during an install, update or removal, for the live log.
-    refetchInterval: (query) =>
-        query.state.data?.apps.some((app) => app.operation?.state === 'running') ? 2000 : 30000,
+    // Poll fast during an install, update or removal, for the live log. The
+    // manager says when the log grows, so the poll only covers a dropped stream.
+    refetchInterval: (query) => {
+        const running = query.state.data?.apps.some((app) => app.operation?.state === 'running')
+        if (isLive()) {
+            return running ? 10000 : 60000
+        }
+        return running ? 2000 : 30000
+    },
 })
