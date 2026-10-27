@@ -22,8 +22,8 @@ import { JellyfinForm } from './jellyfin-form'
 import { ScopedForm } from './scoped-form'
 import { MinecraftForm } from './minecraft-form'
 import { keepSaved } from './keep-saved'
-import { MediaSourceFields } from './media-source'
-import { noMediaSource } from './no-media-source'
+import { useVideosShares } from './use-videos-shares'
+import { VideosShareFields } from './videos-share'
 
 type InstallDialogProps = {
     app: CatalogApp
@@ -86,10 +86,11 @@ function MediaStackForm({
     onDone: () => void
 }) {
     const queryClient = useQueryClient()
+    const shares = useVideosShares(defaults, true)
     const [answers, setAnswers] = useState<MediaStackAnswers>(
         () =>
             saved?.answers ?? {
-                ...noMediaSource,
+                videosBinding: '',
                 moviesFolder: defaults.moviesFolder,
                 seriesFolder: defaults.seriesFolder,
                 wireguardPrivateKey: '',
@@ -108,14 +109,10 @@ function MediaStackForm({
             },
     )
 
+    // The share that Jellyfin uses, until you choose another one.
+    const videosBinding = answers.videosBinding || shares.preferred
     const install = useMutation({
-        mutationFn: () =>
-            api.installApp(
-                app.id,
-                // Media that is already mounted is used as it is.
-                defaults.mediaShare ? { ...answers, ...noMediaSource } : answers,
-                saved !== null,
-            ),
+        mutationFn: () => api.installApp(app.id, { ...answers, videosBinding }, saved !== null),
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: appsQuery.queryKey })
             toast.success('The install started')
@@ -135,21 +132,16 @@ function MediaStackForm({
 
     const storages = Object.fromEntries(defaults.storages.map((name) => [name, name]))
     const shortPassword = answers.password.length > 0 && answers.password.length < 12
-    // Like the host agent: only the same SMB user on the same NAS keeps the saved password.
-    const smbPasswordSaved =
-        saved?.hasSmbPassword === true &&
-        answers.smbUsername === saved.answers.smbUsername &&
-        answers.smbServer === saved.answers.smbServer
 
     return (
         <form className="flex flex-col gap-6" onSubmit={handleSubmit}>
-            <MediaSourceFields
+            <VideosShareFields
                 id="media"
-                defaults={defaults}
-                value={answers}
-                smbPasswordSaved={smbPasswordSaved}
-                onChange={(value) => setAnswers((current) => ({ ...current, ...value }))}
-                help="Where your movies and series are. Each gets its own folder in it, and its own library in Jellyfin."
+                shares={shares}
+                value={videosBinding}
+                onChange={(value) => set('videosBinding', value)}
+                write
+                help="Where your movies and series are. Each gets its own folder on the share, and its own library in Jellyfin."
             >
                 {(path) => (
                     <div className="grid gap-4 sm:grid-cols-2">
@@ -171,7 +163,7 @@ function MediaStackForm({
                         </Field>
                     </div>
                 )}
-            </MediaSourceFields>
+            </VideosShareFields>
 
             <Section
                 title="ProtonVPN"
