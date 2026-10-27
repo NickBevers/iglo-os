@@ -263,7 +263,12 @@ func (f *fakeInstalls) play(stack, answers, logPath, exitPath string) {
 			finish(1)
 			return
 		}
-		write(fmt.Sprintf("IGLO app %s %d 192.168.1.%d", stack, id, id))
+		ip := fmt.Sprintf("192.168.1.%d", id)
+		// The fake Immich runs here, so the setup can create its admin.
+		if stack == "photos" {
+			ip = "127.0.0.1"
+		}
+		write(fmt.Sprintf("IGLO app %s %d %s", stack, id, ip))
 		os.WriteFile(statePath(stack+"-installed"), nil, 0600)
 	case "minecraft":
 		savePlayers(answers)

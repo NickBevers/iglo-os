@@ -64,7 +64,14 @@ func main() {
 
 	go func() { log.Fatal(http.ListenAndServe(proxmoxAddr, newProxmox())) }()
 	go func() { log.Fatal(http.ListenAndServe(jellyfinAddr, newJellyfin())) }()
-	go func() { log.Fatal(http.ListenAndServe(immichAddr, newImmich())) }()
+	immich := newImmich()
+	go func() { log.Fatal(http.ListenAndServe(immichAddr, immich)) }()
+	// A Photos install of the setup finds Immich at its usual port.
+	go func() {
+		if err := http.ListenAndServe("127.0.0.1:2283", immich); err != nil {
+			log.Println("fake Immich: port 2283 is taken, so the setup can't create its admin:", err)
+		}
+	}()
 	log.Fatal(serveAgent(agentSocket))
 }
 

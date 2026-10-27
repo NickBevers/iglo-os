@@ -20,7 +20,28 @@ func newImmich() http.Handler {
 		q.Statistics.Waiting = 12
 		queues = append(queues, q)
 	}
+	initialized := false
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		// The first admin and its API key, for the setup. The key is the dev key.
+		switch r.Method + " " + r.URL.Path {
+		case "GET /api/server/config":
+			mu.Lock()
+			json.NewEncoder(w).Encode(map[string]bool{"isInitialized": initialized})
+			mu.Unlock()
+			return
+		case "POST /api/auth/admin-sign-up":
+			mu.Lock()
+			initialized = true
+			mu.Unlock()
+			w.WriteHeader(http.StatusCreated)
+			return
+		case "POST /api/auth/login":
+			json.NewEncoder(w).Encode(map[string]string{"accessToken": "dev-token"})
+			return
+		case "POST /api/api-keys":
+			json.NewEncoder(w).Encode(map[string]string{"secret": "iglo-dev-immich"})
+			return
+		}
 		if r.Header.Get("x-api-key") != "iglo-dev-immich" {
 			http.Error(w, "invalid dev key", http.StatusUnauthorized)
 			return

@@ -41,6 +41,14 @@ func sampleLibrary() []agent.Figure {
 
 // registerGaming fakes the game list. No game has a cover of its own here.
 func registerGaming(mux *http.ServeMux) {
+	// The fake host is prepared for Gaming, unless .dev/gaming-not-ready says otherwise.
+	mux.HandleFunc("GET /v1/gaming/ready", func(w http.ResponseWriter, r *http.Request) {
+		if _, err := os.Stat(statePath("gaming-not-ready")); err == nil {
+			writeJSON(w, agent.GamingReadiness{Missing: []string{"the uinput module (/dev/uinput)", "the Wolf input rules (/etc/udev/rules.d/85-wolf.rules)"}})
+			return
+		}
+		writeJSON(w, agent.GamingReadiness{Ready: true, Missing: []string{}})
+	})
 	mux.HandleFunc("GET /v1/gaming/{vmid}/games", func(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, sampleSystems())
 	})

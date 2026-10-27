@@ -19,7 +19,7 @@ cd iglo-v0.1.0-linux-amd64
 
 1. Create your admin account when the installer asks. Add the secret it shows to an authenticator app.
 2. Download `http://iglo.local/ca.crt` and install it as a trusted root certificate on each device.
-3. Open `https://iglo.local`.
+3. Open `https://iglo.local` and go to **Setup**. It installs the whole stack in one go, or the apps you choose. See [docs/setup.md](docs/setup.md).
 
 Options: `./install.sh --storage local-lvm --bridge vmbr0 --hostname iglo --ctid 120 --zram`. With `--zram`, the host gets compressed swap in RAM (zstd, up to a quarter of the RAM) as a safety net when everything peaks at once. On a host with ZFS and no limit on its read cache, the installer prints how to set one.
 
@@ -74,6 +74,7 @@ for tests, a real Proxmox and releases.
 
 ## Docs
 
+- [Guided setup](docs/setup.md)
 - [How it works](docs/architecture.md)
 - [Updates and Telegram](docs/updates.md)
 - [Health and alerts](docs/health.md)
