@@ -269,12 +269,12 @@ type VPNRequest struct {
 	VPNSettings
 }
 
-// VPNCountries returns the VPN countries of the media stack in container vmid.
-func (c *Client) VPNCountries(ctx context.Context, vmid int) (string, error) {
-	var settings VPNSettings
-	err := c.do(ctx, http.MethodGet, "/v1/apps/media/vpn?vmid="+strconv.Itoa(vmid), nil, &settings)
+// VPN returns the VPN settings of the media stack in container vmid, without secrets.
+func (c *Client) VPN(ctx context.Context, vmid int) (VPNView, error) {
+	var view VPNView
+	err := c.do(ctx, http.MethodGet, "/v1/apps/media/vpn?vmid="+strconv.Itoa(vmid), nil, &view)
 
-	return settings.Countries, err
+	return view, err
 }
 
 func (c *Client) ChangeVPN(ctx context.Context, vmid int, settings VPNSettings) error {

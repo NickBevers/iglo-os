@@ -17,6 +17,7 @@ import (
 	"iglo/internal/agent"
 	"iglo/internal/events"
 	"iglo/internal/proxmox"
+	"iglo/internal/vpn"
 )
 
 var (
@@ -46,7 +47,7 @@ type Agent interface {
 	ForgetAppAnswers(ctx context.Context, app string) error
 	UpdateApp(ctx context.Context, app string, vmid int) error
 	RemoveApp(ctx context.Context, app string, vmid int) error
-	VPNCountries(ctx context.Context, vmid int) (string, error)
+	VPN(ctx context.Context, vmid int) (agent.VPNView, error)
 	ChangeVPN(ctx context.Context, vmid int, settings agent.VPNSettings) error
 	MinecraftPlayers(ctx context.Context, vmid int) (agent.MinecraftPlayers, error)
 	ChangeMinecraftPlayers(ctx context.Context, vmid int, players agent.MinecraftPlayers) error
@@ -190,7 +191,9 @@ type Defaults struct {
 	SeriesFolder      string `json:"seriesFolder"`
 	AnimeFolder       string `json:"animeFolder"`
 	AnimeMoviesFolder string `json:"animeMoviesFolder"`
-	VPNCountries      string `json:"vpnCountries"`
+	// VPNProvider and VPNLocations are where the VPN of the media stack starts.
+	VPNProvider       string `json:"vpnProvider"`
+	VPNLocations      string `json:"vpnLocations"`
 	SubtitleLanguages string `json:"subtitleLanguages"`
 	Username          string `json:"username"`
 	DownloadsSize     int    `json:"downloadsSize"`
@@ -408,7 +411,8 @@ func (s *Service) defaults(ctx context.Context, node string, resources []proxmox
 		SeriesFolder:      "series",
 		AnimeFolder:       "anime",
 		AnimeMoviesFolder: "anime-movies",
-		VPNCountries:      "Netherlands",
+		VPNProvider:       vpn.ProtonVPN,
+		VPNLocations:      "Netherlands",
 		SubtitleLanguages: "en",
 		Username:          "iglo",
 		DownloadsSize:     200,
@@ -601,14 +605,14 @@ func (s *Service) Remove(ctx context.Context, background context.Context, id str
 	return nil
 }
 
-// VPNCountries returns the VPN countries of the media stack.
-func (s *Service) VPNCountries(ctx context.Context, id string) (string, error) {
+// VPN returns the VPN settings of the media stack, without its secrets.
+func (s *Service) VPN(ctx context.Context, id string) (agent.VPNView, error) {
 	_, guest, err := s.mediaStack(ctx, id)
 	if err != nil {
-		return "", err
+		return agent.VPNView{}, err
 	}
 
-	return s.Agent.VPNCountries(ctx, guest.VMID)
+	return s.Agent.VPN(ctx, guest.VMID)
 }
 
 // ChangeVPN gives the media stack new VPN settings. When they do not connect,
@@ -628,7 +632,8 @@ func (s *Service) ChangeVPN(ctx context.Context, background context.Context, id 
 	if err := s.Agent.ChangeVPN(ctx, guest.VMID, settings); err != nil {
 		return err
 	}
-	s.Logger.Info("vpn change started", "vmid", guest.VMID, "newKey", settings.WireGuardPrivateKey != "")
+	s.Logger.Info("vpn change started", "vmid", guest.VMID, "provider", settings.Provider,
+		"newSecret", settings.WireGuardPrivateKey != "" || settings.PIAPassword != "" || settings.PIADedicatedToken != "")
 	s.watch(background, operation{app: app, action: agent.ActionVPN, guest: guest})
 
 	return nil

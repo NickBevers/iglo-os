@@ -12,22 +12,36 @@ x-servarr-env: &servarr-env
 
 services:
   gluetun:
-    image: qmcgaw/gluetun:v3
+    # Pinned: the VPN locations of Iglo-OS and the settings below are checked
+    # against this version. dev/vpnlocations makes the list for a new one.
+    image: qmcgaw/gluetun:v3.41.3
     container_name: gluetun
     cap_add: [NET_ADMIN]
     devices:
       - /dev/net/tun:/dev/net/tun
     environment:
       TZ: ${TZ}
-      VPN_SERVICE_PROVIDER: protonvpn
-      VPN_TYPE: wireguard
-      WIREGUARD_PRIVATE_KEY: ${WIREGUARD_PRIVATE_KEY}
-      SERVER_COUNTRIES: ${VPN_COUNTRIES}
-      PORT_FORWARD_ONLY: "on"
+      # iglo-arr vpn writes these in .env for ProtonVPN or PIA. A stack from
+      # before the provider choice has only WIREGUARD_PRIVATE_KEY and
+      # VPN_COUNTRIES, and the defaults keep it on ProtonVPN. Gluetun treats an
+      # empty value as not set (v3.41.3).
+      VPN_SERVICE_PROVIDER: ${GLUETUN_PROVIDER:-protonvpn}
+      VPN_TYPE: ${GLUETUN_VPN_TYPE:-wireguard}
+      # The logins and keys are secret files in /run/secrets, which Gluetun
+      # prefers (see volumes). Only a stack from before them has this one.
+      WIREGUARD_PRIVATE_KEY: ${WIREGUARD_PRIVATE_KEY:-}
+      OPENVPN_CUSTOM_CONFIG: ${GLUETUN_OPENVPN_CONFIG:-}
+      SERVER_COUNTRIES: ${VPN_COUNTRIES:-}
+      SERVER_REGIONS: ${VPN_REGIONS:-}
+      SERVER_NAMES: ${GLUETUN_SERVER_NAMES:-}
+      PORT_FORWARD_ONLY: ${GLUETUN_PORT_FORWARD_ONLY:-on}
       VPN_PORT_FORWARDING: "on"
+      # A PIA dedicated IP uses Gluetun's custom provider with PIA's port
+      # forwarding, which logs in with the normal PIA account.
+      VPN_PORT_FORWARDING_PROVIDER: ${GLUETUN_PORT_FORWARDING_PROVIDER:-}
       # The kill switch is Gluetun's firewall, which blocks all traffic outside
       # the tunnel. When the VPN drops, qBittorrent is also bound to lo until it is back.
-      # Tell qBittorrent which port ProtonVPN forwarded (from the Gluetun wiki).
+      # Tell qBittorrent which port the VPN forwarded (from the Gluetun wiki).
       VPN_PORT_FORWARDING_UP_COMMAND: >-
         /bin/sh -c 'wget -O- -nv --retry-connrefused --post-data
         "json={\"listen_port\":{{PORT}},\"current_network_interface\":\"{{VPN_INTERFACE}}\",\"random_port\":false,\"upnp\":false}"
@@ -41,6 +55,9 @@ services:
       - 9696:9696 # Prowlarr
     volumes:
       - ./config/gluetun:/gluetun
+      # The VPN secrets, sealed on the host and unsealed there into RAM at
+      # the start of the container (deploy/secrets.sh). Never on its disk.
+      - /mnt/iglo-secrets:/run/secrets:ro
     restart: unless-stopped
 
   qbittorrent:

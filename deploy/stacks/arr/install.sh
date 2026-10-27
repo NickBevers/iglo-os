@@ -1,13 +1,16 @@
 #!/usr/bin/env bash
 # Installs the media stack (Prowlarr, Radarr, Sonarr, Bazarr, qBittorrent,
 # Seerr, Recyclarr, FlareSolverr) in a new LXC on this Proxmox host.
-# qBittorrent, Prowlarr and FlareSolverr go through ProtonVPN via Gluetun.
+# qBittorrent, Prowlarr and FlareSolverr go through ProtonVPN or PIA via Gluetun.
 #
 #   ./install.sh [--storage local-lvm] [--bridge vmbr0] [--hostname media] [--ctid 130]
 #                [--downloads-size 200] [--jellyfin-ctid 110] [--answers file]
 #   ./install.sh --update --ctid 130
 #   ./install.sh --remove --ctid 130
-#   ./install.sh --vpn --ctid 130 --answers file    (VPN_COUNTRIES, and WIREGUARD_PRIVATE_KEY or empty to keep it)
+#   ./install.sh --vpn --ctid 130 --answers file    (VPN_PROVIDER, VPN_LOCATIONS, and the secrets below or empty to keep them)
+# The VPN answers are VPN_PROVIDER (protonvpn or pia), VPN_LOCATIONS (countries
+# or regions, separated by commas), WIREGUARD_PRIVATE_KEY for ProtonVPN, and
+# PIA_USERNAME, PIA_PASSWORD and the optional PIA_DEDICATED_TOKEN for PIA.
 # With --answers, it asks nothing and reads the answers from a KEY=value file.
 # The host agent uses this for the Apps page, and also --update and --remove.
 set -euo pipefail
@@ -17,6 +20,8 @@ STACK_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "$STACK_DIR/../../lib.sh"
 # shellcheck source=deploy/storage.sh
 source "$STACK_DIR/../../storage.sh"
+# shellcheck source=deploy/secrets.sh
+source "$STACK_DIR/../../secrets.sh"
 
 STORAGE="local-lvm"
 BRIDGE="vmbr0"
@@ -69,13 +74,15 @@ load_answers() {
     local line key value
     JELLYFIN_API_KEY="" JELLYFIN_ADMIN_USERNAME="" JELLYFIN_ADMIN_PASSWORD=""
     OPENSUBTITLES_USERNAME="" OPENSUBTITLES_PASSWORD=""
-    ANIME_FOLDER="" ANIME_MOVIES_FOLDER=""
+    ANIME_FOLDER="" ANIME_MOVIES_FOLDER="" VPN_PROVIDER="" VPN_LOCATIONS=""
+    WIREGUARD_PRIVATE_KEY="" PIA_USERNAME="" PIA_PASSWORD="" PIA_DEDICATED_TOKEN=""
     while IFS= read -r line || [[ -n "$line" ]]; do
         [[ -z "$line" ]] && continue
         key="${line%%=*}" value="${line#*=}"
         case "$key" in
             VIDEOS_BINDING | MOVIES_FOLDER | SERIES_FOLDER | ANIME_FOLDER | ANIME_MOVIES_FOLDER | \
-                WIREGUARD_PRIVATE_KEY | VPN_COUNTRIES | \
+                VPN_PROVIDER | VPN_LOCATIONS | WIREGUARD_PRIVATE_KEY | PIA_USERNAME | PIA_PASSWORD | \
+                PIA_DEDICATED_TOKEN | \
                 SUBTITLE_LANGUAGES | ARR_USERNAME | ARR_PASSWORD | JELLYFIN_API_KEY | JELLYFIN_ADMIN_USERNAME | \
                 JELLYFIN_ADMIN_PASSWORD | OPENSUBTITLES_USERNAME | OPENSUBTITLES_PASSWORD | RESTART_JELLYFIN | \
                 STORAGE | DOWNLOADS_SIZE | FLARESOLVERR | ANIME_INDEXERS)
@@ -91,6 +98,7 @@ load_answers() {
     [[ "$FLARESOLVERR" == y || "$FLARESOLVERR" == n ]] || die "FLARESOLVERR must be y or n"
     [[ "$ANIME_INDEXERS" == y || "$ANIME_INDEXERS" == n ]] || die "ANIME_INDEXERS must be y or n"
     check_folders
+    check_vpn
     JELLYFIN_URL=""
     if [[ -n "$JELLYFIN_CTID" ]]; then
         JELLYFIN_URL="http://$(container_ip "$JELLYFIN_CTID"):8096"
@@ -116,10 +124,21 @@ ask_settings() {
     ask ANIME_MOVIES_FOLDER "Folder for anime movies" "anime-movies"
     check_folders
 
-    echo "Get a WireGuard key at https://account.proton.me/u/0/vpn/WireGuard"
-    echo "(turn on 'NAT-PMP (Port Forwarding)' when you create it)."
-    ask WIREGUARD_PRIVATE_KEY "ProtonVPN WireGuard private key" "" secret
-    ask VPN_COUNTRIES "VPN server countries (comma separated)" "Netherlands"
+    WIREGUARD_PRIVATE_KEY="" PIA_USERNAME="" PIA_PASSWORD="" PIA_DEDICATED_TOKEN=""
+    ask VPN_PROVIDER "VPN provider (protonvpn or pia)" "protonvpn"
+    if [[ "$VPN_PROVIDER" == pia ]]; then
+        ask PIA_USERNAME "PIA username (like p1234567)"
+        ask PIA_PASSWORD "PIA password" "" secret
+        echo "Optional: a PIA dedicated IP token (DIP...). Then answer 'Dedicated IP' as the region."
+        ask PIA_DEDICATED_TOKEN "PIA dedicated IP token (empty for none)" "" secret
+        ask VPN_LOCATIONS "PIA regions (comma separated)" "Netherlands"
+    else
+        echo "Get a WireGuard key at https://account.proton.me/u/0/vpn/WireGuard"
+        echo "(turn on 'NAT-PMP (Port Forwarding)' when you create it)."
+        ask WIREGUARD_PRIVATE_KEY "ProtonVPN WireGuard private key" "" secret
+        ask VPN_LOCATIONS "ProtonVPN countries (comma separated)" "Netherlands"
+    fi
+    check_vpn
 
     echo "FlareSolverr runs a browser for indexers behind Cloudflare. It uses a few hundred MB."
     ask FLARESOLVERR "Run FlareSolverr? (y/n)" "y"
@@ -193,6 +212,7 @@ create_container() {
 
     CREATED_CT="$CT_ID"
     bind_share "$CT_ID" 0 "$VIDEOS_BINDING" videos rw /data/media
+    secrets_attach "$CT_ID" 2
     pct start "$CT_ID"
     wait_for_network "$CT_ID"
 }
@@ -209,6 +229,7 @@ on_exit() {
         pct stop "$CREATED_CT" >/dev/null 2>&1 || true
         pct destroy "$CREATED_CT" --purge 1 || true
         remove_binding_dependencies "$CREATED_CT"
+        secrets_remove "$CREATED_CT" || true
     fi
 }
 
@@ -228,8 +249,6 @@ push_stack() {
     cat >"$env_file" <<EOF
 TZ=$(timedatectl show -p Timezone --value)
 DATA_DIR=/data
-WIREGUARD_PRIVATE_KEY=$WIREGUARD_PRIVATE_KEY
-VPN_COUNTRIES=$VPN_COUNTRIES
 ARR_USERNAME=$ARR_USERNAME
 RADARR_API_KEY=$(openssl rand -hex 16)
 SONARR_API_KEY=$(openssl rand -hex 16)
@@ -248,6 +267,78 @@ JELLYFIN_ADMIN_USERNAME=$JELLYFIN_ADMIN_USERNAME
 OPENSUBTITLES_USERNAME=$OPENSUBTITLES_USERNAME
 EOF
     pct push "$CT_ID" "$env_file" /opt/arr/.env --perms 0600
+    apply_vpn
+}
+
+# check_vpn checks the VPN answers before anything is made. iglo-arr checks
+# them again against the list of locations.
+check_vpn() {
+    [[ "$VPN_PROVIDER" == protonvpn || "$VPN_PROVIDER" == pia ]] || die "VPN_PROVIDER must be protonvpn or pia"
+    # The length apart: POSIX allows regex repeat counts up to 255 only.
+    local pattern="^[A-Za-z0-9 '.,()-]+\$"
+    [[ "$VPN_LOCATIONS" =~ $pattern && ${#VPN_LOCATIONS} -le 600 ]] || die "give the VPN locations, separated by commas"
+    VPN_LOCATIONS="$(sed -E 's/ *, */,/g; s/^ +//; s/ +$//' <<<"$VPN_LOCATIONS")"
+}
+
+# vpn_secret_names are the VPN secrets that the host keeps sealed, by answer.
+VPN_SECRETS=(WIREGUARD_PRIVATE_KEY PIA_USERNAME PIA_PASSWORD PIA_DEDICATED_TOKEN)
+
+# apply_vpn has iglo-arr check the VPN answers and write them in .env without
+# the secrets. The secrets go on stdin, and come back as the files that
+# Gluetun reads, which the host seals (deploy/secrets.sh). An empty secret
+# keeps the sealed one. Nothing goes through a file or the process list.
+apply_vpn() {
+    log "Saving the VPN settings"
+    local name output line value
+    for name in "${VPN_SECRETS[@]}"; do
+        [[ -n "${!name}" ]] || printf -v "$name" '%s' "$(secret_get "$CT_ID" keep "${name,,}")"
+    done
+
+    output="$(printf 'VPN_PROVIDER=%s\nVPN_LOCATIONS=%s\nWIREGUARD_PRIVATE_KEY=%s\nPIA_USERNAME=%s\nPIA_PASSWORD=%s\nPIA_DEDICATED_TOKEN=%s\n' \
+        "$VPN_PROVIDER" "$VPN_LOCATIONS" "$WIREGUARD_PRIVATE_KEY" "$PIA_USERNAME" "$PIA_PASSWORD" "$PIA_DEDICATED_TOKEN" |
+        pct exec "$CT_ID" -- /usr/local/bin/iglo-arr vpn)" || return 1
+
+    # Process substitution is a pipe; a here-string can be a file on disk.
+    while IFS= read -r line; do
+        name="${line%%=*}" value="${line#*=}"
+        case "$name" in
+            wireguard_private_key | openvpn_user | openvpn_password | vpn_port_forwarding_username | vpn_port_forwarding_password)
+                printf '%s' "$value" | secret_put "$CT_ID" run "$name"
+                # A key that iglo-arr took from an old .env: keep it too.
+                if [[ "$name" == wireguard_private_key && -z "$WIREGUARD_PRIVATE_KEY" ]]; then
+                    WIREGUARD_PRIVATE_KEY="$value"
+                fi
+                ;;
+            *) return 1 ;;
+        esac
+    done < <(printf '%s\n' "$output")
+    # The answers too, so the next change can keep them.
+    for name in "${VPN_SECRETS[@]}"; do
+        printf '%s' "${!name}" | secret_put "$CT_ID" keep "${name,,}"
+    done
+    secrets_unlock "$CT_ID"
+}
+
+# attach_secrets gives a stack from before the sealed secrets its secrets
+# folder. The container restarts to see it.
+attach_secrets() {
+    secrets_attached "$CT_ID" && return 0
+    log "Giving the container its folder for sealed secrets, it restarts"
+    secrets_attach "$CT_ID" "$(free_mount_index "$CT_ID")"
+    pct reboot "$CT_ID"
+    wait_for_network "$CT_ID"
+}
+
+# migrate_vpn_secrets takes the VPN key of a stack from before the sealed
+# secrets out of .env, and seals it on the host.
+migrate_vpn_secrets() {
+    pct exec "$CT_ID" -- grep -q '^WIREGUARD_PRIVATE_KEY=' /opt/arr/.env || return 0
+    log "Moving the VPN key out of the container, sealed on the host"
+    VPN_PROVIDER=protonvpn WIREGUARD_PRIVATE_KEY="" PIA_USERNAME="" PIA_PASSWORD="" PIA_DEDICATED_TOKEN=""
+    VPN_LOCATIONS="$(pct exec "$CT_ID" -- sed -n 's/^VPN_COUNTRIES=//p' /opt/arr/.env)"
+    # Old stacks took countries as free text. When iglo-arr refuses them, the
+    # key stays in .env until the next VPN change from the Apps page.
+    apply_vpn || log "Could not move the VPN key: choose the countries again under VPN on the Apps page"
 }
 
 # push_stack_files copies the files of this release into the container.
@@ -290,7 +381,7 @@ show_vpn_log() {
 # vpn_failed shows the end of the VPN log, because the container may be removed after this.
 vpn_failed() {
     show_vpn_log
-    die "the VPN did not connect. Check the WireGuard key and the server countries, and read the VPN log above"
+    die "the VPN did not connect. Check the VPN login and the locations, and read the VPN log above"
 }
 
 share_media_with_jellyfin() {
@@ -345,6 +436,8 @@ update() {
 
     log "Copying the stack of Iglo-OS $IGLO_VERSION into the container"
     push_stack_files
+    attach_secrets
+    migrate_vpn_secrets
     # A stack from before FlareSolverr was optional keeps running it.
     pct exec "$CT_ID" -- bash -euc '
         grep -q "^FLARESOLVERR=" /opt/arr/.env || printf "FLARESOLVERR=y\nCOMPOSE_PROFILES=flaresolverr\n" >> /opt/arr/.env
@@ -371,57 +464,64 @@ restart_vpn() {
     ' && vpn_healthy
 }
 
-# change_vpn writes the new VPN settings in .env. When the VPN does not
-# connect with them, it puts the old .env back.
+# change_vpn writes the new VPN settings. When they can't be saved or the VPN
+# does not connect with them, it puts the old .env, dedicated IP file and
+# sealed secrets back.
 change_vpn() {
     require_proxmox
     require_app_container "$CT_ID" media
     require_running "$CT_ID"
 
-    local line key value countries="" private_key=""
+    local line key value
+    VPN_PROVIDER="" VPN_LOCATIONS="" WIREGUARD_PRIVATE_KEY="" PIA_USERNAME="" PIA_PASSWORD="" PIA_DEDICATED_TOKEN=""
     while IFS= read -r line || [[ -n "$line" ]]; do
         [[ -z "$line" ]] && continue
         key="${line%%=*}" value="${line#*=}"
         case "$key" in
-            VPN_COUNTRIES) countries="$value" ;;
-            WIREGUARD_PRIVATE_KEY) private_key="$value" ;;
+            VPN_PROVIDER | VPN_LOCATIONS | WIREGUARD_PRIVATE_KEY | PIA_USERNAME | PIA_PASSWORD | PIA_DEDICATED_TOKEN)
+                printf -v "$key" '%s' "$value"
+                ;;
             *) die "unknown answer: $key" ;;
         esac
     done <"$ANSWERS"
-    # It holds the VPN key.
+    # It holds the VPN secrets.
     rm -f "$ANSWERS"
-    [[ -n "$countries" ]] || die "give the VPN countries"
+    check_vpn
 
-    log "Saving the new VPN settings"
-    pct exec "$CT_ID" -- cp -p /opt/arr/.env /opt/arr/.env.before-vpn
-    # The values go on stdin, so the key is not in the process list.
-    # shellcheck disable=SC2016 # expands inside the container
-    printf '%s\n%s\n' "$countries" "$private_key" | pct exec "$CT_ID" -- bash -euc '
-        read -r countries
-        read -r key
-        temp="$(mktemp /opt/arr/.env.XXXXXX)"
-        while IFS= read -r line; do
-            case "$line" in
-                VPN_COUNTRIES=*) printf "VPN_COUNTRIES=%s\n" "$countries" ;;
-                WIREGUARD_PRIVATE_KEY=*) [[ -n "$key" ]] && printf "WIREGUARD_PRIVATE_KEY=%s\n" "$key" || printf "%s\n" "$line" ;;
-                *) printf "%s\n" "$line" ;;
-            esac
-        done </opt/arr/.env >"$temp"
-        chmod 0600 "$temp"
-        mv -f "$temp" /opt/arr/.env
-    '
+    # This release's iglo-arr and compose.yaml know the providers and the
+    # sealed secrets; a stack from before has neither.
+    push_stack_files
+    attach_secrets
+
+    secrets_save "$CT_ID"
+    pct exec "$CT_ID" -- bash -c 'cp -p /opt/arr/.env /opt/arr/.env.before-vpn
+        f=/opt/arr/config/gluetun/pia-dedicated.ovpn
+        if [[ -f "$f" ]]; then cp -p "$f" "$f.before-vpn"; else rm -f "$f.before-vpn"; fi'
+    if ! apply_vpn; then
+        put_back_vpn
+        die "the VPN settings were not saved, read the error above"
+    fi
 
     if restart_vpn; then
-        pct exec "$CT_ID" -- rm -f /opt/arr/.env.before-vpn
+        secrets_forget_saved "$CT_ID"
+        pct exec "$CT_ID" -- rm -f /opt/arr/.env.before-vpn /opt/arr/config/gluetun/pia-dedicated.ovpn.before-vpn
         log "Done"
         return 0
     fi
 
     show_vpn_log
     log "The VPN did not connect, going back to the old settings"
-    pct exec "$CT_ID" -- mv -f /opt/arr/.env.before-vpn /opt/arr/.env
+    put_back_vpn
     restart_vpn || log "The VPN does not connect with the old settings either"
-    die "the VPN did not connect with the new settings, so the old settings are back. Check the WireGuard key and the countries, and read the VPN log above"
+    die "the VPN did not connect with the new settings, so the old settings are back. Check the VPN login and the locations, and read the VPN log above"
+}
+
+# put_back_vpn restores what change_vpn saved.
+put_back_vpn() {
+    secrets_restore "$CT_ID"
+    pct exec "$CT_ID" -- bash -c 'mv -f /opt/arr/.env.before-vpn /opt/arr/.env
+        f=/opt/arr/config/gluetun/pia-dedicated.ovpn
+        if [[ -f "$f.before-vpn" ]]; then mv -f "$f.before-vpn" "$f"; else rm -f "$f"; fi'
 }
 
 main() {
@@ -432,6 +532,7 @@ main() {
             require_proxmox
             remove_app "$CT_ID" media
             remove_binding_dependencies "$CT_ID"
+            secrets_remove "$CT_ID"
             return
             ;;
     esac

@@ -47,18 +47,18 @@ func (s *server) appsRemove(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *server) appsVPN(w http.ResponseWriter, r *http.Request) {
-	countries, err := s.Apps.VPNCountries(r.Context(), r.PathValue("id"))
+	view, err := s.Apps.VPN(r.Context(), r.PathValue("id"))
 	if err != nil {
 		s.writeAppsResult(w, err, 0)
 		return
 	}
 
-	writeJSON(w, http.StatusOK, map[string]string{"countries": countries})
+	writeJSON(w, http.StatusOK, view)
 }
 
 func (s *server) appsChangeVPN(w http.ResponseWriter, r *http.Request) {
 	var settings agent.VPNSettings
-	if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, 1024)).Decode(&settings); err != nil {
+	if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, 4096)).Decode(&settings); err != nil {
 		writeError(w, http.StatusBadRequest, "invalid request body")
 		return
 	}

@@ -115,7 +115,7 @@ type Apps interface {
 	Forget(ctx context.Context, id string) error
 	Update(ctx context.Context, background context.Context, id string) error
 	Remove(ctx context.Context, background context.Context, id string) error
-	VPNCountries(ctx context.Context, id string) (string, error)
+	VPN(ctx context.Context, id string) (agent.VPNView, error)
 	ChangeVPN(ctx context.Context, background context.Context, id string, settings agent.VPNSettings) error
 	Players(ctx context.Context, id string) (agent.MinecraftPlayers, error)
 	ChangePlayers(ctx context.Context, background context.Context, id string, players agent.MinecraftPlayers) error

@@ -13,6 +13,7 @@ import (
 	"unicode"
 
 	"iglo/internal/agent"
+	"iglo/internal/vpn"
 )
 
 // ErrInvalid is a plan that can't run, with what to fix.
@@ -89,9 +90,35 @@ type Admin struct {
 	Email string `json:"email" yaml:"email"`
 }
 
+// VPN is the VPN of the media stack. The secrets and the PIA username stay
+// out of the plan file.
 type VPN struct {
-	WireGuardKey string `json:"wireguardKey,omitempty" yaml:"wireguardKey,omitempty"`
-	Countries    string `json:"countries" yaml:"countries"`
+	// Provider is protonvpn or pia. Empty is ProtonVPN, as in plans from before PIA.
+	Provider string `json:"provider" yaml:"provider,omitempty"`
+	// Locations are countries (ProtonVPN) or regions (PIA), separated by
+	// commas, or "Dedicated IP" for a PIA dedicated IP.
+	Locations string `json:"locations" yaml:"locations,omitempty"`
+	// Countries is the old name of Locations, read from plan files from before PIA.
+	Countries         string `json:"-" yaml:"countries,omitempty"`
+	WireGuardKey      string `json:"wireguardKey,omitempty" yaml:"wireguardKey,omitempty"`
+	PIAUsername       string `json:"piaUsername,omitempty" yaml:"piaUsername,omitempty"`
+	PIAPassword       string `json:"piaPassword,omitempty" yaml:"piaPassword,omitempty"`
+	PIADedicatedToken string `json:"piaDedicatedToken,omitempty" yaml:"piaDedicatedToken,omitempty"`
+}
+
+// settings are the answers of the media stack for this VPN.
+func (v VPN) settings() agent.VPNSettings {
+	provider, locations := v.Provider, strings.TrimSpace(v.Locations)
+	if provider == "" {
+		provider = vpn.ProtonVPN
+	}
+	if locations == "" {
+		locations = strings.TrimSpace(v.Countries)
+	}
+	return agent.VPNSettings{
+		Provider: provider, Locations: locations, WireGuardPrivateKey: v.WireGuardKey,
+		PIAUsername: strings.TrimSpace(v.PIAUsername), PIAPassword: v.PIAPassword, PIADedicatedToken: v.PIADedicatedToken,
+	}
 }
 
 var (
@@ -145,7 +172,7 @@ func (p Plan) mediaAnswers(videos, jellyfinKey string, withJellyfin bool) agent.
 	answers := agent.MediaStackAnswers{
 		VideosBinding: videos, MoviesFolder: "movies", SeriesFolder: "series",
 		AnimeFolder: "anime", AnimeMoviesFolder: "anime-movies",
-		WireGuardPrivateKey: p.VPN.WireGuardKey, VPNCountries: strings.TrimSpace(p.VPN.Countries), SubtitleLanguages: "en",
+		VPN: p.VPN.settings(), SubtitleLanguages: "en",
 		Username: p.Admin.Username, Password: p.Admin.Password, RestartJellyfin: true, Storage: p.Storage,
 		DownloadsSize: 200, FlareSolverr: p.FlareSolverr, AnimeIndexers: p.AnimeIndexers,
 	}

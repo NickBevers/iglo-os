@@ -9,6 +9,7 @@ import { Checkbox } from '@/components/ui/checkbox'
 import { Input } from '@/components/ui/input'
 import { Switch } from '@/components/ui/switch'
 import { Field } from '@/features/apps/form-parts'
+import { VpnFields } from '@/features/apps/vpn-fields'
 import { api, type Setup } from '@/lib/api'
 import { formatBytes } from '@/lib/format'
 import { cn } from '@/lib/utils'
@@ -365,30 +366,24 @@ function AccountsPage({ draft, setDraft, wants }: Omit<PageProps, 'setup'> & { w
                 {wants('media') && (
                     <fieldset className="flex flex-col gap-4 border-t pt-4">
                         <legend className="section-title">Media stack</legend>
-                        <div className="grid gap-4 sm:grid-cols-2">
-                            <Field
-                                id="vpn-key"
-                                label="ProtonVPN WireGuard private key"
-                                help="Make one at account.proton.me with NAT-PMP (Port Forwarding) on."
-                            >
-                                <Input
-                                    id="vpn-key"
-                                    type="password"
-                                    required
-                                    autoComplete="off"
-                                    value={draft.vpn.wireguardKey}
-                                    onChange={(e) => setVPN({ wireguardKey: e.target.value.trim() })}
-                                />
-                            </Field>
-                            <Field id="vpn-countries" label="Server countries" help="Separate them with commas.">
-                                <Input
-                                    id="vpn-countries"
-                                    required
-                                    value={draft.vpn.countries}
-                                    onChange={(e) => setVPN({ countries: e.target.value })}
-                                />
-                            </Field>
-                        </div>
+                        <VpnFields
+                            id="setup-vpn"
+                            value={{
+                                provider: draft.vpn.provider,
+                                locations: draft.vpn.locations,
+                                wireguardPrivateKey: draft.vpn.wireguardKey ?? '',
+                                piaUsername: draft.vpn.piaUsername ?? '',
+                                piaPassword: draft.vpn.piaPassword ?? '',
+                                piaDedicatedToken: draft.vpn.piaDedicatedToken ?? '',
+                            }}
+                            onChange={({ wireguardPrivateKey, ...patch }) =>
+                                setVPN(
+                                    wireguardPrivateKey === undefined
+                                        ? patch
+                                        : { ...patch, wireguardKey: wireguardPrivateKey },
+                                )
+                            }
+                        />
                         <Toggle
                             label="Anime trackers"
                             help="Adds Nyaa.si and Anime Tosho to Prowlarr. Anime always gets a quality profile in Sonarr and Radarr that rejects dubbed-only releases, and one download per episode."
@@ -483,6 +478,12 @@ function ReviewPage({ setup, draft, roles }: { setup: Setup; draft: Draft; roles
                     <Row label="Proxmox backups">On the Backups share; a new job runs every night at 03:00</Row>
                 )}
                 <Row label="Apps">{chosen.map((app) => app.name).join(', ')}</Row>
+                {draft.apps.includes('media') && (
+                    <Row label="VPN">
+                        {draft.vpn.provider === 'pia' ? 'PIA' : 'ProtonVPN'},{' '}
+                        {draft.vpn.locations.split(',').join(', ')}
+                    </Row>
+                )}
                 <Row label="Login">
                     {draft.admin.username}
                     {draft.apps.includes('photos') && `, and ${draft.admin.email} for Immich`}
