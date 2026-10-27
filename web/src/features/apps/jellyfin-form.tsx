@@ -30,6 +30,8 @@ export function JellyfinForm({ defaults, saved, onDone }: JellyfinFormProps) {
                 videosBinding: '',
                 moviesFolder: defaults.moviesFolder,
                 seriesFolder: defaults.seriesFolder,
+                animeFolder: defaults.animeFolder,
+                animeMoviesFolder: defaults.animeMoviesFolder,
                 adminUsername: 'admin',
                 adminPassword: '',
                 theme: true,
@@ -69,7 +71,7 @@ export function JellyfinForm({ defaults, saved, onDone }: JellyfinFormProps) {
                 value={videosBinding}
                 onChange={(value) => set('videosBinding', value)}
                 write={false}
-                help="Jellyfin reads your movies and series from this share, and never writes to it."
+                help="Jellyfin reads your movies, series and anime from this share, and never writes to it."
             >
                 {(path) => (
                     <div className="grid gap-4 sm:grid-cols-2">
@@ -87,6 +89,36 @@ export function JellyfinForm({ defaults, saved, onDone }: JellyfinFormProps) {
                                 value={answers.seriesFolder}
                                 onChange={(event) => set('seriesFolder', event.target.value)}
                                 required
+                            />
+                        </Field>
+                        <Field
+                            id="jf-anime-folder"
+                            label="Anime folder"
+                            help={
+                                answers.animeFolder
+                                    ? `${path}/${answers.animeFolder}`
+                                    : 'Empty: anime goes in the series folder.'
+                            }
+                        >
+                            <Input
+                                id="jf-anime-folder"
+                                value={answers.animeFolder}
+                                onChange={(event) => set('animeFolder', event.target.value)}
+                            />
+                        </Field>
+                        <Field
+                            id="jf-anime-movies-folder"
+                            label="Anime movies folder"
+                            help={
+                                answers.animeMoviesFolder
+                                    ? `${path}/${answers.animeMoviesFolder}`
+                                    : 'Empty: anime movies go in the movies folder.'
+                            }
+                        >
+                            <Input
+                                id="jf-anime-movies-folder"
+                                value={answers.animeMoviesFolder}
+                                onChange={(event) => set('animeMoviesFolder', event.target.value)}
                             />
                         </Field>
                     </div>

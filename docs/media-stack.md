@@ -26,14 +26,16 @@ You can also run `stacks/arr/install.sh` from the bundle as root on the Proxmox 
 
 ## Folders
 
-Movies and series each get their own folder on the Videos share. The form asks for both names:
+Movies, series, anime and anime movies each get their own folder on the Videos share. The form asks for the names:
 
-| Folder | Default  | On the NAS      | In the apps and Jellyfin |
-| ------ | -------- | --------------- | ------------------------ |
-| Movies | `movies` | `Videos/movies` | `/data/media/movies`     |
-| Series | `series` | `Videos/series` | `/data/media/series`     |
+| Folder       | Default        | On the NAS            | In the apps and Jellyfin   |
+| ------------ | -------------- | --------------------- | -------------------------- |
+| Movies       | `movies`       | `Videos/movies`       | `/data/media/movies`       |
+| Series       | `series`       | `Videos/series`       | `/data/media/series`       |
+| Anime        | `anime`        | `Videos/anime`        | `/data/media/anime`        |
+| Anime movies | `anime-movies` | `Videos/anime-movies` | `/data/media/anime-movies` |
 
-Radarr puts movies in the first folder and Sonarr puts series in the second. With a Jellyfin API key, the installer adds a "Movies" and a "Series" library for them. If a folder already has files, Jellyfin shows them. To add them to Radarr or Sonarr, use Library Import in those apps.
+Radarr puts movies in the movies folder and anime movies in their own, and Sonarr does the same for series and anime. Each folder is a root folder in Radarr or Sonarr. With a Jellyfin API key, the installer adds a library for each: Movies, Series, Anime and Anime Movies. Leave the anime folders empty to keep anime in the series and movies folders, like a stack from before they existed. If a folder already has files, Jellyfin shows them. To add them to Radarr or Sonarr, use Library Import in those apps.
 
 Media stacks that were installed before you could choose the folders use `movies` and `tv`.
 
@@ -75,23 +77,23 @@ The agent checks every answer before it writes them to a file that only root can
 
 ## Anime
 
-Anime goes through the same Sonarr and Radarr and the same folders, with settings of its own:
+Anime goes through the same Sonarr and Radarr, into its own folders, with settings of its own:
 
 - **Trackers.** With **Anime trackers** on in the form, the installer adds the public trackers Nyaa.si and Anime Tosho to Prowlarr, which passes them on to Sonarr and Radarr. They need no account. When one can't be added, the install goes on and its log says so; add it in Prowlarr yourself.
 - **Quality.** Recyclarr syncs the TRaSH Guides profile **[Anime] Remux-1080p** into Sonarr and into Radarr, next to the normal profiles. It scores the anime release groups, and it prefers BluRay, then the best web releases. One Sonarr has one set of quality sizes, so anime series use the series sizes; the same goes for films in Radarr.
 - **Japanese audio.** Both anime profiles reject a release that is only dubbed: TRaSH's "Dubs Only" format scores -10000. Japanese releases and dual audio (Japanese and English) pass. The profiles read release names, not the tracks in the file, so a dub that doesn't say so in its name can still slip through; delete it in Sonarr or Radarr and search again. For a release group you don't know yet, check one scene with dialogue.
 - **Subtitles.** Anime releases bring the official English subtitles in the file. Bazarr leaves anime alone: series of the anime type, and films with the anime tag. Jellyfin prefers an external subtitle, so a downloaded one would push the official subtitles aside. To get a subtitle for an anime that has none, search for it by hand in Bazarr; the exclusion only stops its automatic searches.
 - **One download per episode.** A new episode lands from several web rippers within minutes. Sonarr waits 30 minutes for series with the anime tag, then takes the best release once. A release in TRaSH's anime web tier 1 to 3 is grabbed at once. Later, better releases (a BluRay, a fixed version) still replace it, as the profile allows.
-- **Requests.** Seerr knows anime by TMDB's "anime" keyword. It sends anime series to Sonarr as the anime series type, which numbers episodes the anime way, with the anime profile and the anime tag. For films, Seerr has no anime profile, so the installer adds an override rule to Radarr: the anime keyword (210024) gets the anime profile and the anime tag.
+- **Requests.** Seerr knows anime by TMDB's "anime" keyword. It sends anime series to Sonarr as the anime series type, which numbers episodes the anime way, with the anime profile and the anime tag, into the anime folder. For films, Seerr has no anime profile, so the installer adds an override rule to Radarr: the anime keyword (210024) gets the anime profile, the anime tag and the anime movies folder.
 - **Seasons.** Sonarr numbers seasons as TheTVDB does, and TMDB often splits anime differently. The installer sets Seerr's metadata for anime to TheTVDB, so a request asks Sonarr for the right season. When TheTVDB can't be reached during the install, the log says so; set it later under **Settings > Metadata Providers**.
 - **File names.** Recyclarr turns on renaming in Sonarr and Radarr with the TRaSH names for Jellyfin: the TVDB or TMDB ID in the folder, and SxxExx with the absolute number for anime. A release named "- 16" then can't be read as the wrong episode. Files that are already there keep their names.
 - **The first sync.** The installer runs Recyclarr once before it sets up Seerr, so both anime profiles exist. When that sync fails, for example because GitHub can't be reached, Recyclarr tries again every day, anime uses the normal profiles, and the log says so. Then pick the anime profile in Seerr under **Settings > Services > Sonarr**, and add the rule for films under **Settings > Services** with **New Override Rule**: the Radarr service, the keyword "anime", and the quality profile [Anime] Remux-1080p.
 
 A media stack from before these changes gets the Radarr anime profile and the file names with its next update, when Recyclarr syncs. The rest is set up during the install only. To add it by hand:
 
-1. In Sonarr and Radarr, add a tag **anime** under **Settings > Tags**.
+1. In Sonarr and Radarr, add a tag **anime** under **Settings > Tags**. For separate anime folders, make them on the share, add them as root folders in Sonarr and Radarr, and add an Anime and an Anime Movies library in Jellyfin.
 2. In Sonarr, add a delay profile under **Settings > Profiles** for the tag anime: torrent delay 30 minutes, **Bypass if Above Custom Format Score** on, with 400.
-3. In Seerr, under **Settings > Services > Sonarr**, pick the anime tag as **Anime Tags**. Add the rule for films as above, with the tag anime. Under **Settings > Metadata Providers**, set anime to TheTVDB.
+3. In Seerr, under **Settings > Services > Sonarr**, pick the anime tag as **Anime Tags**, and the anime folder as the anime root folder. Add the rule for films as above, with the tag anime and the anime movies folder. Under **Settings > Metadata Providers**, set anime to TheTVDB.
 4. In Bazarr, add **anime** to **Excluded Series Types** under **Settings > Sonarr**, and to **Excluded Tags** under **Settings > Radarr**.
 
 Which audio and subtitles play is up to the player. Set the language preferences in Jellyfin, or in Kodi on the TV.

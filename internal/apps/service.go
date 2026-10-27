@@ -188,6 +188,8 @@ type Defaults struct {
 	MediaVMID         int    `json:"mediaVmid,omitempty"`
 	MoviesFolder      string `json:"moviesFolder"`
 	SeriesFolder      string `json:"seriesFolder"`
+	AnimeFolder       string `json:"animeFolder"`
+	AnimeMoviesFolder string `json:"animeMoviesFolder"`
 	VPNCountries      string `json:"vpnCountries"`
 	SubtitleLanguages string `json:"subtitleLanguages"`
 	Username          string `json:"username"`
@@ -404,6 +406,8 @@ func (s *Service) defaults(ctx context.Context, node string, resources []proxmox
 		Storages:          []string{},
 		MoviesFolder:      "movies",
 		SeriesFolder:      "series",
+		AnimeFolder:       "anime",
+		AnimeMoviesFolder: "anime-movies",
 		VPNCountries:      "Netherlands",
 		SubtitleLanguages: "en",
 		Username:          "iglo",

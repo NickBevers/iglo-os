@@ -156,8 +156,26 @@ func TestJellyfinLibrariesUseTheFolders(t *testing.T) {
 
 	// Installs from before the folders could be chosen keep movies and tv.
 	libraries = jellyfinLibraries(Config{})
-	if libraries[0].path != "/data/media/movies" || libraries[1].path != "/data/media/tv" {
+	if len(libraries) != 2 || libraries[0].path != "/data/media/movies" || libraries[1].path != "/data/media/tv" {
 		t.Fatalf("default libraries = %+v", libraries)
+	}
+
+	// Anime folders get libraries of their own.
+	libraries = jellyfinLibraries(Config{MoviesFolder: "movies", SeriesFolder: "series", AnimeFolder: "anime", AnimeMoviesFolder: "anime-movies"})
+	if len(libraries) != 4 || libraries[2] != (jellyfinLibrary{name: "Anime", collectionType: "tvshows", path: "/data/media/anime"}) ||
+		libraries[3] != (jellyfinLibrary{name: "Anime Movies", collectionType: "movies", path: "/data/media/anime-movies"}) {
+		t.Fatalf("anime libraries = %+v", libraries)
+	}
+}
+
+func TestAnimeFoldersFallBack(t *testing.T) {
+	anime, animeMovies := Config{MoviesFolder: "Films", SeriesFolder: "TV"}.animeFolders()
+	if anime != "TV" || animeMovies != "Films" {
+		t.Fatalf("without anime folders: %q %q", anime, animeMovies)
+	}
+	anime, animeMovies = Config{AnimeFolder: "Anime", AnimeMoviesFolder: "Anime Films"}.animeFolders()
+	if anime != "Anime" || animeMovies != "Anime Films" {
+		t.Fatalf("with anime folders: %q %q", anime, animeMovies)
 	}
 }
 

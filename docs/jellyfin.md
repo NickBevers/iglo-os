@@ -13,13 +13,13 @@ If the media stack already uses a Videos share, the form chooses that one.
 
 ### What the installer does
 
-1. Checks the Videos share, and makes the movies and series folders on it when they do not exist and the share has write access.
+1. Checks the Videos share, and makes the movies, series and anime folders on it when they do not exist and the share has write access.
 2. Makes a Debian 13 container named `jellyfin` (4 cores, 3 GB memory, 16 GB disk) with the tags `iglo` and `jellyfin`.
 3. Gives the container the share at `/data/media`, read-only. The share mounts before the container starts. Jellyfin keeps its own data on the disk of the container.
 4. Installs Jellyfin from the official repository, `repo.jellyfin.org`. The Updates page updates it later, with the other containers.
 5. Passes the GPU of the host to the container, when the host has one (see below).
 6. Finishes the setup wizard with your admin account.
-7. Adds the libraries **Movies** (`/data/media/<movies folder>`) and **Series** (`/data/media/<series folder>`).
+7. Adds the libraries **Movies** (`/data/media/<movies folder>`) and **Series** (`/data/media/<series folder>`), and **Anime** and **Anime Movies** for the anime folders, when they are set.
 8. Turns on the Netflix theme, if you chose it.
 9. Makes an API key for Iglo-OS and connects the Jellyfin page of Iglo-OS with it. The key never goes to the browser.
 

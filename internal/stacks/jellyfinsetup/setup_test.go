@@ -256,3 +256,19 @@ vainfo: Supported profile and entrypoints
 		t.Fatalf("empty = %+v", got)
 	}
 }
+
+func TestSetupAddsAnimeLibraries(t *testing.T) {
+	fake := &fakeJellyfin{encoding: map[string]any{"HardwareAccelerationType": "none", "EncodingThreadCount": -1}}
+	server := httptest.NewServer(fake)
+	defer server.Close()
+
+	cfg := testConfig(server.URL)
+	cfg.AnimePath, cfg.AnimeMoviesPath = "/data/media/anime", "/data/media/anime-movies"
+	if _, err := Setup(context.Background(), cfg); err != nil {
+		t.Fatal(err)
+	}
+	if len(fake.libraries) != 4 || fake.libraries[2]["Name"] != "Anime" || fake.libraries[2]["CollectionType"] != "tvshows" ||
+		fake.libraries[3]["Name"] != "Anime Movies" || fake.libraries[3]["CollectionType"] != "movies" {
+		t.Fatalf("libraries = %v", fake.libraries)
+	}
+}

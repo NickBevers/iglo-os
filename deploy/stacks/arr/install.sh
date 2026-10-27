@@ -69,11 +69,13 @@ load_answers() {
     local line key value
     JELLYFIN_API_KEY="" JELLYFIN_ADMIN_USERNAME="" JELLYFIN_ADMIN_PASSWORD=""
     OPENSUBTITLES_USERNAME="" OPENSUBTITLES_PASSWORD=""
+    ANIME_FOLDER="" ANIME_MOVIES_FOLDER=""
     while IFS= read -r line || [[ -n "$line" ]]; do
         [[ -z "$line" ]] && continue
         key="${line%%=*}" value="${line#*=}"
         case "$key" in
-            VIDEOS_BINDING | MOVIES_FOLDER | SERIES_FOLDER | WIREGUARD_PRIVATE_KEY | VPN_COUNTRIES | \
+            VIDEOS_BINDING | MOVIES_FOLDER | SERIES_FOLDER | ANIME_FOLDER | ANIME_MOVIES_FOLDER | \
+                WIREGUARD_PRIVATE_KEY | VPN_COUNTRIES | \
                 SUBTITLE_LANGUAGES | ARR_USERNAME | ARR_PASSWORD | JELLYFIN_API_KEY | JELLYFIN_ADMIN_USERNAME | \
                 JELLYFIN_ADMIN_PASSWORD | OPENSUBTITLES_USERNAME | OPENSUBTITLES_PASSWORD | RESTART_JELLYFIN | \
                 STORAGE | DOWNLOADS_SIZE | FLARESOLVERR | ANIME_INDEXERS)
@@ -107,9 +109,11 @@ ask_settings() {
 
     echo "Connect the Videos share on the Storage page of Iglo-OS first, with write access."
     ask VIDEOS_BINDING "ID of the Videos share"
-    echo "Movies and series each get a folder in it, and a library in Jellyfin."
+    echo "Movies, series, anime and anime movies each get a folder in it, and a library in Jellyfin."
     ask MOVIES_FOLDER "Folder for movies" "movies"
     ask SERIES_FOLDER "Folder for series" "series"
+    ask ANIME_FOLDER "Folder for anime series" "anime"
+    ask ANIME_MOVIES_FOLDER "Folder for anime movies" "anime-movies"
     check_folders
 
     echo "Get a WireGuard key at https://account.proton.me/u/0/vpn/WireGuard"
@@ -148,19 +152,20 @@ ask_settings() {
     fi
 }
 
-# prepare_videos checks the Videos share and makes the movies and series
-# folders. The apps of the stack write there, so the share needs write access.
+# prepare_videos checks the Videos share and makes the media folders. The
+# apps of the stack write there, so the share needs write access.
 prepare_videos() {
     require_binding "$VIDEOS_BINDING" videos rw
-    make_share_folders "$MOVIES_FOLDER" "$SERIES_FOLDER"
+    media_folders
+    make_share_folders "${MEDIA_FOLDERS[@]}"
     check_writable
 }
 
-# check_writable makes sure that the containers can write in the movies and
-# series folders. The NAS can still refuse the SMB user.
+# check_writable makes sure that the containers can write in the media
+# folders. The NAS can still refuse the SMB user.
 check_writable() {
     local folder dir
-    for folder in "$MOVIES_FOLDER" "$SERIES_FOLDER"; do
+    for folder in "${MEDIA_FOLDERS[@]}"; do
         dir="$BINDING_PATH/$folder"
         if ! setpriv --reuid="$HOST_CONTAINER_UID" --regid="$HOST_CONTAINER_UID" --clear-groups touch "$dir/.iglo-write-test" 2>/dev/null; then
             die "containers can't write to $folder on the Videos share. On the NAS, give the SMB user of that share write access"
@@ -232,6 +237,8 @@ PROWLARR_API_KEY=$(openssl rand -hex 16)
 SUBTITLE_LANGUAGES=$SUBTITLE_LANGUAGES
 MOVIES_FOLDER=$MOVIES_FOLDER
 SERIES_FOLDER=$SERIES_FOLDER
+ANIME_FOLDER=$ANIME_FOLDER
+ANIME_MOVIES_FOLDER=$ANIME_MOVIES_FOLDER
 FLARESOLVERR=$FLARESOLVERR
 ANIME_INDEXERS=$ANIME_INDEXERS
 COMPOSE_PROFILES=$([[ "$FLARESOLVERR" == y ]] && echo flaresolverr)

@@ -11,12 +11,16 @@ The install forms of Jellyfin and the media stack list the Videos shares. When o
 
 ## Folders
 
-Movies and series each get their own folder on the share. The forms ask for both names:
+Movies, series, anime and anime movies each get their own folder on the share, and their own library in Jellyfin. The forms ask for the names:
 
-| Folder | Default  | On the NAS              | In the apps and Jellyfin |
-| ------ | -------- | ----------------------- | ------------------------ |
-| Movies | `movies` | `Videos/movies`         | `/data/media/movies`     |
-| Series | `series` | `Videos/series`         | `/data/media/series`     |
+| Folder       | Default        | On the NAS            | In the apps and Jellyfin   |
+| ------------ | -------------- | --------------------- | -------------------------- |
+| Movies       | `movies`       | `Videos/movies`       | `/data/media/movies`       |
+| Series       | `series`       | `Videos/series`       | `/data/media/series`       |
+| Anime        | `anime`        | `Videos/anime`        | `/data/media/anime`        |
+| Anime movies | `anime-movies` | `Videos/anime-movies` | `/data/media/anime-movies` |
+
+The anime folders are optional. Leave them empty to keep anime in the series and movies folders. All folders need different names.
 
 - If a folder does not exist, the installer makes it. On a share without write access, make the folders on the NAS first.
 - The installers never change folders or files that exist.
@@ -30,6 +34,6 @@ If the media stack can't write to a folder, the NAS refuses the SMB user. Give t
 ## Good to know
 
 - Proxmox does not back up the share with the containers: a backup of a container skips its shares. Back up your media in another way, for example on the NAS.
-- An install that fails removes its container. The movies and series folders that it made stay.
+- An install that fails removes its container. The folders that it made stay.
 - Removing an app keeps the share and the media. Disconnect the share on the Storage page once no app uses it.
 - NFS shares and folders on a disk of the host are not supported for media.

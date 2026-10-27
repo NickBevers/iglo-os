@@ -155,13 +155,25 @@ remove_app() {
 # Unprivileged LXCs shift ids by 100000, and the apps of the media stack run as uid 1000.
 HOST_CONTAINER_UID=101000
 
-# check_folders allows two different folder names in the share, and no paths.
+# media_folders sets MEDIA_FOLDERS to the folders of the Videos share: movies
+# and series, and the anime folders when they are set. Without them, anime
+# stays in the series and movies folders, like stacks from before them.
+media_folders() {
+    MEDIA_FOLDERS=("${MOVIES_FOLDER:-}" "${SERIES_FOLDER:-}")
+    [[ -z "${ANIME_FOLDER:-}" ]] || MEDIA_FOLDERS+=("$ANIME_FOLDER")
+    [[ -z "${ANIME_MOVIES_FOLDER:-}" ]] || MEDIA_FOLDERS+=("$ANIME_MOVIES_FOLDER")
+}
+
+# check_folders allows different folder names in the share, and no paths.
 check_folders() {
     local folder pattern='^[A-Za-z0-9]([A-Za-z0-9 ._-]{0,62}[A-Za-z0-9_-])?$'
-    for folder in "${MOVIES_FOLDER:-}" "${SERIES_FOLDER:-}"; do
+    local -A seen=()
+    media_folders
+    for folder in "${MEDIA_FOLDERS[@]}"; do
         if [[ ! "$folder" =~ $pattern || "$folder" == *..* ]]; then
-            die "'$folder' is not a folder name, use something like movies or series"
+            die "'$folder' is not a folder name, use something like movies, series or anime"
         fi
+        [[ -z "${seen[${folder,,}]:-}" ]] || die "the media folders need different names, '$folder' is used twice"
+        seen[${folder,,}]=1
     done
-    [[ "${MOVIES_FOLDER,,}" != "${SERIES_FOLDER,,}" ]] || die "movies and series need different folders"
 }

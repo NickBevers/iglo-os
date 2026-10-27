@@ -16,6 +16,8 @@ func validAnswers() MediaStackAnswers {
 		VideosBinding:         "videos",
 		MoviesFolder:          "movies",
 		SeriesFolder:          "TV Shows",
+		AnimeFolder:           "anime",
+		AnimeMoviesFolder:     "anime-movies",
 		WireGuardPrivateKey:   "cGVyZmVjdGx5IHZhbGlkIGtleSBvZiAzMiBieXRlcyE=",
 		VPNCountries:          "Netherlands,Switzerland",
 		SubtitleLanguages:     "en,nl",
@@ -49,6 +51,10 @@ func TestMediaStackAnswersValidate(t *testing.T) {
 		"folder newline":             func(a *MediaStackAnswers) { a.MoviesFolder = "movies\nARR_PASSWORD=x" },
 		"same folders":               func(a *MediaStackAnswers) { a.SeriesFolder = "Movies" },
 		"empty folder":               func(a *MediaStackAnswers) { a.MoviesFolder = "" },
+		"anime is series":            func(a *MediaStackAnswers) { a.AnimeFolder = "tv shows" },
+		"anime movies is anime":      func(a *MediaStackAnswers) { a.AnimeMoviesFolder = "Anime" },
+		"anime folder up":            func(a *MediaStackAnswers) { a.AnimeFolder = "../anime" },
+		"anime folder newline":       func(a *MediaStackAnswers) { a.AnimeMoviesFolder = "x\nARR_PASSWORD=x" },
 		"admin without password":     func(a *MediaStackAnswers) { a.JellyfinAdminPassword = "" },
 		"admin password newline":     func(a *MediaStackAnswers) { a.JellyfinAdminPassword = "a\nARR_PASSWORD=x" },
 		"admin name with slash":      func(a *MediaStackAnswers) { a.JellyfinAdminUsername = "a/b" },
@@ -128,7 +134,8 @@ func TestAppInstall(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	for _, line := range []string{"FLARESOLVERR=y\n", "ANIME_INDEXERS=y\n", "VIDEOS_BINDING=videos\n", "SERIES_FOLDER=TV Shows\n", "ARR_PASSWORD=correct horse battery\n", "RESTART_JELLYFIN=y\n", "DOWNLOADS_SIZE=200\n"} {
+	for _, line := range []string{"FLARESOLVERR=y\n", "ANIME_INDEXERS=y\n", "VIDEOS_BINDING=videos\n", "SERIES_FOLDER=TV Shows\n",
+		"ANIME_FOLDER=anime\n", "ANIME_MOVIES_FOLDER=anime-movies\n", "ARR_PASSWORD=correct horse battery\n", "RESTART_JELLYFIN=y\n", "DOWNLOADS_SIZE=200\n"} {
 		if !strings.Contains(string(answers), line) {
 			t.Errorf("answers miss %q:\n%s", line, answers)
 		}
@@ -339,6 +346,24 @@ func validJellyfin() JellyfinAnswers {
 	return JellyfinAnswers{
 		VideosBinding: "videos", MoviesFolder: "movies", SeriesFolder: "series",
 		AdminUsername: "dries", AdminPassword: "jelly pass", Theme: true, Storage: "local-lvm",
+	}
+}
+
+func TestAnimeFoldersAreOptional(t *testing.T) {
+	// Answers from before the anime folders keep anime in series and movies.
+	answers := validAnswers()
+	answers.AnimeFolder, answers.AnimeMoviesFolder = "", ""
+	if err := answers.Validate(); err != nil {
+		t.Fatal(err)
+	}
+	jellyfin := validJellyfin()
+	jellyfin.AnimeFolder, jellyfin.AnimeMoviesFolder = "", "Anime Films"
+	if err := jellyfin.Validate(); err != nil {
+		t.Fatal(err)
+	}
+	jellyfin.AnimeMoviesFolder = "movies"
+	if err := jellyfin.Validate(); err == nil {
+		t.Fatal("anime movies in the movies folder passed")
 	}
 }
 

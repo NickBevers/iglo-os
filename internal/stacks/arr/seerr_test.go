@@ -94,7 +94,8 @@ func seerrConfig() Config {
 		JellyfinURL:           "http://192.168.1.20:8096",
 		JellyfinAdminUsername: "dries", JellyfinAdminPassword: "secret",
 		SeriesFolder: "TV Shows",
-		Logf:         func(string, ...any) {},
+		AnimeFolder:  "Anime", AnimeMoviesFolder: "Anime Movies",
+		Logf: func(string, ...any) {},
 	}
 }
 
@@ -126,7 +127,7 @@ func TestConfigureSeerr(t *testing.T) {
 	}
 	// Anime films go to their own profile with the anime tag, by a rule on Radarr 0.
 	if len(fake.rules) != 1 || fake.rules[0]["radarrServiceId"] != float64(0) || fake.rules[0]["keywords"] != "210024" ||
-		fake.rules[0]["profileId"] != float64(12) || fake.rules[0]["tags"] != "5" {
+		fake.rules[0]["profileId"] != float64(12) || fake.rules[0]["tags"] != "5" || fake.rules[0]["rootFolder"] != "/data/media/Anime Movies" {
 		t.Fatalf("rules = %v", fake.rules)
 	}
 	if metadata := fake.bodies["PUT /settings/metadatas"]; metadata["anime"] != "tvdb" || metadata["tv"] != "tmdb" {
@@ -135,7 +136,7 @@ func TestConfigureSeerr(t *testing.T) {
 	// No WEB-1080p yet, so the default of Sonarr.
 	sonarr := fake.bodies["POST /settings/sonarr"]
 	if sonarr["activeProfileName"] != "HD-1080p" || sonarr["activeDirectory"] != "/data/media/TV Shows" || sonarr["enableSeasonFolders"] != true ||
-		sonarr["activeAnimeProfileId"] != float64(9) || sonarr["activeAnimeDirectory"] != "/data/media/TV Shows" ||
+		sonarr["activeAnimeProfileId"] != float64(9) || sonarr["activeAnimeDirectory"] != "/data/media/Anime" ||
 		!slices.Equal(sonarr["animeTags"].([]any), []any{float64(2)}) {
 		t.Fatalf("sonarr = %v", sonarr)
 	}

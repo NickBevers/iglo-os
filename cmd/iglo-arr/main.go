@@ -78,6 +78,8 @@ func configure(args []string) error {
 		SubtitleLanguages:     strings.Split(env["SUBTITLE_LANGUAGES"], ","),
 		MoviesFolder:          env["MOVIES_FOLDER"],
 		SeriesFolder:          env["SERIES_FOLDER"],
+		AnimeFolder:           env["ANIME_FOLDER"],
+		AnimeMoviesFolder:     env["ANIME_MOVIES_FOLDER"],
 		// Stacks from before FlareSolverr was optional have no answer: they run it.
 		FlareSolverr:     env["FLARESOLVERR"] != "n",
 		AnimeIndexers:    env["ANIME_INDEXERS"] == "y",
