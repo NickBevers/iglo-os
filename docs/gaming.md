@@ -72,6 +72,19 @@ the container down and ends the hold. Save in the game and quit the emulator
 before you stop. If the start fails, the hold ends again. Stopping the container
 in Proxmox does not end the hold; it expires on its own.
 
+While the container runs, the manager asks Wolf for its Moonlight sessions every
+10 seconds. A running session holds heavy background work too, at least 15
+minutes ahead, also when the container was started in Proxmox and not with
+Play. It never shortens the hold of Play. The page shows which device plays,
+at what resolution. Wolf's stream keys stay on the host.
+
+Every screen shares the same saves, so only the first session may run. When a
+second device starts one, the manager stops it within about 10 seconds, before
+its emulator gets far enough to write saves, and logs a warning. A device that
+disconnects without quitting keeps its session. To switch to another screen,
+quit the game on the first one, or press **End session** on the Gaming page.
+Save in the game first: ending a session stops its emulator.
+
 ## Pair and configure on a PC first
 
 1. Install the official Moonlight client on a PC. Add the gaming guest's IP.
@@ -83,7 +96,7 @@ in Proxmox does not end the hold; it expires on its own.
    or pairing endpoint to the internet.
 3. Start at **1080p, 60 FPS, SDR, H.264**, with hardware decoding enabled and a
    wired connection. Press **Play** on the Gaming page and verify that new
-   background work stops. Iglo-OS does not detect Moonlight sessions itself.
+   background work stops. Once the stream runs, the page shows it as playing.
 4. Launch **Retro games**. In ES-DE choose `/ROMs` as the ROM root. If it asks to
    create folders, create them on the NAS beforehand; do not grant write access
    just to satisfy onboarding. Disable ROM-directory media/gamelist writes.
@@ -97,9 +110,9 @@ in Proxmox does not end the hold; it expires on its own.
 Wolf persists the default app home under
 `/etc/wolf/profile_data/moonlight-profile-id/Retro games` in this config.
 Both PC and TV launch the same **Retro games** profile so sequential sessions
-share settings and saves. Use **only one active session at a time**. The proof of
-concept does not enforce a single-client limit; simultaneous writes can corrupt
-saves. Save in-game and quit the emulator before disconnecting/switching clients.
+share settings and saves. The manager keeps one session at a time, so two
+screens can't write the same saves at once. Save in-game and quit the emulator
+before disconnecting or switching clients.
 
 ## Acceptance tests on the target hardware
 

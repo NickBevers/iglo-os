@@ -26,7 +26,7 @@ This limits **queues accepting work**, not individual worker processes. Set each
 
 The daily window uses its explicit IANA timezone, supports crossing midnight and follows local daylight-saving changes. Its start is inclusive and its end exclusive. Turn the window off for all-day processing.
 
-**Protect gaming for 2 hours** creates an expiring hold. **End protection** removes the hold; memory and time-window checks still apply. This is manual protection, not automatic Wolf/Moonlight session detection. **Play** on the [Gaming page](gaming.md#the-gaming-page) sets an 8-hour hold, and **Stop** ends it.
+**Protect gaming for 2 hours** creates an expiring hold. **End protection** removes the hold; memory and time-window checks still apply. **Play** on the [Gaming page](gaming.md#the-gaming-page) sets an 8-hour hold, and **Stop** ends it. A running Moonlight session keeps a hold at least 15 minutes ahead by itself, also without Play.
 
 ## Recovery and secrets
 
@@ -43,7 +43,7 @@ The encrypted manager data backup includes this file. Plain `iglo.yaml` export d
 | Immich analysis and video conversion | Selected queue admission, low concurrency, processing windows; test Intel OpenVINO/Quick Sync where supported | Queue admission implemented here; worker tuning and acceleration remain native configuration. |
 | Jellyfin playback | Prefer direct play; Intel Quick Sync for required transcodes | Existing Jellyfin integration; this controller does not change playback settings. |
 | FileFlows | One conversion runner initially, native processing schedules and a short admission lease | Install Inbox, configure the supplied native pre-execute script. Licensed API automation and GPU acceleration are not configured. |
-| Emulation and streaming | Test native graphics backend, resolution and hardware stream encoding; defer background work | Manual timed protection; no GPU reservation or automatic session integration. |
+| Emulation and streaming | Test native graphics backend, resolution and hardware stream encoding; defer background work | Timed protection from Play, and a hold while Wolf reports a Moonlight session; no GPU reservation. |
 | Music imports | One native worker, local staging, short admission lease and manual pause | Music installer and Music work page; independent worker control follows gaming/window/headroom policy. |
 | Backups | Separate ordinary backups from expensive verification/pruning and conversion windows | Existing backup scheduler; this controller does not pause backups. |
 | LXC resource controls | CPU weights/quotas and measured memory limits | Native Proxmox configuration; no automatic live memory shrinking. |

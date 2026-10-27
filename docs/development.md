@@ -18,6 +18,7 @@ Open http://localhost:5173 and log in with `admin` / `iglo-dev-password` and the
 - The fake host agent has a NAS share mounted for the apps. To choose the media folder in the install forms, run `touch .dev/no-media-mount`. A working install mounts its answer again.
 - A fake `tailscale` CLI (`dev/bin/tailscale`) logs in 5 seconds after you click Connect.
 - The console opens a shell on your own computer, not in a container.
+- While the fake gaming container runs, a PC plays on Moonlight. To let a TV join and see the manager stop its session, run `touch .dev/gaming-second-session`.
 - Everything you change stays in `.dev/`. Delete that folder to start again.
 - A fake Jellyfin on `http://127.0.0.1:18096` has a library, two things playing and recent items. The manager is connected to it on the first start. Images are not faked.
 - The self-update check needs the real GitHub.
