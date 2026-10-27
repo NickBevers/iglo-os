@@ -519,9 +519,14 @@ func (s *Service) checkTasks(ctx context.Context) {
 		}
 	}
 
+	// Most checks find no new task, so only a new one is written to disk.
 	s.mu.Lock()
-	s.state.LastTask = newest
-	err = s.save()
+	if newest != s.state.LastTask {
+		s.state.LastTask = newest
+		err = s.save()
+	} else {
+		err = nil
+	}
 	s.mu.Unlock()
 	if err != nil {
 		s.Logger.Error("could not save backup state", "error", err)
