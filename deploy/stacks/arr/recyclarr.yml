@@ -10,6 +10,13 @@ radarr:
       - trash_id: d1d67249d3890e49bc12e275d989a7e9 # HD Bluray + WEB
         reset_unmatched_scores:
           enabled: true
+      # For films that Seerr knows as anime, by an override rule. Like the
+      # series profile, it wants the original language and rejects releases
+      # that are only dubbed ("Dubs Only" scores -10000).
+      # https://trash-guides.info/Radarr/radarr-setup-quality-profiles-anime/
+      - trash_id: 722b624f9af1e492284c4bc842153a38 # [Anime] Remux-1080p
+        reset_unmatched_scores:
+          enabled: true
 
 sonarr:
   series:
@@ -22,7 +29,8 @@ sonarr:
         reset_unmatched_scores:
           enabled: true
       # For series that Seerr sends as anime. One Sonarr has one set of quality
-      # sizes, so anime shares the series sizes above.
+      # sizes, so anime shares the series sizes above. "Dubs Only" scores
+      # -10000 here too.
       # https://trash-guides.info/Sonarr/sonarr-setup-quality-profiles-anime/
       - trash_id: 20e0fc959f1f1704bed501f23bdae76f # [Anime] Remux-1080p
         reset_unmatched_scores:

@@ -76,7 +76,10 @@ type Config struct {
 
 	// QBittorrentTempPassword returns the one-time password qBittorrent logs on first start.
 	QBittorrentTempPassword func(context.Context) (string, error)
-	Logf                    func(format string, args ...any)
+	// SyncProfiles runs Recyclarr once, so its quality profiles exist before
+	// Seerr picks them. Optional: without it, Recyclarr makes them within a day.
+	SyncProfiles func(context.Context) error
+	Logf         func(format string, args ...any)
 }
 
 // Endpoints are the published ports this tool uses to reach the apps.
@@ -151,6 +154,14 @@ func Configure(ctx context.Context, cfg Config) error {
 		cfg.Logf("Configuring %s", step.name)
 		if err := step.run(ctx); err != nil {
 			return fmt.Errorf("%s: %w", step.name, err)
+		}
+	}
+
+	// Recyclarr fetches the TRaSH Guides from GitHub, so a failure only warns.
+	if cfg.SyncProfiles != nil {
+		cfg.Logf("Syncing the quality profiles with Recyclarr")
+		if err := cfg.SyncProfiles(ctx); err != nil {
+			cfg.Logf("Recyclarr could not sync now, it tries again every day: %v", err)
 		}
 	}
 

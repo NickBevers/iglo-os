@@ -221,9 +221,10 @@ func (f *fakeInstalls) play(stack, answers, logPath, exitPath string) {
 			"==> Passing the GPU (/dev/dri/renderD128) to the container", "==> Setting up Jellyfin", "==> Finishing the setup wizard")
 	default:
 		steps = append(steps, "==> Creating container 130 (media)", "==> Installing Docker",
-			"==> Starting the stack (the first image download takes a few minutes)", "==> Waiting for the VPN")
+			"==> Starting the stack (the first image download takes a few minutes)", "==> Waiting for the VPN",
+			"==> Syncing the quality profiles with Recyclarr")
 		if !strings.Contains(answers, "JELLYFIN_ADMIN_USERNAME=\n") {
-			steps = append(steps, "==> Configuring Seerr")
+			steps = append(steps, "==> Configuring Seerr", "==> Anime films use the [Anime] Remux-1080p profile")
 		}
 	}
 	for _, step := range steps {

@@ -65,7 +65,7 @@ Give a Jellyfin admin username and password in the form, and the installer does 
 
 - that Jellyfin account becomes the owner of Seerr, so you log in to Seerr with it;
 - the movie and series libraries of Jellyfin are turned on;
-- Radarr and Sonarr are added, with the quality profile from Recyclarr and your movies and series folders. Sonarr also gets an anime profile, see below.
+- Radarr and Sonarr are added, with the quality profile from Recyclarr and your movies and series folders. Anime gets its own profile in both, see below.
 
 Without a Jellyfin admin, open Seerr after the install and do its setup yourself. Until then, anyone on your network can open it. If Seerr is already set up, the installer leaves it alone.
 
@@ -75,11 +75,17 @@ The agent checks every answer before it writes them to a file that only root can
 
 ## Anime
 
-Anime goes through the same Sonarr and the same series folder, with settings of its own:
+Anime goes through the same Sonarr and Radarr and the same folders, with settings of its own:
 
 - **Trackers.** With **Anime trackers** on in the form, the installer adds the public trackers Nyaa.si and Anime Tosho to Prowlarr, which passes them on to Sonarr and Radarr. They need no account. When one can't be added, the install goes on and its log says so; add it in Prowlarr yourself.
-- **Quality.** Recyclarr syncs the TRaSH Guides profile **[Anime] Remux-1080p** into Sonarr, next to WEB-1080p. One Sonarr has one set of quality sizes, so anime uses the series sizes.
-- **Requests.** Seerr knows which series are anime. It sends them to Sonarr as the anime series type, which numbers episodes the anime way, with the anime profile. Until Recyclarr has made that profile, anime gets the normal one; change it later in Seerr under **Settings > Services > Sonarr**.
+- **Quality.** Recyclarr syncs the TRaSH Guides profile **[Anime] Remux-1080p** into Sonarr and into Radarr, next to the normal profiles. It scores the anime release groups, and it prefers BluRay, then the best web releases. One Sonarr has one set of quality sizes, so anime series use the series sizes; the same goes for films in Radarr.
+- **Japanese audio.** Both anime profiles reject a release that is only dubbed: TRaSH's "Dubs Only" format scores -10000. Japanese releases and dual audio (Japanese and English) pass. Most anime releases bring English subtitles in the file, and Bazarr adds them where they're missing. A dub that doesn't say so in its name can still slip through; delete it in Sonarr or Radarr and search again.
+- **Requests.** Seerr knows anime by TMDB's "anime" keyword. It sends anime series to Sonarr as the anime series type, which numbers episodes the anime way, with the anime profile. For films, Seerr has no anime profile, so the installer adds an override rule to Radarr: the anime keyword (210024) gets the anime profile.
+- **The first sync.** The installer runs Recyclarr once before it sets up Seerr, so both anime profiles exist. When that sync fails, for example because GitHub can't be reached, Recyclarr tries again every day, anime uses the normal profiles, and the log says so. Then pick the anime profile in Seerr under **Settings > Services > Sonarr**, and add the rule for films under **Settings > Services** with **New Override Rule**: the Radarr service, the keyword "anime", and the quality profile [Anime] Remux-1080p.
+
+A media stack from before this change gets the Radarr anime profile with its next update, when Recyclarr syncs. Its Seerr is already set up, so add the override rule for films yourself, as above.
+
+Which audio and subtitles play is up to the player. Set the language preferences in Jellyfin, or in Kodi on the TV.
 
 ## VPN settings
 

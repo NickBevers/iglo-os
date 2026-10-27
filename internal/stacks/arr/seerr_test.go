@@ -3,6 +3,7 @@ package arr
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"slices"
@@ -18,6 +19,9 @@ type fakeSeerr struct {
 	calls       []string
 	bodies      map[string]map[string]any
 	radarr      []map[string]any
+	rules       []map[string]any
+	// noAnimeFilms leaves the anime profile out of Radarr, like before Recyclarr ran.
+	noAnimeFilms bool
 }
 
 func (f *fakeSeerr) ServeHTTP(w http.ResponseWriter, r *http.Request) {
@@ -51,12 +55,31 @@ func (f *fakeSeerr) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	case "GET /settings/sonarr":
 		w.Write([]byte(`[]`))
 	case "POST /settings/radarr/test":
-		w.Write([]byte(`{"profiles":[{"id":1,"name":"Any"},{"id":7,"name":"HD Bluray + WEB"}]}`))
+		w.Write([]byte(`{"profiles":` + f.radarrProfiles() + `}`))
+	case "GET /settings/radarr/0/profiles":
+		w.Write([]byte(f.radarrProfiles()))
+	case "POST /settings/radarr":
+		// Seerr numbers its first Radarr 0.
+		w.WriteHeader(http.StatusCreated)
+		w.Write([]byte(`{"id":0,"hostname":"radarr"}`))
+	case "GET /overrideRule":
+		json.NewEncoder(w).Encode(append([]map[string]any{}, f.rules...))
+	case "POST /overrideRule":
+		f.rules = append(f.rules, body)
+		json.NewEncoder(w).Encode(body)
 	case "POST /settings/sonarr/test":
 		w.Write([]byte(`{"profiles":[{"id":1,"name":"Any"},{"id":4,"name":"HD-1080p"},{"id":9,"name":"[Anime] Remux-1080p"}]}`))
 	default:
 		w.Write([]byte(`{}`))
 	}
+}
+
+func (f *fakeSeerr) radarrProfiles() string {
+	if f.noAnimeFilms {
+		return `[{"id":1,"name":"Any"},{"id":7,"name":"HD Bluray + WEB"}]`
+	}
+
+	return `[{"id":1,"name":"Any"},{"id":7,"name":"HD Bluray + WEB"},{"id":12,"name":"[Anime] Remux-1080p"}]`
 }
 
 func seerrConfig() Config {
@@ -95,6 +118,10 @@ func TestConfigureSeerr(t *testing.T) {
 	if radarr["hostname"] != "radarr" || radarr["activeProfileId"] != float64(7) || radarr["activeDirectory"] != "/data/media/movies" || radarr["apiKey"] != "radarr-key" {
 		t.Fatalf("radarr = %v", radarr)
 	}
+	// Anime films go to their own profile, by a rule on Radarr 0.
+	if len(fake.rules) != 1 || fake.rules[0]["radarrServiceId"] != float64(0) || fake.rules[0]["keywords"] != "210024" || fake.rules[0]["profileId"] != float64(12) {
+		t.Fatalf("rules = %v", fake.rules)
+	}
 	// No WEB-1080p yet, so the default of Sonarr.
 	sonarr := fake.bodies["POST /settings/sonarr"]
 	if sonarr["activeProfileName"] != "HD-1080p" || sonarr["activeDirectory"] != "/data/media/TV Shows" || sonarr["enableSeasonFolders"] != true ||
@@ -124,6 +151,50 @@ func TestConfigureSeerrSkipsWhatIsDone(t *testing.T) {
 	}
 	if slices.Contains(fake.calls, "POST /settings/radarr") || !slices.Contains(fake.calls, "POST /settings/sonarr") {
 		t.Fatalf("calls = %v", fake.calls)
+	}
+}
+
+func TestAnimeFilmRule(t *testing.T) {
+	// Radarr is already there, with its rule: nothing is added twice.
+	zero := float64(0)
+	fake := &fakeSeerr{bodies: map[string]map[string]any{}, radarr: []map[string]any{{"id": 0, "hostname": "radarr"}},
+		rules: []map[string]any{{"radarrServiceId": zero, "keywords": "1,210024"}}}
+	server := httptest.NewServer(fake)
+	defer server.Close()
+	if err := configureSeerr(context.Background(), seerrConfig(), newSeerr(server.URL, 5*time.Second)); err != nil {
+		t.Fatal(err)
+	}
+	if slices.Contains(fake.calls, "POST /overrideRule") {
+		t.Fatalf("added a second rule: %v", fake.rules)
+	}
+
+	// A rule for another Radarr doesn't count.
+	fake = &fakeSeerr{bodies: map[string]map[string]any{}, rules: []map[string]any{{"radarrServiceId": 3, "keywords": "210024"}}}
+	server2 := httptest.NewServer(fake)
+	defer server2.Close()
+	if err := configureSeerr(context.Background(), seerrConfig(), newSeerr(server2.URL, 5*time.Second)); err != nil {
+		t.Fatal(err)
+	}
+	if len(fake.rules) != 2 {
+		t.Fatalf("rules = %v", fake.rules)
+	}
+
+	// Before Recyclarr made the profile, anime films keep the normal one and
+	// the setup goes on.
+	var logs []string
+	cfg := seerrConfig()
+	cfg.Logf = func(format string, args ...any) { logs = append(logs, fmt.Sprintf(format, args...)) }
+	fake = &fakeSeerr{bodies: map[string]map[string]any{}, noAnimeFilms: true}
+	server3 := httptest.NewServer(fake)
+	defer server3.Close()
+	if err := configureSeerr(context.Background(), cfg, newSeerr(server3.URL, 5*time.Second)); err != nil {
+		t.Fatal(err)
+	}
+	if len(fake.rules) != 0 || !slices.Contains(fake.calls, "POST /settings/initialize") {
+		t.Fatalf("rules = %v, calls = %v", fake.rules, fake.calls)
+	}
+	if !slices.ContainsFunc(logs, func(line string) bool { return strings.Contains(line, "no [Anime] Remux-1080p profile yet") }) {
+		t.Fatalf("logs = %v", logs)
 	}
 }
 

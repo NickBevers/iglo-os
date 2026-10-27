@@ -18,6 +18,7 @@ import (
 	"os/signal"
 	"strings"
 	"syscall"
+	"time"
 
 	"iglo/internal/stacks/arr"
 )
@@ -86,6 +87,7 @@ func configure(args []string) error {
 		QBittorrentTempPassword: func(ctx context.Context) (string, error) {
 			return qbittorrentTempPassword(ctx)
 		},
+		SyncProfiles: syncProfiles,
 		Logf: func(format string, args ...any) {
 			fmt.Printf("==> "+format+"\n", args...)
 		},
@@ -124,6 +126,27 @@ func readEnv(path string) (map[string]string, error) {
 	}
 
 	return env, nil
+}
+
+// syncProfiles runs Recyclarr once, instead of waiting for its daily run.
+// Checked against Recyclarr v8.8.0: its CLI is on the PATH of the container.
+func syncProfiles(ctx context.Context) error {
+	ctx, cancel := context.WithTimeout(ctx, 5*time.Minute)
+	defer cancel()
+
+	output, err := exec.CommandContext(ctx, "docker", "exec", "recyclarr", "recyclarr", "sync").CombinedOutput()
+	if err != nil {
+		return fmt.Errorf("recyclarr sync: %w: %s", err, lastLines(string(output), 5))
+	}
+
+	return nil
+}
+
+// lastLines returns the last n lines of output, for an error message.
+func lastLines(output string, n int) string {
+	lines := strings.Split(strings.TrimSpace(output), "\n")
+
+	return strings.Join(lines[max(0, len(lines)-n):], "\n")
 }
 
 // qbittorrentTempPassword reads the one-time password qBittorrent logs on first start.

@@ -30,6 +30,16 @@ var (
 	animeProfiles = []string{"[Anime] Remux-1080p", "WEB-1080p", "HD-1080p"}
 )
 
+// Seerr has an anime profile for Sonarr only. For films it has override rules,
+// which match a TMDB keyword. Checked against Seerr v3.5.1 on 27 October 2026:
+// a rule needs only radarrServiceId, keywords and profileId, and applies to
+// every request to that Radarr.
+const (
+	animeFilmProfile = "[Anime] Remux-1080p"
+	// animeKeyword is ANIME_KEYWORD_ID in Seerr, the TMDB keyword "anime".
+	animeKeyword = "210024"
+)
+
 func newSeerr(baseURL string, timeout time.Duration) *apiClient {
 	// Seerr keeps the login in a session cookie.
 	jar, _ := cookiejar.New(nil)
@@ -42,6 +52,7 @@ func newSeerr(baseURL string, timeout time.Duration) *apiClient {
 }
 
 type seerrService struct {
+	ID       int    `json:"id"`
 	Hostname string `json:"hostname"`
 }
 
@@ -112,8 +123,14 @@ func configureSeerr(ctx context.Context, cfg Config, seerr *apiClient) error {
 		"minimumAvailability": "released", "is4k": false, "isDefault": true,
 		"tags": []int{}, "syncEnabled": true, "preventSearch": false, "tagRequests": false, "overrideRule": []int{},
 	}
-	if err := addSeerrService(ctx, seerr, "radarr", radarr, radarrProfiles, nil); err != nil {
+	radarrID, radarrFound, err := addSeerrService(ctx, seerr, "radarr", radarr, radarrProfiles, nil)
+	if err != nil {
 		return err
+	}
+	// Without the rule, anime films use the normal profile. That is no reason
+	// to stop the setup.
+	if err := addAnimeFilmRule(ctx, cfg, seerr, radarrID, radarrFound); err != nil {
+		cfg.Logf("Could not send anime films to their own profile, add an override rule in Seerr: %v", err)
 	}
 
 	sonarr := map[string]any{
@@ -124,7 +141,7 @@ func configureSeerr(ctx context.Context, cfg Config, seerr *apiClient) error {
 		"is4k": false, "isDefault": true,
 		"tags": []int{}, "syncEnabled": true, "preventSearch": false, "tagRequests": false, "overrideRule": []int{},
 	}
-	if err := addSeerrService(ctx, seerr, "sonarr", sonarr, sonarrProfiles, animeProfiles); err != nil {
+	if _, _, err := addSeerrService(ctx, seerr, "sonarr", sonarr, sonarrProfiles, animeProfiles); err != nil {
 		return err
 	}
 
@@ -133,14 +150,19 @@ func configureSeerr(ctx context.Context, cfg Config, seerr *apiClient) error {
 
 // addSeerrService adds Radarr or Sonarr, with the first profile that exists,
 // and for Sonarr with anime too the first anime profile that exists. It skips
-// a service that Seerr already has.
-func addSeerrService(ctx context.Context, seerr *apiClient, kind string, settings map[string]any, wanted, anime []string) error {
+// a service that Seerr already has. It returns the ID of the service in Seerr
+// and the profiles it has.
+func addSeerrService(ctx context.Context, seerr *apiClient, kind string, settings map[string]any, wanted, anime []string) (int, []seerrProfile, error) {
 	var existing []seerrService
 	if err := seerr.do(ctx, http.MethodGet, "/settings/"+kind, nil, &existing); err != nil {
-		return err
+		return 0, nil, err
 	}
-	if slices.ContainsFunc(existing, func(service seerrService) bool { return service.Hostname == settings["hostname"] }) {
-		return nil
+	if index := slices.IndexFunc(existing, func(service seerrService) bool { return service.Hostname == settings["hostname"] }); index >= 0 {
+		id := existing[index].ID
+		var profiles []seerrProfile
+		err := seerr.do(ctx, http.MethodGet, "/settings/"+kind+"/"+strconv.Itoa(id)+"/profiles", nil, &profiles)
+
+		return id, profiles, err
 	}
 
 	test := map[string]any{"hostname": settings["hostname"], "port": settings["port"], "apiKey": settings["apiKey"], "useSsl": false, "baseUrl": ""}
@@ -148,12 +170,12 @@ func addSeerrService(ctx context.Context, seerr *apiClient, kind string, setting
 		Profiles []seerrProfile `json:"profiles"`
 	}
 	if err := seerr.do(ctx, http.MethodPost, "/settings/"+kind+"/test", test, &found); err != nil {
-		return err
+		return 0, nil, err
 	}
 
 	profile, ok := pickProfile(found.Profiles, wanted)
 	if !ok {
-		return fmt.Errorf("%s has no quality profiles", kind)
+		return 0, nil, fmt.Errorf("%s has no quality profiles", kind)
 	}
 	settings["activeProfileId"] = profile.ID
 	settings["activeProfileName"] = profile.Name
@@ -163,7 +185,43 @@ func addSeerrService(ctx context.Context, seerr *apiClient, kind string, setting
 		settings["activeAnimeProfileName"] = animeProfile.Name
 	}
 
-	return seerr.do(ctx, http.MethodPost, "/settings/"+kind, settings, nil)
+	var added seerrService
+	if err := seerr.do(ctx, http.MethodPost, "/settings/"+kind, settings, &added); err != nil {
+		return 0, nil, err
+	}
+
+	return added.ID, found.Profiles, nil
+}
+
+// addAnimeFilmRule sends films with the anime keyword to the anime profile of
+// Radarr, when Recyclarr has made it. It adds the rule once.
+func addAnimeFilmRule(ctx context.Context, cfg Config, seerr *apiClient, radarrID int, profiles []seerrProfile) error {
+	index := slices.IndexFunc(profiles, func(profile seerrProfile) bool { return profile.Name == animeFilmProfile })
+	if index < 0 {
+		cfg.Logf("Radarr has no %s profile yet, so anime films use the normal one. Add an override rule in Seerr once Recyclarr made it", animeFilmProfile)
+		return nil
+	}
+
+	var rules []struct {
+		RadarrServiceID *int   `json:"radarrServiceId"`
+		Keywords        string `json:"keywords"`
+	}
+	if err := seerr.do(ctx, http.MethodGet, "/overrideRule", nil, &rules); err != nil {
+		return err
+	}
+	for _, rule := range rules {
+		if rule.RadarrServiceID != nil && *rule.RadarrServiceID == radarrID && slices.Contains(strings.Split(rule.Keywords, ","), animeKeyword) {
+			return nil
+		}
+	}
+
+	rule := map[string]any{"radarrServiceId": radarrID, "keywords": animeKeyword, "profileId": profiles[index].ID}
+	if err := seerr.do(ctx, http.MethodPost, "/overrideRule", rule, nil); err != nil {
+		return err
+	}
+	cfg.Logf("Anime films use the %s profile", animeFilmProfile)
+
+	return nil
 }
 
 func pickProfile(profiles []seerrProfile, wanted []string) (seerrProfile, bool) {
