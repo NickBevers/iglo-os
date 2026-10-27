@@ -34,8 +34,8 @@ export function VpnDialog({ app, open, onOpenChange }: VpnDialogProps) {
                 <DialogHeader>
                     <DialogTitle>VPN settings</DialogTitle>
                     <DialogDescription>
-                        qBittorrent, Prowlarr and FlareSolverr restart with the new settings, so downloads stop for a
-                        minute. If the VPN does not connect, the old settings come back.
+                        qBittorrent and Prowlarr restart with the new settings, and FlareSolverr when it runs, so
+                        downloads stop for a minute. If the VPN does not connect, the old settings come back.
                     </DialogDescription>
                 </DialogHeader>
                 {error ? (

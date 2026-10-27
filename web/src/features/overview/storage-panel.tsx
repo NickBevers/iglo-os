@@ -7,32 +7,29 @@ import type { Health } from '@/lib/api'
 import { formatBytes, percentage } from '@/lib/format'
 import { healthQuery } from '@/lib/queries'
 
-// The folder where the installers mount the media of the apps.
-const mediaMount = '/mnt/iglo/media'
+// Iglo-OS mounts each share of the Storage page in a folder of its own here.
+const sharesRoot = '/mnt/iglo/shares/'
 
 const fsNames: Record<string, string> = {
     cifs: 'SMB',
     smb3: 'SMB',
     nfs: 'NFS',
     nfs4: 'NFS',
-    folder: 'folder on the host',
 }
 
 type Space = { key: string; name: string; detail: string; used: number; total: number; problem?: string }
 
-// spaces lists where files live: the media folder first, then the other
-// shares, the Proxmox storage and the ZFS pools.
+// spaces lists where files live: the shares of the Storage page first, then
+// the other shares, the Proxmox storage and the ZFS pools.
 function spaces(health: Health): Space[] {
-    const shares = [...health.shares].sort((a, b) => Number(b.path === mediaMount) - Number(a.path === mediaMount))
+    const ours = (path: string) => path.startsWith(sharesRoot)
+    const shares = [...health.shares].sort((a, b) => Number(ours(b.path)) - Number(ours(a.path)))
 
     return [
         ...shares.map((share) => ({
             key: `share ${share.path}`,
-            name: share.path === mediaMount ? 'Media folder' : share.source,
-            detail:
-                share.path === mediaMount
-                    ? `${share.source}, ${fsNames[share.fsType] ?? share.fsType}`
-                    : `${share.path}, ${fsNames[share.fsType] ?? share.fsType}`,
+            name: ours(share.path) ? `Share ${share.path.slice(sharesRoot.length)}` : share.source,
+            detail: `${ours(share.path) ? share.source : share.path}, ${fsNames[share.fsType] ?? share.fsType}`,
             used: share.used,
             total: share.size,
             problem: share.problem ?? (!share.mounted ? 'Not mounted' : share.error),
