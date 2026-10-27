@@ -162,8 +162,10 @@ function SettingsForm({ data }: { data: Workloads }) {
     const overview = useQuery(overviewQuery)
     const client = useQueryClient()
     const nodes = Object.fromEntries((overview.data?.nodes ?? []).map((node) => [node.name, node.name]))
+    // A server with one node needs no choice.
+    const node = settings.node || (Object.keys(nodes).length === 1 ? Object.keys(nodes)[0] : '')
     const save = useMutation({
-        mutationFn: () => api.saveWorkloadSettings({ ...settings, apiKey: key }),
+        mutationFn: () => api.saveWorkloadSettings({ ...settings, node, apiKey: key }),
         onSuccess: () => {
             setKey('')
             toast.success('Background-work settings saved')
@@ -232,7 +234,7 @@ function SettingsForm({ data }: { data: Workloads }) {
                         <Field label="Proxmox node" id="workload-node">
                             <Select
                                 items={nodes}
-                                value={settings.node || null}
+                                value={node || null}
                                 onValueChange={(value) => value && set('node', value)}
                             >
                                 <SelectTrigger id="workload-node" className="w-full">
@@ -246,6 +248,13 @@ function SettingsForm({ data }: { data: Workloads }) {
                                     ))}
                                 </SelectContent>
                             </Select>
+                            {data.nodeWarning ? (
+                                <p className="text-xs text-warning">{data.nodeWarning}</p>
+                            ) : (
+                                data.immichGuest && (
+                                    <p className="text-xs text-muted-foreground">Immich runs in {data.immichGuest}.</p>
+                                )
+                            )}
                         </Field>
                         <Field label="Keep host headroom (GiB)" id="workload-ram">
                             <Input
