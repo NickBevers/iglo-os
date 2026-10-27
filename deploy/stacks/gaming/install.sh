@@ -3,6 +3,7 @@
 # Wolf Proxmox quickstart. The Apps page only starts it after an explicit
 # confirmation of the privileged container. See docs/gaming.md.
 set -euo pipefail
+# shellcheck disable=SC2034 # scoped-stack.sh reads it
 APP=gaming
 STACK_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "$STACK_DIR/../../scoped-stack.sh"

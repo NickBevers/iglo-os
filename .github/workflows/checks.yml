@@ -36,6 +36,11 @@ jobs:
       - name: Test
         run: make test
 
+      # The installers only run on a Proxmox host, so this is where their
+      # mistakes show up before then.
+      - name: ShellCheck
+        run: make shellcheck
+
       - name: Formatting
         run: |
           test -z "$(gofmt -l cmd internal dev web/embed.go)" || { gofmt -l cmd internal dev web/embed.go; exit 1; }

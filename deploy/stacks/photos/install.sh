@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
 set -euo pipefail
+# shellcheck disable=SC2034 # scoped-stack.sh reads it
 APP=photos
 STACK_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "$STACK_DIR/../../scoped-stack.sh"

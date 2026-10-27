@@ -93,7 +93,7 @@ secrets_attach() {
 # secrets_save keeps a copy of the sealed secrets of container $1, for
 # secrets_restore when a change does not work.
 secrets_save() {
-    rm -rf "$SECRETS_ROOT/$1.before"
+    rm -rf "${SECRETS_ROOT:?}/$1.before"
     if [[ -d "$SECRETS_ROOT/$1" ]]; then
         cp -a "$SECRETS_ROOT/$1" "$SECRETS_ROOT/$1.before"
     else
@@ -103,19 +103,19 @@ secrets_save() {
 
 secrets_restore() {
     [[ -d "$SECRETS_ROOT/$1.before" ]] || return 0
-    rm -rf "$SECRETS_ROOT/$1"
+    rm -rf "${SECRETS_ROOT:?}/$1"
     mv "$SECRETS_ROOT/$1.before" "$SECRETS_ROOT/$1"
     secrets_unlock "$1"
 }
 
 secrets_forget_saved() {
-    rm -rf "$SECRETS_ROOT/$1.before"
+    rm -rf "${SECRETS_ROOT:?}/$1.before"
 }
 
 # secrets_remove deletes all secrets of container $1, sealed and unsealed.
 secrets_remove() {
     [[ "$1" =~ ^[0-9]{3,9}$ ]] || return 1
-    rm -rf "${SECRETS_ROOT:?}/$1" "$SECRETS_ROOT/$1.before" "${SECRETS_RUN:?}/$1"
+    rm -rf "${SECRETS_ROOT:?}/$1" "${SECRETS_ROOT:?}/$1.before" "${SECRETS_RUN:?}/$1"
     rm -f "/etc/systemd/system/pve-container@$1.service.d/iglo-secrets.conf"
     systemctl daemon-reload
 }

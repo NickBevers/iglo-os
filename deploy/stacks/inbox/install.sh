@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
 set -euo pipefail
+# shellcheck disable=SC2034 # scoped-stack.sh reads it
 APP=inbox
 STACK_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "$STACK_DIR/../../scoped-stack.sh"
@@ -35,7 +36,8 @@ update_stack() {
     wait_inbox
 }
 wait_inbox() {
-    local url="http://$(container_ip "$CT_ID"):19200"
+    local url
+    url="http://$(container_ip "$CT_ID"):19200"
     for _ in $(seq 1 90); do if curl --fail --silent --max-time 5 "$url" >/dev/null; then return;fi;sleep 2;done
     die "FileFlows did not answer on port 19200"
 }
