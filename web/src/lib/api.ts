@@ -574,6 +574,8 @@ export type MediaStackAnswers = {
     openSubtitlesUsername: string
     openSubtitlesPassword: string
     restartJellyfin: boolean
+    // flareSolverr runs FlareSolverr, for indexers behind Cloudflare.
+    flareSolverr: boolean
     storage: string
     downloadsSize: number
 }

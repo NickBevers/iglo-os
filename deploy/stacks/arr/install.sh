@@ -28,6 +28,7 @@ ANSWERS=""
 MODE="install"
 RESTART_JELLYFIN="y"
 VIDEOS_BINDING=""
+FLARESOLVERR="y"
 
 while [[ $# -gt 0 ]]; do
     case "$1" in
@@ -74,7 +75,7 @@ load_answers() {
             VIDEOS_BINDING | MOVIES_FOLDER | SERIES_FOLDER | WIREGUARD_PRIVATE_KEY | VPN_COUNTRIES | \
                 SUBTITLE_LANGUAGES | ARR_USERNAME | ARR_PASSWORD | JELLYFIN_API_KEY | JELLYFIN_ADMIN_USERNAME | \
                 JELLYFIN_ADMIN_PASSWORD | OPENSUBTITLES_USERNAME | OPENSUBTITLES_PASSWORD | RESTART_JELLYFIN | \
-                STORAGE | DOWNLOADS_SIZE)
+                STORAGE | DOWNLOADS_SIZE | FLARESOLVERR)
                 printf -v "$key" '%s' "$value"
                 ;;
             *) die "unknown answer: $key" ;;
@@ -84,6 +85,7 @@ load_answers() {
     rm -f "$ANSWERS"
 
     ((${#ARR_PASSWORD} >= 12)) || die "password must be at least 12 characters"
+    [[ "$FLARESOLVERR" == y || "$FLARESOLVERR" == n ]] || die "FLARESOLVERR must be y or n"
     check_folders
     JELLYFIN_URL=""
     if [[ -n "$JELLYFIN_CTID" ]]; then
@@ -113,6 +115,8 @@ ask_settings() {
     ask WIREGUARD_PRIVATE_KEY "ProtonVPN WireGuard private key" "" secret
     ask VPN_COUNTRIES "VPN server countries (comma separated)" "Netherlands"
 
+    echo "FlareSolverr runs a browser for indexers behind Cloudflare. It uses a few hundred MB."
+    ask FLARESOLVERR "Run FlareSolverr? (y/n)" "y"
     ask SUBTITLE_LANGUAGES "Subtitle languages (2-letter codes, comma separated)" "en"
     echo "Optional: an OpenSubtitles.com account finds many more subtitles (free at opensubtitles.com)."
     ask OPENSUBTITLES_USERNAME "OpenSubtitles.com username (empty to skip)"
@@ -225,6 +229,8 @@ PROWLARR_API_KEY=$(openssl rand -hex 16)
 SUBTITLE_LANGUAGES=$SUBTITLE_LANGUAGES
 MOVIES_FOLDER=$MOVIES_FOLDER
 SERIES_FOLDER=$SERIES_FOLDER
+FLARESOLVERR=$FLARESOLVERR
+COMPOSE_PROFILES=$([[ "$FLARESOLVERR" == y ]] && echo flaresolverr)
 JELLYFIN_URL=$JELLYFIN_URL
 JELLYFIN_API_KEY=$JELLYFIN_API_KEY
 JELLYFIN_ADMIN_USERNAME=$JELLYFIN_ADMIN_USERNAME
@@ -328,6 +334,10 @@ update() {
 
     log "Copying the stack of Iglo-OS $IGLO_VERSION into the container"
     push_stack_files
+    # A stack from before FlareSolverr was optional keeps running it.
+    pct exec "$CT_ID" -- bash -euc '
+        grep -q "^FLARESOLVERR=" /opt/arr/.env || printf "FLARESOLVERR=y\nCOMPOSE_PROFILES=flaresolverr\n" >> /opt/arr/.env
+    '
 
     log "Downloading the new images"
     pct exec "$CT_ID" -- docker compose --project-directory /opt/arr pull --quiet
@@ -342,8 +352,12 @@ update() {
 # (see compose.yaml), so they all use the new VPN connection.
 restart_vpn() {
     log "Restarting the VPN and the apps behind it"
-    pct exec "$CT_ID" -- docker compose --project-directory /opt/arr up -d --force-recreate \
-        gluetun qbittorrent prowlarr flaresolverr && vpn_healthy
+    # FlareSolverr only when its profile is on: naming it would start it anyway.
+    pct exec "$CT_ID" -- bash -euc '
+        cd /opt/arr
+        services="gluetun qbittorrent prowlarr $(docker compose config --services | grep -x flaresolverr || true)"
+        docker compose up -d --force-recreate $services
+    ' && vpn_healthy
 }
 
 # change_vpn writes the new VPN settings in .env. When the VPN does not

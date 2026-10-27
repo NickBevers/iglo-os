@@ -43,6 +43,8 @@ Media stacks that were installed before you could choose the folders use `movies
 - keeps downloads on a local disk (`/data/downloads`);
 - connects all apps: logins, root folders, qBittorrent, Prowlarr sync, FlareSolverr, subtitles and Jellyfin libraries.
 
+FlareSolverr is a switch in the form, on by default. It runs a browser for indexers behind Cloudflare, which takes a few hundred MB of memory. Turn it off when your indexers don't need it. It is then a Docker Compose profile that doesn't start, and Prowlarr gets no FlareSolverr proxy. Indexers that need it get the `flaresolverr` tag in Prowlarr. A stack from before the switch keeps FlareSolverr after an update.
+
 After the install, the Apps page shows links to each app. Then add your indexers in Prowlarr.
 
 ## Subtitles
@@ -75,7 +77,7 @@ The agent checks every answer before it writes them to a file that only root can
 
 To use other server countries or a new WireGuard key, click **VPN** on the Apps page. Leave the key empty to keep the current key. A new key needs "NAT-PMP (Port Forwarding)" on, like the first one.
 
-Iglo-OS writes the new settings in `/opt/arr/.env` in the container, and restarts Gluetun, qBittorrent, Prowlarr and FlareSolverr. Downloads stop for about a minute. If the VPN does not connect with the new settings, Iglo-OS puts the old settings back and shows the VPN log.
+Iglo-OS writes the new settings in `/opt/arr/.env` in the container, and restarts Gluetun, qBittorrent, Prowlarr and FlareSolverr, when it runs. Downloads stop for about a minute. If the VPN does not connect with the new settings, Iglo-OS puts the old settings back and shows the VPN log.
 
 The key goes to the container on stdin. It never goes back to the browser.
 
