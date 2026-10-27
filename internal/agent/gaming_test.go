@@ -162,3 +162,16 @@ func TestStopGamingSessionChecksTheID(t *testing.T) {
 		}
 	}
 }
+
+func TestGamingReadyNamesWhatIsMissing(t *testing.T) {
+	root := t.TempDir()
+	os.MkdirAll(filepath.Join(root, "etc/udev/rules.d"), 0o755)
+	os.WriteFile(filepath.Join(root, "etc/udev/rules.d/85-wolf.rules"), nil, 0o644)
+	// Regular files are not devices, so the three devices count as missing.
+	os.MkdirAll(filepath.Join(root, "dev/dri"), 0o755)
+	os.WriteFile(filepath.Join(root, "dev/uinput"), nil, 0o644)
+	got := checkGamingReady(root)
+	if got.Ready || len(got.Missing) != 3 || !strings.Contains(got.Missing[1], "uinput") {
+		t.Fatalf("readiness = %+v", got)
+	}
+}
