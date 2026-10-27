@@ -64,11 +64,13 @@ func eventStream(w http.ResponseWriter) func(topic string) bool {
 // update or removal moves on.
 func RegisterEvents(mux *http.ServeMux, installer *AppInstaller) {
 	mux.HandleFunc("GET /v1/events", func(w http.ResponseWriter, r *http.Request) {
+		// The first look comes before the stream opens, so a change right
+		// after the opening comment is never missed.
+		last := installer.fingerprint()
 		send := eventStream(w)
 		if !send("") {
 			return
 		}
-		last := installer.fingerprint()
 		check := time.NewTicker(installCheck)
 		defer check.Stop()
 		keepAlive := time.NewTicker(eventsKeepAlive)
