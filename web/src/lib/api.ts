@@ -184,6 +184,8 @@ export type Workloads = {
     error?: string
     freeBytes: number
     totalBytes: number
+    // pressure is the share of the last 10 seconds in which tasks waited for memory, or -1.
+    pressure: number
     queues: {
         name: string
         isPaused: boolean
@@ -572,6 +574,8 @@ export type MediaStackAnswers = {
     openSubtitlesUsername: string
     openSubtitlesPassword: string
     restartJellyfin: boolean
+    // flareSolverr runs FlareSolverr, for indexers behind Cloudflare.
+    flareSolverr: boolean
     storage: string
     downloadsSize: number
 }

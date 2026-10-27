@@ -104,6 +104,7 @@ function MediaStackForm({
                 openSubtitlesUsername: '',
                 openSubtitlesPassword: '',
                 restartJellyfin: true,
+                flareSolverr: true,
                 storage: defaults.storage,
                 downloadsSize: defaults.downloadsSize,
             },
@@ -205,6 +206,19 @@ function MediaStackForm({
                         required
                     />
                 </Field>
+                <label className="flex items-center justify-between gap-4 text-sm">
+                    <span>
+                        FlareSolverr
+                        <span className="block text-xs text-muted-foreground">
+                            For indexers behind Cloudflare. It runs a browser of a few hundred MB, so leave it off when
+                            your indexers don't need it.
+                        </span>
+                    </span>
+                    <Switch
+                        checked={answers.flareSolverr}
+                        onCheckedChange={(checked) => set('flareSolverr', checked)}
+                    />
+                </label>
             </Section>
 
             <Section title="Login" help="One login for Radarr, Sonarr, Prowlarr, Bazarr and qBittorrent.">

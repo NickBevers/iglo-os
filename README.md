@@ -21,7 +21,9 @@ cd iglo-v0.1.0-linux-amd64
 2. Download `http://iglo.local/ca.crt` and install it as a trusted root certificate on each device.
 3. Open `https://iglo.local`.
 
-Options: `./install.sh --storage local-lvm --bridge vmbr0 --hostname iglo --ctid 120`.
+Options: `./install.sh --storage local-lvm --bridge vmbr0 --hostname iglo --ctid 120 --zram`. With `--zram`, the host gets compressed swap in RAM (zstd, up to a quarter of the RAM) as a safety net when everything peaks at once. On a host with ZFS and no limit on its read cache, the installer prints how to set one.
+
+For the least memory pressure, install Proxmox on ext4 with LVM-thin, not ZFS. With one NVMe, ZFS gains little, and its read cache can take a large share of the RAM.
 
 ## Storage, processing and gaming
 

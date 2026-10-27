@@ -27,6 +27,7 @@ func validAnswers() MediaStackAnswers {
 		OpenSubtitlesUsername: "dries_h",
 		OpenSubtitlesPassword: "subs pass",
 		RestartJellyfin:       true,
+		FlareSolverr:          true,
 		Storage:               "local-lvm",
 		DownloadsSize:         200,
 	}
@@ -126,7 +127,7 @@ func TestAppInstall(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	for _, line := range []string{"VIDEOS_BINDING=videos\n", "SERIES_FOLDER=TV Shows\n", "ARR_PASSWORD=correct horse battery\n", "RESTART_JELLYFIN=y\n", "DOWNLOADS_SIZE=200\n"} {
+	for _, line := range []string{"FLARESOLVERR=y\n", "VIDEOS_BINDING=videos\n", "SERIES_FOLDER=TV Shows\n", "ARR_PASSWORD=correct horse battery\n", "RESTART_JELLYFIN=y\n", "DOWNLOADS_SIZE=200\n"} {
 		if !strings.Contains(string(answers), line) {
 			t.Errorf("answers miss %q:\n%s", line, answers)
 		}

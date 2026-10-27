@@ -77,9 +77,11 @@ func configure(args []string) error {
 		SubtitleLanguages:     strings.Split(env["SUBTITLE_LANGUAGES"], ","),
 		MoviesFolder:          env["MOVIES_FOLDER"],
 		SeriesFolder:          env["SERIES_FOLDER"],
-		DataDir:               *dataDir,
-		BazarrConfigPath:      *bazarrConfig,
-		Endpoints:             arr.DefaultEndpoints,
+		// Stacks from before FlareSolverr was optional have no answer: they run it.
+		FlareSolverr:     env["FLARESOLVERR"] != "n",
+		DataDir:          *dataDir,
+		BazarrConfigPath: *bazarrConfig,
+		Endpoints:        arr.DefaultEndpoints,
 		QBittorrentTempPassword: func(ctx context.Context) (string, error) {
 			return qbittorrentTempPassword(ctx)
 		},

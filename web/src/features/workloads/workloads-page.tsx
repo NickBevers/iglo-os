@@ -69,6 +69,7 @@ export function WorkloadsPage() {
                         {data.totalBytes > 0
                             ? `${formatBytes(data.freeBytes)} host headroom of ${formatBytes(data.totalBytes)}. `
                             : ''}
+                        {data.pressure >= 0 ? `Memory pressure ${data.pressure.toFixed(1)}%. ` : ''}
                         {protecting
                             ? `Gaming protection ends ${formatDateTime(data.gamingUntil!)}.`
                             : 'Use a timed hold before starting a game.'}

@@ -62,6 +62,10 @@ type Config struct {
 	MoviesFolder string
 	SeriesFolder string
 
+	// FlareSolverr runs, for indexers behind Cloudflare. Without it, Prowlarr
+	// gets no FlareSolverr proxy.
+	FlareSolverr bool
+
 	// DataDir is /data on this machine, which the containers see as /data.
 	DataDir          string
 	BazarrConfigPath string
@@ -321,6 +325,9 @@ func configureProwlarr(ctx context.Context, cfg Config, prowlarr *servarr) error
 		}
 	}
 
+	if !cfg.FlareSolverr {
+		return nil
+	}
 	// Prowlarr only sends indexers with this tag through FlareSolverr.
 	tag, err := prowlarr.ensureTag(ctx, "flaresolverr")
 	if err != nil {

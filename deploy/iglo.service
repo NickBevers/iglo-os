@@ -7,6 +7,9 @@ Wants=network-online.target
 User=iglo
 Group=iglo
 EnvironmentFile=/etc/iglo/iglo.env
+# The container has 512 MiB. Past this soft limit, Go collects garbage harder
+# instead of growing until the kernel kills the manager.
+Environment=GOMEMLIMIT=360MiB
 ExecStart=/usr/local/bin/iglo serve
 Restart=on-failure
 

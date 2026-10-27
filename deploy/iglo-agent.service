@@ -7,6 +7,12 @@ Before=pve-guests.service
 [Service]
 ExecStart=/usr/local/bin/iglo-agent --socket /var/lib/iglo-agent/socket/agent.sock --socket-gid @SOCKET_GID@
 Restart=on-failure
+# The agent and its short pct calls stay small; installs run in units of their
+# own. Go collects harder past GOMEMLIMIT, the kernel reclaims past MemoryHigh,
+# and MemoryMax stops a runaway before it takes memory from the apps.
+Environment=GOMEMLIMIT=128MiB
+MemoryHigh=512M
+MemoryMax=1G
 PrivateTmp=yes
 
 [Install]

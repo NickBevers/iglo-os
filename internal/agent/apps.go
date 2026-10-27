@@ -105,7 +105,9 @@ type MediaStackAnswers struct {
 	OpenSubtitlesUsername string `json:"openSubtitlesUsername"`
 	OpenSubtitlesPassword string `json:"openSubtitlesPassword"`
 	RestartJellyfin       bool   `json:"restartJellyfin"`
-	Storage               string `json:"storage"`
+	// FlareSolverr runs FlareSolverr, for indexers behind Cloudflare.
+	FlareSolverr bool   `json:"flareSolverr"`
+	Storage      string `json:"storage"`
 	// DownloadsSize is the size of the downloads disk in GB.
 	DownloadsSize int `json:"downloadsSize"`
 }
@@ -159,9 +161,12 @@ func validWireGuardKey(key string) bool {
 }
 
 func (a MediaStackAnswers) file() string {
-	restart := "n"
+	restart, flareSolverr := "n", "n"
 	if a.RestartJellyfin {
 		restart = "y"
+	}
+	if a.FlareSolverr {
+		flareSolverr = "y"
 	}
 
 	lines := append([]string{"VIDEOS_BINDING=" + a.VideosBinding},
@@ -180,6 +185,7 @@ func (a MediaStackAnswers) file() string {
 		"RESTART_JELLYFIN="+restart,
 		"STORAGE="+a.Storage,
 		"DOWNLOADS_SIZE="+strconv.Itoa(a.DownloadsSize),
+		"FLARESOLVERR="+flareSolverr,
 	)
 
 	return strings.Join(lines, "\n") + "\n"
