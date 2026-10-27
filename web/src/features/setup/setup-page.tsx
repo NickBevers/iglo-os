@@ -4,7 +4,7 @@ import { AlertTriangleIcon, CheckIcon, CircleDashedIcon, Loader2Icon, SkipForwar
 import { toast } from 'sonner'
 
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
-import { Button } from '@/components/ui/button'
+import { Button, buttonVariants } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card'
 import { api, type Setup, type SetupStep } from '@/lib/api'
 import { isLive } from '@/lib/live'
@@ -137,6 +137,13 @@ function Progress({ setup }: { setup: Setup }) {
                     <Button variant="outline" disabled={act.isPending} onClick={() => act.mutate('cancel')}>
                         {setup.state === 'done' ? 'Start a new setup' : 'Stop the setup'}
                     </Button>
+                    <a
+                        href={api.setupPlanUrl}
+                        download="iglo-setup.yaml"
+                        className={buttonVariants({ variant: 'ghost' })}
+                    >
+                        Download the plan
+                    </a>
                 </CardFooter>
             )}
         </Card>

@@ -198,6 +198,7 @@ func serve() error {
 		JellyfinKey: func() string { return jellyfinService.Settings().APIKey },
 		Changed:     func() { hub.Publish(events.Setup) },
 		Background:  ctx,
+		DataDir:     cfg.DataDir,
 		Logger:      logger,
 	})
 	appProxy := appproxy.New(cfg.Hostname, []appproxy.App{

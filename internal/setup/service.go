@@ -60,8 +60,10 @@ type Options struct {
 	// Poll is how often a step looks at a running install. Tests shorten it.
 	Poll time.Duration
 	// HTTP calls Immich. Tests replace it.
-	HTTP   *http.Client
-	Logger *slog.Logger
+	HTTP *http.Client
+	// DataDir keeps the plan of the last setup, without its secrets.
+	DataDir string
+	Logger  *slog.Logger
 }
 
 type StepState string
@@ -132,6 +134,9 @@ func (s *Service) Start(ctx context.Context, plan Plan) error {
 		return err
 	}
 	if err := plan.Validate(covered); err != nil {
+		return err
+	}
+	if err := s.savePlan(plan); err != nil {
 		return err
 	}
 	s.mu.Lock()

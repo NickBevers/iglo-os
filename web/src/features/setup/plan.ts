@@ -56,6 +56,36 @@ export function connectedShare(role: string, bindings: StorageBinding[]) {
     return bindings.find((b) => b.role === role && b.mounted && (readOnlyRoles.has(role) || !b.readOnly))
 }
 
+// draftFromPlan fills the pages from a plan file. The file has no passwords or
+// keys, so those stay empty, and so does the confirmation for Gaming.
+export function draftFromPlan(setup: Setup, plan: SetupPlan): Draft {
+    const base = newDraft(setup)
+    const shares = { ...base.nas.shares }
+    for (const [role, share] of Object.entries(plan.nas?.shares ?? {})) {
+        if (role in shares) {
+            shares[role] = { share: share.share ?? shares[role].share, username: share.username ?? '', password: '' }
+        }
+    }
+    const ready = new Set(setup.apps.filter((app) => app.ready).map((app) => app.id))
+    return {
+        ...base,
+        apps: (plan.apps ?? []).filter((app) => ready.has(app)),
+        nas: {
+            server: plan.nas?.server ?? '',
+            oneAccount: plan.nas?.oneAccount ?? false,
+            account: { username: plan.nas?.account?.username ?? '', password: '' },
+            shares,
+        },
+        admin: { username: plan.admin?.username ?? '', password: '', email: plan.admin?.email ?? '' },
+        vpn: { wireguardKey: '', countries: plan.vpn?.countries || base.vpn.countries },
+        flareSolverr: plan.flareSolverr ?? base.flareSolverr,
+        animeIndexers: plan.animeIndexers ?? base.animeIndexers,
+        proxmoxBackups: plan.proxmoxBackups ?? base.proxmoxBackups,
+        timezone: plan.timezone || base.timezone,
+        storage: setup.storages.includes(plan.storage) ? plan.storage : base.storage,
+    }
+}
+
 // planOf is what goes to the manager, without the repeated password.
 export function planOf(draft: Draft): SetupPlan {
     const plan: Partial<Draft> = { ...draft }

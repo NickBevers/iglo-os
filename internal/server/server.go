@@ -189,6 +189,7 @@ func New(options Options) http.Handler {
 	mux.Handle("POST /api/setup", s.requireSession(http.HandlerFunc(s.setupRoute)))
 	mux.Handle("DELETE /api/setup", s.requireSession(http.HandlerFunc(s.setupRoute)))
 	mux.Handle("POST /api/setup/{action}", s.requireSession(http.HandlerFunc(s.setupRoute)))
+	mux.Handle("GET /api/setup/{action}", s.requireSession(http.HandlerFunc(s.setupRoute)))
 	mux.Handle("GET /api/storage/bindings", s.requireSession(http.HandlerFunc(s.storageBindings)))
 	mux.Handle("POST /api/storage/bindings", s.requireSession(http.HandlerFunc(s.storageBindings)))
 	mux.Handle("DELETE /api/storage/bindings/{id}", s.requireSession(http.HandlerFunc(s.storageBindings)))
