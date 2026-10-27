@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"iglo/internal/music"
 	"net/http"
 	"os"
@@ -34,6 +35,9 @@ func addMusicRoutes(mux *http.ServeMux) error {
 	go worker.Run(context.Background())
 	handler := worker.Handler()
 	mux.HandleFunc("GET /v1/music/{vmid}", func(w http.ResponseWriter, r *http.Request) { v := worker.Status(); v.Sample = true; writeJSON(w, v) })
+	mux.HandleFunc("GET /v1/music/{vmid}/events", func(w http.ResponseWriter, r *http.Request) {
+		streamChanges(w, r, "music", func() string { return fmt.Sprint(worker.Status()) })
+	})
 	for _, method := range []string{"POST", "PUT"} {
 		path := "/v1/music/{vmid}"
 		target := "/jobs"

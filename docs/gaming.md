@@ -72,15 +72,19 @@ the container down and ends the hold. Save in the game and quit the emulator
 before you stop. If the start fails, the hold ends again. Stopping the container
 in Proxmox does not end the hold; it expires on its own.
 
-While the container runs, the manager asks Wolf for its Moonlight sessions every
-10 seconds. A running session holds heavy background work too, at least 15
+While the container runs, the manager follows the event stream of Wolf, so it
+sees a session start, pause or stop at once. Each event makes it ask Wolf for
+its sessions. The host agent passes on only the names of those events, never
+their data, which holds the stream keys. When the stream is down, the manager
+asks every 10 seconds instead, and every minute while it is up. A running session holds heavy background work too, at least 15
 minutes ahead, also when the container was started in Proxmox and not with
 Play. It never shortens the hold of Play. The page shows which device plays,
 at what resolution. Wolf's stream keys stay on the host.
 
 Every screen shares the same saves, so only the first session may run. When a
-second device starts one, the manager stops it within about 10 seconds, before
-its emulator gets far enough to write saves, and logs a warning. A device that
+second device starts one, the manager stops it at once, before its emulator
+gets far enough to write saves, and logs a warning. Without the event stream
+this takes up to 10 seconds. A device that
 disconnects without quitting keeps its session. To switch to another screen,
 quit the game on the first one, or press **End session** on the Gaming page.
 Save in the game first: ending a session stops its emulator.

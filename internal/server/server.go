@@ -15,6 +15,7 @@ import (
 	"iglo/internal/apps"
 	"iglo/internal/auth"
 	"iglo/internal/backups"
+	"iglo/internal/events"
 	"iglo/internal/health"
 	"iglo/internal/jellyfin"
 	"iglo/internal/proxmox"
@@ -151,6 +152,8 @@ type Options struct {
 	Apps       Apps
 	Workloads  Workloads
 	Covers     Covers
+	// Events tells the open pages which topic changed.
+	Events *events.Hub
 	// SettingsFile exports and imports iglo.yaml.
 	SettingsFile SettingsFile
 	// DataDir is the folder that a data backup copies.
@@ -179,6 +182,7 @@ func New(options Options) http.Handler {
 	mux.HandleFunc("POST /api/auth/logout", s.logout)
 	mux.Handle("GET /api/auth/me", s.requireSession(http.HandlerFunc(s.me)))
 	mux.Handle("GET /api/overview", s.requireSession(http.HandlerFunc(s.overview)))
+	mux.Handle("GET /api/events", s.requireSession(http.HandlerFunc(s.serverEvents)))
 	mux.Handle("GET /api/storage/bindings", s.requireSession(http.HandlerFunc(s.storageBindings)))
 	mux.Handle("POST /api/storage/bindings", s.requireSession(http.HandlerFunc(s.storageBindings)))
 	mux.Handle("DELETE /api/storage/bindings/{id}", s.requireSession(http.HandlerFunc(s.storageBindings)))

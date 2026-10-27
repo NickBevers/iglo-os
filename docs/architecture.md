@@ -5,6 +5,7 @@
 - **HTTPS**: the manager runs its own certificate authority. That CA can only sign certificates for `iglo.local`.
 - **Login**: one admin account with a password and an authenticator app code (TOTP).
 - **Data**: JSON files in `/var/lib/iglo` inside the manager container. There is no database.
+- **Live updates**: an open page keeps one Server-Sent Events stream to the manager, `GET /api/events`. An event only names what changed, like `apps` or `gaming`, and the page then asks for it the normal way. The manager hears of changes from its own services, from an event stream of the host agent (installs that move on, the sessions of Wolf, the queue of the Music worker) and from the WebSocket of Jellyfin (playback that starts or stops). Every page still polls, slower while its stream is up, so a dropped stream only makes it slower.
 
 ## Permissions
 

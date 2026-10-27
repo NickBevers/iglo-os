@@ -34,6 +34,8 @@ type Service struct {
 	// seconds, and the counts cost Jellyfin real work on a large library.
 	library   libraryView
 	libraryAt time.Time
+	// reconnect tells Watch that the URL or key changed.
+	reconnect chan struct{}
 }
 
 // libraryTTL is how long the library part of the status is kept.
@@ -46,7 +48,7 @@ type libraryView struct {
 }
 
 func NewService(dataDir string) (*Service, error) {
-	service := &Service{path: filepath.Join(dataDir, "jellyfin.json")}
+	service := &Service{path: filepath.Join(dataDir, "jellyfin.json"), reconnect: make(chan struct{}, 1)}
 
 	data, err := os.ReadFile(service.path)
 	if errors.Is(err, os.ErrNotExist) {
@@ -111,6 +113,7 @@ func (s *Service) SaveSettings(ctx context.Context, input Settings) error {
 	}
 	s.settings = input
 	s.libraryAt = time.Time{}
+	s.signalReconnect()
 
 	return nil
 }
@@ -130,6 +133,7 @@ func (s *Service) Disconnect(host string) (bool, error) {
 	}
 	s.settings = Settings{}
 	s.libraryAt = time.Time{}
+	s.signalReconnect()
 
 	return true, nil
 }
@@ -206,6 +210,14 @@ func (s *Service) Status(ctx context.Context) View {
 	view.Recent = append(view.Recent, library.recent...)
 
 	return view
+}
+
+// signalReconnect tells Watch to connect with the new settings. It never blocks.
+func (s *Service) signalReconnect() {
+	select {
+	case s.reconnect <- struct{}{}:
+	default:
+	}
 }
 
 // libraryOf returns the slow part of the status, at most libraryTTL old. It

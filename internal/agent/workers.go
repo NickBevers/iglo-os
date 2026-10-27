@@ -111,6 +111,14 @@ func RegisterWorkers(mux *http.ServeMux) {
 		w.WriteHeader(202)
 		json.NewEncoder(w).Encode(j)
 	})
+	mux.HandleFunc("GET /v1/music/{vmid}/events", func(w http.ResponseWriter, r *http.Request) {
+		id, _ := strconv.Atoi(r.PathValue("vmid"))
+		if err := workerGuest(r.Context(), MusicApp, id); err != nil {
+			http.Error(w, err.Error(), http.StatusBadGateway)
+			return
+		}
+		relayGuestStream(w, r, id, []string{"http://127.0.0.1:8788/events"}, "music", func(name string) bool { return name == "jobs" })
+	})
 	mux.HandleFunc("PUT /v1/music/{vmid}/pause", func(w http.ResponseWriter, r *http.Request) {
 		id, _ := strconv.Atoi(r.PathValue("vmid"))
 		var in struct {

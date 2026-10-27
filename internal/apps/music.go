@@ -2,6 +2,10 @@ package apps
 
 import (
 	"context"
+	"time"
+
+	"iglo/internal/agent"
+	"iglo/internal/events"
 	"iglo/internal/music"
 )
 
@@ -46,4 +50,41 @@ func (s *Service) PauseMusic(ctx context.Context, paused bool) error {
 		return ErrPlanned
 	}
 	return a.PauseMusic(ctx, g.VMID, paused)
+}
+
+// musicEventsAgent follows the job events of the Music worker.
+type musicEventsAgent interface {
+	MusicEvents(ctx context.Context, vmid int, onEvent func(topic string)) error
+}
+
+// musicLookAgain is how often WatchMusic checks whether the Music container runs.
+const musicLookAgain = 30 * time.Second
+
+// WatchMusic follows the job events of the Music worker while its container
+// runs, and tells the open pages when the queue changed.
+func (s *Service) WatchMusic(ctx context.Context) {
+	a, ok := s.Agent.(musicEventsAgent)
+	if !ok {
+		return
+	}
+	follow := newFollower(a.MusicEvents)
+	defer follow.stop()
+	for {
+		lookCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
+		_, guest, err := s.managedGuest(lookCtx, agent.MusicApp)
+		cancel()
+		follow.keep(ctx, guest.VMID, err == nil && guest.Status == "running")
+		timeout := time.After(musicLookAgain)
+	wait:
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case <-follow.events:
+				s.Changed(events.Music)
+			case <-timeout:
+				break wait
+			}
+		}
+	}
 }

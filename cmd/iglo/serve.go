@@ -28,6 +28,7 @@ import (
 	"iglo/internal/config"
 	"iglo/internal/covers"
 	"iglo/internal/databackup"
+	"iglo/internal/events"
 	"iglo/internal/health"
 	"iglo/internal/jellyfin"
 	"iglo/internal/proxmox"
@@ -81,7 +82,9 @@ func serve() error {
 	restartCtx := ctx
 
 	agentClient := agent.NewClient(cfg.AgentSocket)
-	workloadService, err := workloads.New(workloads.Options{DataDir: cfg.DataDir, Proxmox: pve, WorkerAdmission: admissionSender(pve.Resources, agentClient.WorkerAdmission, time.Now)})
+	// hub tells the open pages what changed, so they don't wait for their poll.
+	hub := events.NewHub()
+	workloadService, err := workloads.New(workloads.Options{DataDir: cfg.DataDir, Proxmox: pve, WorkerAdmission: admissionSender(pve.Resources, agentClient.WorkerAdmission, time.Now), Changed: hub.Publish})
 	if err != nil {
 		return err
 	}
@@ -182,9 +185,13 @@ func serve() error {
 		},
 		Version: version,
 		Logger:  logger,
+		Changed: hub.Publish,
 	})
 	// A Moonlight session holds heavy background work, also without Play.
 	go appsService.WatchGaming(ctx, workloadService.HoldWhilePlaying)
+	go appsService.WatchMusic(ctx)
+	go jellyfinService.Watch(ctx, func() { hub.Publish(events.Jellyfin) })
+	go followAgent(ctx, agentClient, hub, appsService)
 	appProxy := appproxy.New(cfg.Hostname, []appproxy.App{
 		{Name: "seerr", Title: "Seerr", Resolve: func(ctx context.Context) (string, error) {
 			return appsService.Address(ctx, agent.MediaStackApp, 5055)
@@ -211,6 +218,7 @@ func serve() error {
 		Console:    agentClient,
 		Apps:       appsService,
 		Workloads:  workloadService,
+		Events:     hub,
 		// The box art copies start with a dot, so data backups skip them.
 		Covers: covers.New(filepath.Join(cfg.DataDir, ".covers")),
 		SettingsFile: &settingsfile.Service{
@@ -259,6 +267,23 @@ func serve() error {
 	logger.Info("listening", "https", cfg.HTTPSAddr, "http", cfg.HTTPAddr, "hostname", cfg.Hostname, "version", version)
 
 	return stopReason(restartCtx, runAll(ctx, append(servers, httpsServer, httpServer)))
+}
+
+// followAgent passes the events of the host agent on. An install, update or
+// removal that moves on wakes its monitor and the Apps page.
+func followAgent(ctx context.Context, client *agent.Client, hub *events.Hub, apps *apps.Service) {
+	for ctx.Err() == nil {
+		client.Events(ctx, func(topic string) {
+			if topic == events.Apps {
+				apps.Wake()
+				hub.Publish(events.Apps)
+			}
+		})
+		select {
+		case <-ctx.Done():
+		case <-time.After(5 * time.Second):
+		}
+	}
 }
 
 // tailnetApps are the apps that can be Tailscale Services, like

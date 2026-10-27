@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	"net/http"
 	"os"
 
@@ -45,6 +46,9 @@ func registerGaming(mux *http.ServeMux) {
 	})
 	mux.HandleFunc("GET /v1/gaming/{vmid}/covers/{system}/{name}", func(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, agent.ErrNoCover.Error(), http.StatusNotFound)
+	})
+	mux.HandleFunc("GET /v1/gaming/{vmid}/events", func(w http.ResponseWriter, r *http.Request) {
+		streamChanges(w, r, "sessions", func() string { return fmt.Sprint(fakeSessions()) })
 	})
 	mux.HandleFunc("GET /v1/gaming/{vmid}/sessions", func(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, fakeSessions())

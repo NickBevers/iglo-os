@@ -15,6 +15,7 @@ import (
 	"time"
 
 	"iglo/internal/agent"
+	"iglo/internal/events"
 	"iglo/internal/proxmox"
 )
 
@@ -220,6 +221,8 @@ type Options struct {
 	Logger    *slog.Logger
 	// PollInterval is how often a running install is checked. Tests shorten it.
 	PollInterval time.Duration
+	// Changed tells the open pages that a topic changed, like events.Apps.
+	Changed func(topic string)
 }
 
 type Service struct {
@@ -231,6 +234,10 @@ type Service struct {
 	// active is the app of the operation that a monitor still handles, like a rollback after a failed update.
 	active    string
 	rollbacks map[string]string
+	// wake makes the monitor look at a running operation right away.
+	wake chan struct{}
+	// gamingWake makes WatchGaming look at once, after Play or Stop.
+	gamingWake chan struct{}
 
 	// descriptions, addresses and storages change rarely, so the Apps view
 	// keeps them for a minute. An operation that finishes forgets them.
@@ -256,7 +263,11 @@ func New(options Options) *Service {
 		options.PollInterval = 10 * time.Second
 	}
 
-	return &Service{Options: options, rollbacks: map[string]string{}}
+	if options.Changed == nil {
+		options.Changed = func(string) {}
+	}
+
+	return &Service{Options: options, rollbacks: map[string]string{}, wake: make(chan struct{}, 1), gamingWake: make(chan struct{}, 1)}
 }
 
 func (s *Service) Status(ctx context.Context) (View, error) {
@@ -781,6 +792,16 @@ func (s *Service) watch(background context.Context, op operation) {
 	s.active = op.app.ID
 	delete(s.rollbacks, op.app.ID)
 	go s.monitor(background, op, s.generation)
+	s.Changed(events.Apps)
+}
+
+// Wake makes the monitor look at a running operation now, for example when
+// the host agent says that it moved on.
+func (s *Service) Wake() {
+	select {
+	case s.wake <- struct{}{}:
+	default:
+	}
 }
 
 // monitor waits for the operation to end, rolls back a failed update, and
@@ -794,6 +815,7 @@ func (s *Service) monitor(ctx context.Context, op operation, generation int) {
 			s.active = ""
 		}
 		s.mu.Unlock()
+		s.Changed(events.Apps)
 	}()
 
 	for {
@@ -801,6 +823,7 @@ func (s *Service) monitor(ctx context.Context, op operation, generation int) {
 		case <-ctx.Done():
 			return
 		case <-ticker.C:
+		case <-s.wake:
 		}
 
 		s.mu.Lock()

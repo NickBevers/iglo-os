@@ -83,6 +83,8 @@ type Job struct {
 
 type Client struct {
 	http *http.Client
+	// stream follows event streams, which stay open.
+	stream *http.Client
 }
 
 type BindingView struct {
@@ -113,8 +115,9 @@ func NewClient(socketPath string) *Client {
 		},
 	}
 
-	// Reading Docker logs in a container with many apps takes a while.
-	return &Client{http: &http.Client{Transport: transport, Timeout: 45 * time.Second}}
+	// Reading Docker logs in a container with many apps takes a while. Event
+	// streams stay open, so they have no timeout.
+	return &Client{http: &http.Client{Transport: transport, Timeout: 45 * time.Second}, stream: &http.Client{Transport: transport}}
 }
 
 func (c *Client) Health(ctx context.Context) (Health, error) {

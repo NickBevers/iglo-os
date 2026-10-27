@@ -16,6 +16,7 @@ import (
 	"sync"
 	"time"
 
+	"iglo/internal/events"
 	"iglo/internal/proxmox"
 )
 
@@ -158,10 +159,12 @@ type Resources interface {
 
 type Options struct {
 	WorkerAdmission func(context.Context, string, int64) error
-	DataDir         string
-	Proxmox         Resources
-	HTTP            *http.Client
-	Now             func() time.Time
+	// Changed tells the open pages that a topic changed, like events.Workloads.
+	Changed func(topic string)
+	DataDir string
+	Proxmox Resources
+	HTTP    *http.Client
+	Now     func() time.Time
 }
 
 type Service struct {
@@ -176,6 +179,8 @@ type Service struct {
 	http             *http.Client
 	now              func() time.Time
 	wake             chan struct{}
+	changed          func(topic string)
+	shown            string      // mu; what the pages last saw, to tell them of a change
 	immich           immichGuest // op
 	memoryHeld       bool        // op; avoid rapid pause/resume around the threshold
 	busy             bool        // op; work was admitted, so watch host memory closely
@@ -191,7 +196,10 @@ func New(opts Options) (*Service, error) {
 	}
 	// Never forward an API key to a redirect target, including same-host HTTP downgrades.
 	client.CheckRedirect = func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }
-	s := &Service{path: filepath.Join(opts.DataDir, "workloads.json"), pve: opts.Proxmox, http: client, now: opts.Now, wake: make(chan struct{}, 1), workers: opts.WorkerAdmission}
+	if opts.Changed == nil {
+		opts.Changed = func(string) {}
+	}
+	s := &Service{path: filepath.Join(opts.DataDir, "workloads.json"), pve: opts.Proxmox, http: client, now: opts.Now, wake: make(chan struct{}, 1), workers: opts.WorkerAdmission, changed: opts.Changed}
 	s.state = diskState{Settings: DefaultSettings(), Owned: map[string]bool{}}
 	data, err := os.ReadFile(s.path)
 	if err != nil && !errors.Is(err, os.ErrNotExist) {
@@ -233,9 +241,21 @@ func (s *Service) publish(view View) {
 	view.Configured = view.Settings.URL != "" && view.Settings.APIKey != ""
 	view.Settings.APIKey = ""
 	view.GamingUntil = s.state.GamingUntil
+	// Free memory and the time of the check change every time, so they don't count.
+	shown := fmt.Sprint(view.Settings, view.Configured, view.GamingUntil, view.Reason, view.Error, view.WorkerReason, view.WorkerError, view.ImmichGuest, view.NodeWarning, view.Queues)
 	s.mu.Lock()
+	changed, gaming := shown != s.shown, !view.GamingUntil.Equal(s.view.GamingUntil)
 	s.view = view
+	previous := s.shown
+	s.shown = shown
 	s.mu.Unlock()
+	if changed && previous != "" {
+		s.changed(events.Workloads)
+		// The Gaming page shows the gaming hold too.
+		if gaming {
+			s.changed(events.Gaming)
+		}
+	}
 }
 
 func (s *Service) save() error {
