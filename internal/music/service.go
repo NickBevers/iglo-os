@@ -59,6 +59,9 @@ type Service struct {
 	mu           sync.Mutex
 	state        disk
 	wake         chan struct{}
+	// watchers are the open event streams. Each hears when the queue changes.
+	watchMu  sync.Mutex
+	watchers map[chan struct{}]struct{}
 }
 
 func Canonical(raw string) (string, error) {
@@ -139,7 +142,39 @@ func (s *Service) save() error {
 	if closeErr != nil {
 		return closeErr
 	}
-	return os.Rename(f.Name(), filepath.Join(s.Dir, "queue.json"))
+	if err := os.Rename(f.Name(), filepath.Join(s.Dir, "queue.json")); err != nil {
+		return err
+	}
+	s.notify()
+	return nil
+}
+
+// notify tells the open event streams that the queue changed. It never blocks.
+func (s *Service) notify() {
+	s.watchMu.Lock()
+	defer s.watchMu.Unlock()
+	for watcher := range s.watchers {
+		select {
+		case watcher <- struct{}{}:
+		default:
+		}
+	}
+}
+
+// watch returns a channel that hears when the queue changes, and a function that ends it.
+func (s *Service) watch() (<-chan struct{}, func()) {
+	watcher := make(chan struct{}, 1)
+	s.watchMu.Lock()
+	if s.watchers == nil {
+		s.watchers = map[chan struct{}]struct{}{}
+	}
+	s.watchers[watcher] = struct{}{}
+	s.watchMu.Unlock()
+	return watcher, func() {
+		s.watchMu.Lock()
+		delete(s.watchers, watcher)
+		s.watchMu.Unlock()
+	}
 }
 func (s *Service) admitted() bool {
 	data, err := os.ReadFile(filepath.Join(s.Dir, "admit-until"))
@@ -392,6 +427,26 @@ func (s *Service) Handler() http.Handler {
 		json.NewEncoder(w).Encode(value)
 	}
 	mux.HandleFunc("GET /jobs", func(w http.ResponseWriter, r *http.Request) { write(w, 200, s.Status()) })
+	// /events says "jobs" when the queue changes, for the manager.
+	mux.HandleFunc("GET /events", func(w http.ResponseWriter, r *http.Request) {
+		changed, stop := s.watch()
+		defer stop()
+		w.Header().Set("Content-Type", "text/event-stream")
+		controller := http.NewResponseController(w)
+		keepAlive := time.NewTicker(25 * time.Second)
+		defer keepAlive.Stop()
+		fmt.Fprint(w, ": open\n\n")
+		for controller.Flush() == nil {
+			select {
+			case <-r.Context().Done():
+				return
+			case <-keepAlive.C:
+				fmt.Fprint(w, ": keep-alive\n\n")
+			case <-changed:
+				fmt.Fprint(w, "event: jobs\ndata: \n\n")
+			}
+		}
+	})
 	mux.HandleFunc("POST /jobs", func(w http.ResponseWriter, r *http.Request) {
 		var in Input
 		if json.NewDecoder(http.MaxBytesReader(w, r.Body, 2048)).Decode(&in) != nil {

@@ -74,6 +74,7 @@ func run(socketPath string, socketGID int, logger *slog.Logger) error {
 	mux.HandleFunc("POST /v1/upgrade", startUpgrade(upgrader, logger))
 	mux.HandleFunc("GET /v1/upgrade", upgradeStatus(upgrader))
 	apps := agent.NewAppInstaller()
+	agent.RegisterEvents(mux, apps)
 	for _, action := range []agent.AppAction{agent.ActionBackup, agent.ActionVerify} {
 		mux.HandleFunc("POST /v1/apps/photos/"+string(action), appOnContainer(func(app string, vmid int) error { return apps.Recover(agent.PhotosApp, vmid, action) }, "photos recovery started", logger))
 	}

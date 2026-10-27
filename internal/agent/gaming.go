@@ -340,6 +340,15 @@ func RegisterGaming(mux *http.ServeMux) {
 		w.Header().Set("Content-Type", "application/json")
 		json.NewEncoder(w).Encode(sessions)
 	})
+	mux.HandleFunc("GET /v1/gaming/{vmid}/events", func(w http.ResponseWriter, r *http.Request) {
+		vmid, _ := strconv.Atoi(r.PathValue("vmid"))
+		// gamingRoot also checks that vmid is the Gaming app.
+		if _, err := gamingRoot(r.Context(), vmid); err != nil {
+			http.Error(w, err.Error(), http.StatusBadGateway)
+			return
+		}
+		relayGuestStream(w, r, vmid, []string{"--unix-socket", wolfSocket, "http://localhost/api/v1/events"}, "sessions", wolfSessionEvent)
+	})
 	mux.HandleFunc("POST /v1/gaming/{vmid}/sessions/{id}/stop", func(w http.ResponseWriter, r *http.Request) {
 		vmid, _ := strconv.Atoi(r.PathValue("vmid"))
 		if err := stopGamingSession(r.Context(), vmid, r.PathValue("id")); err != nil {

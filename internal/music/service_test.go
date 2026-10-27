@@ -1,8 +1,11 @@
 package music
 
 import (
+	"bufio"
 	"context"
 	"errors"
+	"net/http"
+	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -128,5 +131,28 @@ func TestSymbolicLinkOutputIsRefused(t *testing.T) {
 	files, _ := os.ReadDir(outside)
 	if len(files) > 0 {
 		t.Fatal("wrote outside library")
+	}
+}
+
+func TestEventsSayWhenTheQueueChanges(t *testing.T) {
+	s := fixture(t)
+	server := httptest.NewServer(s.Handler())
+	defer server.Close()
+	response, err := http.Get(server.URL + "/events")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer response.Body.Close()
+	lines := bufio.NewReader(response.Body)
+	if line, _ := lines.ReadString('\n'); line != ": open\n" {
+		t.Fatalf("first line = %q", line)
+	}
+	lines.ReadString('\n')
+
+	if _, err := s.Submit(Input{URL: "https://www.youtube.com/watch?v=12345678901"}); err != nil {
+		t.Fatal(err)
+	}
+	if line, _ := lines.ReadString('\n'); line != "event: jobs\n" {
+		t.Fatalf("line = %q", line)
 	}
 }
