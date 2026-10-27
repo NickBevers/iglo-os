@@ -21,7 +21,7 @@ Open http://localhost:5173 and log in with `admin` / `iglo-dev-password` and the
 - Everything you change stays in `.dev/`. Delete that folder to start again.
 - A fake Jellyfin on `http://127.0.0.1:18096` has a library, two things playing and recent items. The manager is connected to it on the first start. Images are not faked.
 - The self-update check needs the real GitHub.
-- The apps that Iglo-OS can't install yet (Music, Photos and Inbox) have fake containers with fake stats. Their cards show **Integration planned** and **Sample data**; the preview does not provide working installers. To hide the fake containers and stats, run `touch .dev/no-planned-apps`. The planned catalog entries remain visible.
+- Music, Photos, Inbox and Gaming install like the other apps: the real installer of the agent plays a simulated script. After that, the fake host has their container with sample stats, and their cards show **Sample data**.
 
 ## A demo for a review
 

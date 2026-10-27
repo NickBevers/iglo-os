@@ -88,7 +88,7 @@ func (p *fakeProxmox) resources(w http.ResponseWriter, r *http.Request) {
 		resources = append(resources, map[string]any{"type": "lxc", "node": "pve", "vmid": 150, "name": "minecraft", "status": "running", "tags": "iglo;minecraft", "maxcpu": 4, "maxmem": 5_905_580_032, "uptime": 60})
 	}
 	{
-		for _, app := range plannedApps {
+		for _, app := range scopedApps {
 			if _, err := os.Stat(statePath(app["name"].(string) + "-installed")); err == nil {
 				resource := maps.Clone(app)
 				// Play and Stop on the Gaming page start and stop the fake container.

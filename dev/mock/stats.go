@@ -7,10 +7,10 @@ import (
 	"iglo/internal/agent"
 )
 
-// plannedApps are the containers of the apps that Iglo-OS can't install yet.
-// The fake host has them, so the dashboard shows them with their stats.
-// With .dev/no-planned-apps, they are gone.
-var plannedApps = []map[string]any{
+// scopedApps are the containers of Music, Photos, Inbox and Gaming. The fake
+// host has one after the app is installed from the Apps page, and the dashboard
+// shows it with sample stats.
+var scopedApps = []map[string]any{
 	{"type": "lxc", "node": "pve", "vmid": 160, "name": "music", "status": "running", "tags": "iglo;music", "cpu": 0.04, "maxcpu": 2, "mem": 420_000_000, "maxmem": 1_073_741_824, "uptime": 86_400},
 	{"type": "lxc", "node": "pve", "vmid": 170, "name": "photos", "status": "running", "tags": "iglo;photos", "cpu": 0.11, "maxcpu": 4, "mem": 3_100_000_000, "maxmem": 6_442_450_944, "uptime": 86_400},
 	{"type": "lxc", "node": "pve", "vmid": 180, "name": "inbox", "status": "running", "tags": "iglo;inbox", "cpu": 0.62, "maxcpu": 4, "mem": 1_400_000_000, "maxmem": 2_147_483_648, "uptime": 86_400},
