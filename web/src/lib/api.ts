@@ -177,6 +177,9 @@ export type Workloads = {
     gamingUntil?: string
     gamingActive: boolean
     checkedAt?: string
+    // immichGuest is the container with the address of the Immich URL, if any.
+    immichGuest?: string
+    nodeWarning?: string
     reason: string
     error?: string
     freeBytes: number

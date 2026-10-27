@@ -131,11 +131,17 @@ type View struct {
 	GamingUntil  time.Time `json:"gamingUntil,omitzero"`
 	GamingActive bool      `json:"gamingActive"`
 	CheckedAt    time.Time `json:"checkedAt,omitzero"`
-	Reason       string    `json:"reason"`
-	Error        string    `json:"error,omitempty"`
-	FreeBytes    int64     `json:"freeBytes"`
-	TotalBytes   int64     `json:"totalBytes"`
-	Queues       []Queue   `json:"queues"`
+	// ImmichGuest is the container whose address the Immich URL has, like
+	// "photos (170) on pve". It is empty when no container has it.
+	ImmichGuest string `json:"immichGuest,omitempty"`
+	// NodeWarning says when Immich runs on another node than the one whose
+	// memory the checks read.
+	NodeWarning string  `json:"nodeWarning,omitempty"`
+	Reason      string  `json:"reason"`
+	Error       string  `json:"error,omitempty"`
+	FreeBytes   int64   `json:"freeBytes"`
+	TotalBytes  int64   `json:"totalBytes"`
+	Queues      []Queue `json:"queues"`
 }
 
 type diskState struct {
@@ -170,8 +176,9 @@ type Service struct {
 	http             *http.Client
 	now              func() time.Time
 	wake             chan struct{}
-	memoryHeld       bool // op; avoid rapid pause/resume around the threshold
-	busy             bool // op; work was admitted, so watch host memory closely
+	immich           immichGuest // op
+	memoryHeld       bool        // op; avoid rapid pause/resume around the threshold
+	busy             bool        // op; work was admitted, so watch host memory closely
 }
 
 func New(opts Options) (*Service, error) {
@@ -423,8 +430,10 @@ func (s *Service) Reconcile(ctx context.Context) {
 	defer s.op.Unlock()
 	ctx, cancel := context.WithTimeout(ctx, 45*time.Second)
 	defer cancel()
+	s.locateImmich(ctx)
 	settings := s.state.Settings
 	view := View{CheckedAt: s.now(), Reason: "Control disabled", Queues: []Queue{}}
+	view.ImmichGuest, view.NodeWarning = s.immich.describe(settings)
 	s.busy = false
 	s.reconcileWorkers(ctx, &view)
 	defer func() {
