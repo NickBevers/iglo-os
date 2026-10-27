@@ -66,7 +66,6 @@ var (
 
 var (
 	hostPattern         = regexp.MustCompile(`^[A-Za-z0-9]([A-Za-z0-9.-]{0,252})$`)
-	exportPattern       = regexp.MustCompile(`^/[A-Za-z0-9._/-]{0,255}$`)
 	countriesPattern    = regexp.MustCompile(`^[A-Za-z][A-Za-z ]{1,40}(,[A-Za-z][A-Za-z ]{1,40}){0,9}$`)
 	languagesPattern    = regexp.MustCompile(`^[a-z]{2}(,[a-z]{2}){0,9}$`)
 	usernamePattern     = regexp.MustCompile(`^[A-Za-z0-9._-]{1,32}$`)
@@ -85,16 +84,8 @@ var (
 // MediaStackAnswers are the questions of stacks/arr/install.sh. Every value
 // is checked, so no line breaks or shell code reach the answers file.
 type MediaStackAnswers struct {
-	// The media is on an NFS share (NASServer and NASExport), on an SMB share
-	// (SMBServer, SMBShare, SMBUsername and SMBPassword), or in a folder on the
-	// host (MediaFolder). All are empty when the media is already mounted.
-	NASServer   string `json:"nasServer"`
-	NASExport   string `json:"nasExport"`
-	SMBServer   string `json:"smbServer"`
-	SMBShare    string `json:"smbShare"`
-	SMBUsername string `json:"smbUsername"`
-	SMBPassword string `json:"smbPassword"`
-	MediaFolder string `json:"mediaFolder"`
+	// VideosBinding is the Videos share from Storage. The stack writes to it.
+	VideosBinding string `json:"videosBinding"`
 	// MoviesFolder and SeriesFolder are folders in the share. Each gets a Jellyfin library.
 	MoviesFolder        string `json:"moviesFolder"`
 	SeriesFolder        string `json:"seriesFolder"`
@@ -122,11 +113,9 @@ type MediaStackAnswers struct {
 func (a MediaStackAnswers) Validate() error {
 	invalid := func(message string) error { return fmt.Errorf("%w: %s", ErrInvalidAnswers, message) }
 
-	if message := a.mediaSource().error(); message != "" {
-		return invalid(message)
-	}
-
 	switch {
+	case !bindingID.MatchString(a.VideosBinding):
+		return invalid("select a Videos share from Storage")
 	case !arr.ValidFolder(a.MoviesFolder) || !arr.ValidFolder(a.SeriesFolder):
 		return invalid("the movies and series folders must be folder names, like movies")
 	case strings.EqualFold(a.MoviesFolder, a.SeriesFolder):
@@ -164,72 +153,6 @@ func (a MediaStackAnswers) Validate() error {
 	return nil
 }
 
-// mediaSource is where the media of an app is: on an NFS share, on an SMB
-// share, or in a folder on the host. It is empty when the media is already
-// mounted.
-type mediaSource struct {
-	nasServer, nasExport                          string
-	smbServer, smbShare, smbUsername, smbPassword string
-	folder                                        string
-}
-
-func (a MediaStackAnswers) mediaSource() mediaSource {
-	return mediaSource{a.NASServer, a.NASExport, a.SMBServer, a.SMBShare, a.SMBUsername, a.SMBPassword, a.MediaFolder}
-}
-
-func (a JellyfinAnswers) mediaSource() mediaSource {
-	return mediaSource{a.NASServer, a.NASExport, a.SMBServer, a.SMBShare, a.SMBUsername, a.SMBPassword, a.MediaFolder}
-}
-
-// error checks that the media is in one place, with all its answers.
-func (s mediaSource) error() string {
-	nfs := s.nasServer != "" || s.nasExport != ""
-	smb := s.smbServer != "" || s.smbShare != "" || s.smbUsername != "" || s.smbPassword != ""
-	places := 0
-	for _, given := range []bool{nfs, smb, s.folder != ""} {
-		if given {
-			places++
-		}
-	}
-
-	switch {
-	case places > 1:
-		return "give one place for the media: an NFS share, an SMB share or a folder on the host"
-	case s.folder != "" && !ValidMediaFolder(s.folder):
-		return "the media folder must be a full path on the host, like /mnt/pve/media, outside the system folders"
-	case nfs && (s.nasServer == "" || s.nasExport == ""):
-		return "give both the NAS address and the NFS export"
-	case s.nasServer != "" && !hostPattern.MatchString(s.nasServer):
-		return "the NAS address must be an IP address or a hostname"
-	case s.nasExport != "" && !exportPattern.MatchString(s.nasExport):
-		return "the NFS export must be a path, like /volume1/media"
-	case smb && (s.smbServer == "" || s.smbShare == "" || s.smbUsername == "" || s.smbPassword == ""):
-		return "give the NAS address, the SMB share, the username and the password"
-	case s.smbServer != "" && !hostPattern.MatchString(s.smbServer):
-		return "the NAS address must be an IP address or a hostname"
-	case s.smbShare != "" && !smbSharePattern.MatchString(s.smbShare):
-		return "the SMB share must be one name, like Videos, without spaces or slashes"
-	case s.smbUsername != "" && !smbUserPattern.MatchString(s.smbUsername):
-		return "the SMB username can have letters, digits, dots, dashes, underscores and @"
-	case len(s.smbPassword) > 256 || strings.ContainsFunc(s.smbPassword, unicode.IsControl):
-		return "the SMB password can't have line breaks"
-	}
-
-	return ""
-}
-
-func (s mediaSource) lines() []string {
-	return []string{
-		"NAS_SERVER=" + s.nasServer,
-		"NAS_EXPORT=" + s.nasExport,
-		"SMB_SERVER=" + s.smbServer,
-		"SMB_SHARE=" + s.smbShare,
-		"SMB_USERNAME=" + s.smbUsername,
-		"SMB_PASSWORD=" + s.smbPassword,
-		"MEDIA_FOLDER=" + s.folder,
-	}
-}
-
 func validWireGuardKey(key string) bool {
 	decoded, err := base64.StdEncoding.DecodeString(key)
 	return err == nil && len(decoded) == 32
@@ -241,7 +164,7 @@ func (a MediaStackAnswers) file() string {
 		restart = "y"
 	}
 
-	lines := append(a.mediaSource().lines(),
+	lines := append([]string{"VIDEOS_BINDING=" + a.VideosBinding},
 		"MOVIES_FOLDER="+a.MoviesFolder,
 		"SERIES_FOLDER="+a.SeriesFolder,
 		"WIREGUARD_PRIVATE_KEY="+a.WireGuardPrivateKey,
@@ -264,16 +187,8 @@ func (a MediaStackAnswers) file() string {
 
 // JellyfinAnswers are the questions of stacks/jellyfin/install.sh.
 type JellyfinAnswers struct {
-	// The media is on an NFS share (NASServer and NASExport), on an SMB share
-	// (SMBServer, SMBShare, SMBUsername and SMBPassword), or in a folder on the
-	// host (MediaFolder). All are empty when the media is already mounted.
-	NASServer     string `json:"nasServer"`
-	NASExport     string `json:"nasExport"`
-	SMBServer     string `json:"smbServer"`
-	SMBShare      string `json:"smbShare"`
-	SMBUsername   string `json:"smbUsername"`
-	SMBPassword   string `json:"smbPassword"`
-	MediaFolder   string `json:"mediaFolder"`
+	// VideosBinding is the Videos share from Storage. Jellyfin only reads it.
+	VideosBinding string `json:"videosBinding"`
 	MoviesFolder  string `json:"moviesFolder"`
 	SeriesFolder  string `json:"seriesFolder"`
 	AdminUsername string `json:"adminUsername"`
@@ -285,11 +200,9 @@ type JellyfinAnswers struct {
 func (a JellyfinAnswers) Validate() error {
 	invalid := func(message string) error { return fmt.Errorf("%w: %s", ErrInvalidAnswers, message) }
 
-	if message := a.mediaSource().error(); message != "" {
-		return invalid(message)
-	}
-
 	switch {
+	case !bindingID.MatchString(a.VideosBinding):
+		return invalid("select a Videos share from Storage")
 	case !arr.ValidFolder(a.MoviesFolder) || !arr.ValidFolder(a.SeriesFolder):
 		return invalid("the movies and series folders must be folder names, like movies")
 	case strings.EqualFold(a.MoviesFolder, a.SeriesFolder):
@@ -311,7 +224,7 @@ func (a JellyfinAnswers) file() string {
 		theme = "y"
 	}
 
-	lines := append(a.mediaSource().lines(),
+	lines := append([]string{"VIDEOS_BINDING=" + a.VideosBinding},
 		"MOVIES_FOLDER="+a.MoviesFolder,
 		"SERIES_FOLDER="+a.SeriesFolder,
 		"JELLYFIN_ADMIN_USERNAME="+a.AdminUsername,
@@ -374,7 +287,6 @@ type SavedAnswers struct {
 	// HasJellyfinAdminPassword is set when the saved answers have a Jellyfin admin password.
 	HasJellyfinAdminPassword bool             `json:"hasJellyfinAdminPassword"`
 	HasOpenSubtitlesPassword bool             `json:"hasOpenSubtitlesPassword"`
-	HasSMBPassword           bool             `json:"hasSmbPassword"`
 	Minecraft                MinecraftAnswers `json:"minecraft"`
 	HasPlayitSecretKey       bool             `json:"hasPlayitSecretKey"`
 	Until                    time.Time        `json:"until"`
@@ -486,10 +398,6 @@ func (i *AppInstaller) Install(app string, request InstallRequest) error {
 		if request.KeepSecrets && answers.AdminPassword == "" && answers.AdminUsername == saved.Jellyfin.AdminUsername {
 			answers.AdminPassword = saved.Jellyfin.AdminPassword
 		}
-		// Only for the same SMB user on the same NAS.
-		if request.KeepSecrets && answers.SMBPassword == "" && answers.SMBUsername == saved.Jellyfin.SMBUsername && answers.SMBServer == saved.Jellyfin.SMBServer {
-			answers.SMBPassword = saved.Jellyfin.SMBPassword
-		}
 		return i.installLocked(app, savedFile{Jellyfin: answers})
 	}
 	if ScopedApp(app) {
@@ -522,10 +430,6 @@ func (i *AppInstaller) Install(app string, request InstallRequest) error {
 		}
 		if answers.OpenSubtitlesPassword == "" && answers.OpenSubtitlesUsername == saved.OpenSubtitlesUsername {
 			answers.OpenSubtitlesPassword = saved.OpenSubtitlesPassword
-		}
-		// Only for the same SMB user on the same NAS.
-		if answers.SMBPassword == "" && answers.SMBUsername == saved.SMBUsername && answers.SMBServer == saved.SMBServer {
-			answers.SMBPassword = saved.SMBPassword
 		}
 	}
 
@@ -786,13 +690,12 @@ func (i *AppInstaller) Saved(app string) (*SavedAnswers, error) {
 		HasJellyfinAPIKey:        answers.JellyfinAPIKey != "",
 		HasJellyfinAdminPassword: answers.JellyfinAdminPassword != "" || jellyfin.AdminPassword != "",
 		HasOpenSubtitlesPassword: answers.OpenSubtitlesPassword != "",
-		HasSMBPassword:           answers.SMBPassword != "" || jellyfin.SMBPassword != "",
 		HasPlayitSecretKey:       minecraft.PlayitSecretKey != "",
 		Until:                    file.SavedAt.Add(SavedAnswersTTL),
 	}
 	answers.WireGuardPrivateKey, answers.Password, answers.JellyfinAPIKey = "", "", ""
-	answers.JellyfinAdminPassword, answers.OpenSubtitlesPassword, answers.SMBPassword = "", "", ""
-	jellyfin.AdminPassword, jellyfin.SMBPassword = "", ""
+	answers.JellyfinAdminPassword, answers.OpenSubtitlesPassword = "", ""
+	jellyfin.AdminPassword = ""
 	minecraft.PlayitSecretKey = ""
 	view.Answers, view.Jellyfin, view.Minecraft = answers, jellyfin, minecraft
 

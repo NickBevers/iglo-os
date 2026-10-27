@@ -150,7 +150,7 @@ func (f *fakeInstalls) playOnContainer(stack, action, logPath, exitPath string) 
 		return
 	}
 	if action == "--remove" {
-		if id := map[string]string{"photos": "170", "music": "160", "inbox": "180", "gaming": "190"}[stack]; id != "" {
+		if id := map[string]string{"arr": "130", "jellyfin": "140", "photos": "170", "music": "160", "inbox": "180", "gaming": "190"}[stack]; id != "" {
 			os.Remove(statePath("binding-containers/" + id + ".conf"))
 		}
 		write("==> Shutting down the container")
@@ -238,7 +238,10 @@ func (f *fakeInstalls) play(stack, answers, logPath, exitPath string) {
 	}
 
 	if stack == "arr" || stack == "jellyfin" {
-		mountMedia(answers)
+		if err := bindVideos(map[string]int{"arr": 130, "jellyfin": 140}[stack], answers); err != nil {
+			finish(1)
+			return
+		}
 	}
 	switch stack {
 	case "photos", "music", "inbox", "gaming":
@@ -280,45 +283,19 @@ func (f *fakeInstalls) play(stack, answers, logPath, exitPath string) {
 	finish(0)
 }
 
-// mediaMount is the media of the apps: the NAS share, or what an install
-// mounted. With .dev/no-media-mount, nothing is mounted yet.
-func mediaMount() []agent.Mount {
-	if _, err := os.Stat(statePath("no-media-mount")); err == nil {
-		return nil
-	}
-	source, fsType := "192.168.1.10:/volume1/media", "nfs"
-	if data, err := os.ReadFile(statePath("media-source")); err == nil {
-		source = strings.TrimSpace(string(data))
-	}
-	switch {
-	case strings.HasPrefix(source, "//"):
-		fsType = "cifs"
-	case strings.HasPrefix(source, "/"):
-		fsType = "folder"
-	}
-
-	return []agent.Mount{{Path: agent.MediaMount, Source: source, FSType: fsType, Mounted: true, Size: 7_900_000_000_000, Used: 5_300_000_000_000}}
-}
-
-// mountMedia keeps the media of a working install, like the installers do.
-func mountMedia(answers string) {
-	values := map[string]string{}
+// bindVideos records that a fake Jellyfin or media stack uses the Videos
+// share of its answers, so the Storage page lists it as a consumer.
+func bindVideos(id int, answers string) error {
 	for line := range strings.Lines(answers) {
-		key, value, _ := strings.Cut(strings.TrimSpace(line), "=")
-		values[key] = value
+		if value, ok := strings.CutPrefix(strings.TrimSpace(line), "VIDEOS_BINDING="); ok && value != "" {
+			if err := os.MkdirAll(statePath("binding-containers"), 0o700); err != nil {
+				return err
+			}
+			conf := fmt.Sprintf("mp0: %s,mp=/data/media\n", statePath("shares/"+value))
+			return os.WriteFile(statePath(fmt.Sprintf("binding-containers/%d.conf", id)), []byte(conf), 0o600)
+		}
 	}
-
-	source := values["MEDIA_FOLDER"]
-	switch {
-	case source == "" && values["SMB_SERVER"] != "":
-		source = "//" + values["SMB_SERVER"] + "/" + values["SMB_SHARE"]
-	case source == "" && values["NAS_SERVER"] != "":
-		source = values["NAS_SERVER"] + ":" + values["NAS_EXPORT"]
-	}
-	if source != "" {
-		os.WriteFile(statePath("media-source"), []byte(source), 0o600)
-		os.Remove(statePath("no-media-mount"))
-	}
+	return nil
 }
 
 // savePlayers keeps the players of a fake Minecraft install: the operator is on the whitelist too.

@@ -6,16 +6,16 @@ The Apps page installs Jellyfin in its own container. Install it before the medi
 
 ### Before you start
 
-1. Choose where your movies and series are: on a NAS, or on a disk of the Proxmox host. See [media-folder.md](media-folder.md).
+1. Connect the Videos share with your movies and series on the Storage page. See [media-folder.md](media-folder.md).
 2. Choose a username and password for the Jellyfin admin.
 
-If the media stack already uses a media folder, the form uses that folder and does not ask for it.
+If the media stack already uses a Videos share, the form chooses that one.
 
 ### What the installer does
 
-1. Mounts the media folder (the NAS share or the folder on the host) at `/mnt/iglo/media`, unless it is already mounted. On the host, it makes the movies and series folders when they do not exist.
+1. Checks the Videos share, and makes the movies and series folders on it when they do not exist and the share has write access.
 2. Makes a Debian 13 container named `jellyfin` (2 cores, 2 GB memory, 16 GB disk) with the tags `iglo` and `jellyfin`.
-3. Gives the container the media folder at `/data/media`, read-only. Jellyfin keeps its own data on the disk of the container.
+3. Gives the container the share at `/data/media`, read-only. The share mounts before the container starts. Jellyfin keeps its own data on the disk of the container.
 4. Installs Jellyfin from the official repository, `repo.jellyfin.org`. The Updates page updates it later, with the other containers.
 5. Passes the GPU of the host to the container, when the host has one (see below).
 6. Finishes the setup wizard with your admin account.
@@ -48,7 +48,7 @@ A container named `jellyfin` counts as installed, also when Iglo-OS did not make
 The Apps page can update and remove a Jellyfin that Iglo-OS installed.
 
 - **Update** makes a snapshot, and then updates Jellyfin and the other packages. Your settings, users and libraries stay. If the update fails, Iglo-OS rolls the container back to the snapshot.
-- **Remove** removes the container with its disks and snapshots, and the Jellyfin page disconnects. The backups of the container stay, so you can restore it on the Backups page. Your movies and series stay in the media folder. When no other container uses the media folder, Iglo-OS also removes its mount on the host.
+- **Remove** removes the container with its disks and snapshots, and the Jellyfin page disconnects. The backups of the container stay, so you can restore it on the Backups page. Your movies and series stay on the share, and the share stays connected.
 
 ## The Jellyfin page
 

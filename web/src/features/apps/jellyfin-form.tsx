@@ -12,8 +12,8 @@ import { api, type Apps, type JellyfinAnswers, type SavedAnswers } from '@/lib/a
 import { appsQuery } from '@/lib/queries'
 import { Field, Section } from './form-parts'
 import { keepSaved } from './keep-saved'
-import { MediaSourceFields } from './media-source'
-import { noMediaSource } from './no-media-source'
+import { useVideosShares } from './use-videos-shares'
+import { VideosShareFields } from './videos-share'
 
 type JellyfinFormProps = {
     defaults: Apps['defaults']
@@ -23,12 +23,11 @@ type JellyfinFormProps = {
 
 export function JellyfinForm({ defaults, saved, onDone }: JellyfinFormProps) {
     const queryClient = useQueryClient()
-    // Media that is already mounted is used as it is.
-    const shareMounted = Boolean(defaults.mediaShare)
+    const shares = useVideosShares(defaults, false)
     const [answers, setAnswers] = useState<JellyfinAnswers>(
         () =>
             saved?.jellyfin ?? {
-                ...noMediaSource,
+                videosBinding: '',
                 moviesFolder: defaults.moviesFolder,
                 seriesFolder: defaults.seriesFolder,
                 adminUsername: 'admin',
@@ -38,9 +37,10 @@ export function JellyfinForm({ defaults, saved, onDone }: JellyfinFormProps) {
             },
     )
 
+    // The share that the media stack uses, until you choose another one.
+    const videosBinding = answers.videosBinding || shares.preferred
     const install = useMutation({
-        mutationFn: () =>
-            api.installJellyfin(shareMounted ? { ...answers, ...noMediaSource } : answers, saved !== null),
+        mutationFn: () => api.installJellyfin({ ...answers, videosBinding }, saved !== null),
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: appsQuery.queryKey })
             toast.success('The install started')
@@ -60,21 +60,16 @@ export function JellyfinForm({ defaults, saved, onDone }: JellyfinFormProps) {
 
     const storages = Object.fromEntries(defaults.storages.map((name) => [name, name]))
     const passwordSaved = saved?.hasJellyfinAdminPassword && answers.adminUsername === saved.jellyfin.adminUsername
-    // Like the host agent: only the same SMB user on the same NAS keeps the saved password.
-    const smbPasswordSaved =
-        saved?.hasSmbPassword === true &&
-        answers.smbUsername === saved.jellyfin.smbUsername &&
-        answers.smbServer === saved.jellyfin.smbServer
 
     return (
         <form className="flex flex-col gap-6" onSubmit={handleSubmit}>
-            <MediaSourceFields
+            <VideosShareFields
                 id="jf"
-                defaults={defaults}
-                value={answers}
-                smbPasswordSaved={smbPasswordSaved}
-                onChange={(value) => setAnswers((current) => ({ ...current, ...value }))}
-                help="Jellyfin reads your movies and series from here, and never writes to it."
+                shares={shares}
+                value={videosBinding}
+                onChange={(value) => set('videosBinding', value)}
+                write={false}
+                help="Jellyfin reads your movies and series from this share, and never writes to it."
             >
                 {(path) => (
                     <div className="grid gap-4 sm:grid-cols-2">
@@ -96,7 +91,7 @@ export function JellyfinForm({ defaults, saved, onDone }: JellyfinFormProps) {
                         </Field>
                     </div>
                 )}
-            </MediaSourceFields>
+            </VideosShareFields>
 
             <Section title="Admin account" help="Iglo-OS finishes the setup wizard of Jellyfin with this account.">
                 <div className="grid gap-4 sm:grid-cols-2">

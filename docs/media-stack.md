@@ -6,7 +6,7 @@ Prowlarr, Radarr, Sonarr, Bazarr, qBittorrent, Seerr, Recyclarr and FlareSolverr
 
 Install Jellyfin first, from the Apps page or in another way: the installer of the media stack finds a container named `jellyfin` and connects it. See [jellyfin.md](jellyfin.md).
 
-1. Choose where your movies and series are: on a NAS, or on a disk of the Proxmox host. See [media-folder.md](media-folder.md). If Jellyfin already uses a media folder, the media stack uses the same one.
+1. Connect the Videos share with your movies and series on the Storage page, with write access. See [media-folder.md](media-folder.md). If Jellyfin already uses a Videos share, the form chooses the same one.
 2. Create a ProtonVPN WireGuard key with "NAT-PMP (Port Forwarding)" on.
 3. Optional: create a Jellyfin API key (Dashboard > API Keys).
 4. Optional: make a free account on [opensubtitles.com](https://www.opensubtitles.com). Not opensubtitles.org: that is the old site, and Bazarr can't use it without a paid VIP account.
@@ -26,12 +26,12 @@ You can also run `stacks/arr/install.sh` from the bundle as root on the Proxmox 
 
 ## Folders
 
-Movies and series each get their own folder in the media folder. The form asks for both names:
+Movies and series each get their own folder on the Videos share. The form asks for both names:
 
-| Folder | Default  | On a NAS                | On the host             | In the apps and Jellyfin |
-| ------ | -------- | ----------------------- | ----------------------- | ------------------------ |
-| Movies | `movies` | `/volume1/media/movies` | `/mnt/pve/media/movies` | `/data/media/movies`     |
-| Series | `series` | `/volume1/media/series` | `/mnt/pve/media/series` | `/data/media/series`     |
+| Folder | Default  | On the NAS      | In the apps and Jellyfin |
+| ------ | -------- | --------------- | ------------------------ |
+| Movies | `movies` | `Videos/movies` | `/data/media/movies`     |
+| Series | `series` | `Videos/series` | `/data/media/series`     |
 
 Radarr puts movies in the first folder and Sonarr puts series in the second. With a Jellyfin API key, the installer adds a "Movies" and a "Series" library for them. If a folder already has files, Jellyfin shows them. To add them to Radarr or Sonarr, use Library Import in those apps.
 
@@ -39,7 +39,7 @@ Media stacks that were installed before you could choose the folders use `movies
 
 ## What the installer does
 
-- mounts the media folder (the NAS share or the folder on the host) and shares it with the new LXC and with Jellyfin as `/data/media`;
+- checks that the containers can write to the movies and series folders on the Videos share, and gives the share to the new LXC as `/data/media`, and to Jellyfin read-only when it does not have it yet;
 - keeps downloads on a local disk (`/data/downloads`);
 - connects all apps: logins, root folders, qBittorrent, Prowlarr sync, FlareSolverr, subtitles and Jellyfin libraries.
 
@@ -98,6 +98,6 @@ The Apps page shows "Update available" when the stack in the container is from a
 
 The settings in the apps stay, because Iglo-OS does not keep your passwords. If the update fails, Iglo-OS rolls the container back to the snapshot.
 
-**Remove** removes the container with its disks and snapshots. This includes the downloads disk, so downloads that did not finish are lost. Your movies and series stay in the media folder, and Jellyfin keeps its libraries. The backups of the container stay, so you can restore it on the Backups page. When no other container uses the media folder, Iglo-OS also removes its mount on the host.
+**Remove** removes the container with its disks and snapshots. This includes the downloads disk, so downloads that did not finish are lost. Your movies and series stay on the share, and Jellyfin keeps its libraries. The backups of the container stay, so you can restore it on the Backups page.
 
 Iglo-OS only updates and removes a container with the tags `iglo` and `media`. The installer gives it these tags.

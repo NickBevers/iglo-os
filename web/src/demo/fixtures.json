@@ -740,17 +740,6 @@
       ],
       "storage": "local-lvm",
       "jellyfinVmid": 101,
-      "mediaShare": "//192.168.1.20/Videos",
-      "mediaFolders": [
-        {
-          "storage": "media",
-          "path": "/mnt/pve/media"
-        },
-        {
-          "storage": "usb",
-          "path": "/mnt/pve/usb"
-        }
-      ],
       "moviesFolder": "movies",
       "seriesFolder": "series",
       "vpnCountries": "Netherlands",
@@ -779,7 +768,17 @@
     "countries": "Netherlands"
   },
   "/storage/bindings": {
-    "bindings": [],
+    "bindings": [
+      {
+        "id": "videos",
+        "role": "videos",
+        "source": "//192.168.1.20/Videos",
+        "path": "/mnt/iglo/shares/videos",
+        "readOnly": false,
+        "mounted": true,
+        "consumers": ["101"]
+      }
+    ],
     "sample": true
   },
   "/music/jobs": {
@@ -1037,7 +1036,7 @@
         "problem": "Share //nas/backup is not mounted at /mnt/backup"
       },
       {
-        "path": "/mnt/iglo/media",
+        "path": "/mnt/iglo/shares/videos",
         "source": "//192.168.1.20/Videos",
         "fsType": "cifs",
         "mounted": true,

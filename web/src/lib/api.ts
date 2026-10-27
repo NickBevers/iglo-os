@@ -463,13 +463,8 @@ export type AppOperation = {
 }
 
 export type JellyfinAnswers = {
-    nasServer: string
-    nasExport: string
-    smbServer: string
-    smbShare: string
-    smbUsername: string
-    smbPassword: string
-    mediaFolder: string
+    // videosBinding is the Videos share from Storage.
+    videosBinding: string
     moviesFolder: string
     seriesFolder: string
     adminUsername: string
@@ -506,7 +501,6 @@ export type SavedAnswers = {
     hasJellyfinApiKey: boolean
     hasJellyfinAdminPassword: boolean
     hasOpenSubtitlesPassword: boolean
-    hasSmbPassword: boolean
     hasPlayitSecretKey: boolean
     until: string
 }
@@ -549,8 +543,8 @@ export type Apps = {
         storages: string[]
         storage: string
         jellyfinVmid?: number
-        mediaShare?: string
-        mediaFolders: { storage: string; path: string }[]
+        // mediaVmid is the media stack, when it is installed.
+        mediaVmid?: number
         moviesFolder: string
         seriesFolder: string
         vpnCountries: string
@@ -563,13 +557,8 @@ export type Apps = {
 }
 
 export type MediaStackAnswers = {
-    nasServer: string
-    nasExport: string
-    smbServer: string
-    smbShare: string
-    smbUsername: string
-    smbPassword: string
-    mediaFolder: string
+    // videosBinding is the Videos share from Storage.
+    videosBinding: string
     moviesFolder: string
     seriesFolder: string
     wireguardPrivateKey: string

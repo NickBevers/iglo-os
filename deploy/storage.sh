@@ -10,7 +10,7 @@ require_binding() {
     done < "/etc/iglo/storage/$id.conf"
     [[ "$found_role" == "$role" ]] || die "The selected share must have the $role role"
     [[ "$access" == ro || "$read_only" == false ]] || die "The $role share needs write access"
-    BINDING_PATH="/mnt/iglo/shares/$id"
+    BINDING_PATH="/mnt/iglo/shares/$id" BINDING_READ_ONLY="$read_only"
     actual=$(findmnt --mountpoint "$BINDING_PATH" --noheadings --output FSTYPE,SOURCE) || die "The $role share is unavailable"
     read -r fs mounted_source <<< "$actual"
     [[ "$fs" == cifs && "$mounted_source" == "$source" ]] || die "The $role share has the wrong mounted source"
@@ -26,6 +26,28 @@ bind_share() {
     install -d -m 0755 "/etc/systemd/system/pve-container@$ctid.service.d"
     printf '[Unit]\nRequires=%s\nAfter=%s\n' "$BINDING_UNIT" "$BINDING_UNIT" > "/etc/systemd/system/pve-container@$ctid.service.d/iglo-$id.conf"
     systemctl daemon-reload
+}
+
+# make_share_folders makes the folders that are missing on the share of the
+# last require_binding. The mount gives them to the containers. It never
+# changes folders that exist.
+make_share_folders() {
+    local folder
+    for folder in "$@"; do
+        [[ ! -d "$BINDING_PATH/$folder" ]] || continue
+        [[ "$BINDING_READ_ONLY" == false ]] || die "Make the folder $folder on the share first, or connect the share with write access"
+        log "Making the folder $folder on the share"
+        mkdir -m 0775 "$BINDING_PATH/$folder"
+    done
+}
+
+# free_mount_index prints the first unused mount point number of a container.
+free_mount_index() {
+    local index=0
+    while pct config "$1" | grep -q "^mp$index:"; do
+        index=$((index + 1))
+    done
+    echo "$index"
 }
 
 remove_binding_dependencies() {

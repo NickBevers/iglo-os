@@ -51,8 +51,6 @@ type Agent interface {
 	ChangeMinecraftPlayers(ctx context.Context, vmid int, players agent.MinecraftPlayers) error
 	AppStats(ctx context.Context, app string, vmid int) (agent.AppStats, error)
 	AppInstallStatus(ctx context.Context) (agent.AppInstallStatus, error)
-	Mounts(ctx context.Context) ([]agent.Mount, error)
-	MediaFolders(ctx context.Context) ([]agent.MediaFolder, error)
 }
 
 type Proxmox interface {
@@ -184,17 +182,15 @@ type Defaults struct {
 	Storages     []string `json:"storages"`
 	Storage      string   `json:"storage"`
 	JellyfinVMID int      `json:"jellyfinVmid,omitempty"`
-	// MediaShare is the media that is mounted for the apps: a NAS share, like
-	// 192.168.1.5:/volume1/media, or a folder on the host. Empty when there is none yet.
-	MediaShare string `json:"mediaShare,omitempty"`
-	// MediaFolders are suggestions for a media folder on the host.
-	MediaFolders      []agent.MediaFolder `json:"mediaFolders"`
-	MoviesFolder      string              `json:"moviesFolder"`
-	SeriesFolder      string              `json:"seriesFolder"`
-	VPNCountries      string              `json:"vpnCountries"`
-	SubtitleLanguages string              `json:"subtitleLanguages"`
-	Username          string              `json:"username"`
-	DownloadsSize     int                 `json:"downloadsSize"`
+	// MediaVMID is the media stack. The forms prefer the Videos share that it
+	// or Jellyfin already uses, so both apps see the same media.
+	MediaVMID         int    `json:"mediaVmid,omitempty"`
+	MoviesFolder      string `json:"moviesFolder"`
+	SeriesFolder      string `json:"seriesFolder"`
+	VPNCountries      string `json:"vpnCountries"`
+	SubtitleLanguages string `json:"subtitleLanguages"`
+	Username          string `json:"username"`
+	DownloadsSize     int    `json:"downloadsSize"`
 	// Minecraft are the answers that the Minecraft form starts with.
 	Minecraft agent.MinecraftAnswers `json:"minecraft"`
 }
@@ -378,7 +374,6 @@ func (s *Service) node(resources []proxmox.Resource) string {
 func (s *Service) defaults(ctx context.Context, node string, resources []proxmox.Resource) Defaults {
 	defaults := Defaults{
 		Storages:          []string{},
-		MediaFolders:      []agent.MediaFolder{},
 		MoviesFolder:      "movies",
 		SeriesFolder:      "series",
 		VPNCountries:      "Netherlands",
@@ -411,16 +406,10 @@ func (s *Service) defaults(ctx context.Context, node string, resources []proxmox
 			defaults.JellyfinVMID = resource.VMID
 		}
 	}
-
-	if mounts, err := s.Agent.Mounts(ctx); err == nil {
-		for _, mount := range mounts {
-			if mount.Path == agent.MediaMount && mount.Mounted {
-				defaults.MediaShare = mount.Source
-			}
+	if index := slices.IndexFunc(Catalog, func(app App) bool { return app.ID == agent.MediaStackApp }); index >= 0 {
+		if guest, found := findGuest(resources, Catalog[index]); found {
+			defaults.MediaVMID = guest.VMID
 		}
-	}
-	if folders, err := s.Agent.MediaFolders(ctx); err == nil && folders != nil {
-		defaults.MediaFolders = folders
 	}
 
 	return defaults

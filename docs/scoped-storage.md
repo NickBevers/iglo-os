@@ -20,8 +20,8 @@ local directory. This is availability protection, not NAS redundancy.
 Disconnect refuses if any LXC config references the mount or a subdirectory,
 including stopped containers. It removes only the mount and host credential
 files, never NAS contents. Change credentials by removing an unused binding and
-reconnecting it. Existing `/mnt/iglo/media` integrations remain supported and are
-not migrated automatically. New scoped installers use `deploy/storage.sh`.
+reconnecting it. Every installer, Jellyfin and the media stack included, uses
+`deploy/storage.sh`.
 
 The local dev fixture labels its mounts as simulated and does not contact a NAS.
 Unit tests exercise validation, secret redaction, consumer protection and mount

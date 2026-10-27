@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Installs Jellyfin in a new LXC on this Proxmox host, with the official
-# Jellyfin repository, the media (on a NAS or a disk of this host) and the GPU of the host.
+# Jellyfin repository, the Videos share from Storage and the GPU of the host.
 #
 #   ./install.sh [--storage local-lvm] [--bridge vmbr0] [--ctid 140] [--answers file]
 #   ./install.sh --update --ctid 140
@@ -13,6 +13,8 @@ set -euo pipefail
 STACK_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=deploy/lib.sh
 source "$STACK_DIR/../../lib.sh"
+# shellcheck source=deploy/storage.sh
+source "$STACK_DIR/../../storage.sh"
 
 STORAGE="local-lvm"
 BRIDGE="vmbr0"
@@ -20,13 +22,7 @@ CT_HOSTNAME="jellyfin"
 CT_ID=""
 ANSWERS=""
 MODE="install"
-NAS_SERVER=""
-NAS_EXPORT=""
-MEDIA_FOLDER=""
-SMB_SERVER=""
-SMB_SHARE=""
-SMB_USERNAME=""
-SMB_PASSWORD=""
+VIDEOS_BINDING=""
 THEME="y"
 GPU=""
 GPU_DEVICE="/dev/dri/renderD128"
@@ -62,15 +58,14 @@ load_answers() {
         [[ -z "$line" ]] && continue
         key="${line%%=*}" value="${line#*=}"
         case "$key" in
-            NAS_SERVER | NAS_EXPORT | SMB_SERVER | SMB_SHARE | SMB_USERNAME | SMB_PASSWORD | MEDIA_FOLDER | \
-                MOVIES_FOLDER | SERIES_FOLDER | JELLYFIN_ADMIN_USERNAME | \
+            VIDEOS_BINDING | MOVIES_FOLDER | SERIES_FOLDER | JELLYFIN_ADMIN_USERNAME | \
                 JELLYFIN_ADMIN_PASSWORD | THEME | STORAGE)
                 printf -v "$key" '%s' "$value"
                 ;;
             *) die "unknown answer: $key" ;;
         esac
     done <"$ANSWERS"
-    # It holds the admin password and the SMB password.
+    # It holds the admin password.
     rm -f "$ANSWERS"
 }
 
@@ -79,7 +74,8 @@ ask_settings() {
         load_answers
     else
         log "A few questions first"
-        ask_media_source
+        echo "Connect the Videos share on the Storage page of Iglo-OS first."
+        ask VIDEOS_BINDING "ID of the Videos share"
         ask MOVIES_FOLDER "Folder for movies in it" "movies"
         ask SERIES_FOLDER "Folder for series in it" "series"
         echo "The admin account of Jellyfin:"
@@ -89,6 +85,7 @@ ask_settings() {
     fi
 
     check_folders
+    require_binding "$VIDEOS_BINDING" videos ro
     [[ -n "${JELLYFIN_ADMIN_USERNAME:-}" && -n "${JELLYFIN_ADMIN_PASSWORD:-}" ]] || die "the Jellyfin admin needs a username and a password"
 }
 
@@ -104,11 +101,12 @@ create_container() {
         --rootfs "$STORAGE:16" \
         --net0 "name=eth0,bridge=$BRIDGE,ip=dhcp" \
         --onboot 1 \
-        --mp0 "$MEDIA_MOUNT,mp=/data/media,ro=1" \
         --tags "iglo;jellyfin" \
         --description "$(app_description "Jellyfin, installed by Iglo-OS")"
 
     CREATED_CT="$CT_ID"
+    # Jellyfin only reads the media, and the share mounts before the container starts.
+    bind_share "$CT_ID" 0 "$VIDEOS_BINDING" videos ro /data/media
     pct start "$CT_ID"
     wait_for_network "$CT_ID"
 }
@@ -135,8 +133,8 @@ update() {
     die "Jellyfin does not answer after the update"
 }
 
-# on_exit removes the container and the mount that a failed install from the
-# Apps page made, so the next try can start clean.
+# on_exit removes the container that a failed install from the Apps page made,
+# so the next try can start clean. The files on the share stay.
 on_exit() {
     local code=$?
     if ((code == 0)) || [[ -z "$ANSWERS" ]]; then
@@ -146,10 +144,7 @@ on_exit() {
         log "The install failed, removing container $CREATED_CT"
         pct stop "$CREATED_CT" >/dev/null 2>&1 || true
         pct destroy "$CREATED_CT" --purge 1 || true
-    fi
-    if [[ -n "${CREATED_MOUNT:-}" ]]; then
-        log "Removing the media mount"
-        remove_media_mount
+        remove_binding_dependencies "$CREATED_CT"
     fi
 }
 
@@ -215,13 +210,18 @@ configure_jellyfin() {
 main() {
     case "$MODE" in
         update) update; return ;;
-        remove) require_proxmox; remove_app "$CT_ID" jellyfin; return ;;
+        remove)
+            require_proxmox
+            remove_app "$CT_ID" jellyfin
+            remove_binding_dependencies "$CT_ID"
+            return
+            ;;
     esac
 
     trap on_exit EXIT
     preflight
     ask_settings
-    mount_media_share
+    make_share_folders "$MOVIES_FOLDER" "$SERIES_FOLDER"
     download_template
     create_container
     install_jellyfin
