@@ -3,7 +3,7 @@ import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
 
 import { Badge } from '@/components/ui/badge'
-import { Button } from '@/components/ui/button'
+import { Button, buttonVariants } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Input } from '@/components/ui/input'
@@ -12,7 +12,7 @@ import { Field } from '@/features/apps/form-parts'
 import { api, type Setup } from '@/lib/api'
 import { formatBytes } from '@/lib/format'
 import { cn } from '@/lib/utils'
-import { connectedShare, newDraft, planOf, readOnlyRoles, rolesOf, shareNames, type Draft } from './plan'
+import { connectedShare, draftFromPlan, newDraft, planOf, readOnlyRoles, rolesOf, shareNames, type Draft } from './plan'
 
 const pages = ['Apps', 'NAS', 'Accounts', 'Review'] as const
 type Page = (typeof pages)[number]
@@ -84,6 +84,14 @@ type PageProps = { setup: Setup; draft: Draft; setDraft: (update: (draft: Draft)
 function AppsPage({ setup, draft, setDraft }: PageProps) {
     const toggle = (id: string, on: boolean) =>
         setDraft((d) => ({ ...d, apps: on ? [...d.apps, id] : d.apps.filter((app) => app !== id) }))
+    const load = useMutation({
+        mutationFn: async (file: File) => api.loadSetupPlan(await file.text()),
+        onSuccess: (plan) => {
+            setDraft(() => draftFromPlan(setup, plan))
+            toast.success('Plan loaded. Check each page and type the passwords and keys.')
+        },
+        onError: (error) => toast.error(error.message),
+    })
     return (
         <Card>
             <CardHeader>
@@ -92,6 +100,35 @@ function AppsPage({ setup, draft, setDraft }: PageProps) {
                     Everything is chosen. Leave out what you don't want; you can install it later from Apps.
                 </CardDescription>
             </CardHeader>
+            {import.meta.env.VITE_DEMO !== '1' && (
+                <CardContent className="flex flex-wrap items-center gap-2 text-sm">
+                    <label className={buttonVariants({ variant: 'outline' })}>
+                        Load a plan file
+                        <input
+                            type="file"
+                            accept=".yaml,.yml,application/yaml"
+                            className="sr-only"
+                            onChange={(e) => {
+                                const file = e.target.files?.[0]
+                                if (file) {
+                                    load.mutate(file)
+                                }
+                                e.target.value = ''
+                            }}
+                        />
+                    </label>
+                    <a
+                        href={api.setupPlanUrl}
+                        download="iglo-setup.yaml"
+                        className={buttonVariants({ variant: 'ghost' })}
+                    >
+                        Download this server's plan
+                    </a>
+                    <span className="text-xs text-muted-foreground">
+                        A plan file has no passwords or keys. Keep it with your own notes to set up a server again.
+                    </span>
+                </CardContent>
+            )}
             <CardContent className="grid gap-3 sm:grid-cols-2">
                 {setup.apps.map((app) => (
                     <label

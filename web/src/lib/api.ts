@@ -727,6 +727,10 @@ export const api = {
     retrySetup: () => request<void>('POST', '/setup/retry'),
     skipSetup: () => request<void>('POST', '/setup/skip'),
     cancelSetup: () => request<void>('DELETE', '/setup'),
+    // setupPlanUrl downloads the plan of this server, without passwords and keys.
+    setupPlanUrl: '/api/setup/plan',
+    // loadSetupPlan reads a plan file. It starts nothing; the wizard fills its pages from it.
+    loadSetupPlan: (yaml: string) => request<SetupPlan>('POST', '/setup/plan', yaml, 'application/yaml'),
     createBinding: (input: BindingInput) => request<void>('POST', '/storage/bindings', input),
     deleteBinding: (id: string) => request<void>('DELETE', `/storage/bindings/${encodeURIComponent(id)}`),
     setBindingBackups: (id: string, enabled: boolean) =>

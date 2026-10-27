@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"io"
 	"net/http"
 
 	"iglo/internal/setup"
@@ -15,6 +16,7 @@ type Setup interface {
 	Retry() error
 	Skip() error
 	Cancel()
+	ExportPlan(ctx context.Context) ([]byte, error)
 }
 
 // setupRoute serves the guided setup: its state, a new run, and retry, skip
@@ -37,6 +39,30 @@ func (s *server) setupRoute(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		err = s.Setup.Start(r.Context(), plan)
+	case "GET plan":
+		data, err := s.Setup.ExportPlan(r.Context())
+		if err != nil {
+			writeError(w, http.StatusInternalServerError, err.Error())
+			return
+		}
+		w.Header().Set("Content-Type", "application/yaml")
+		w.Header().Set("Content-Disposition", `attachment; filename="iglo-setup.yaml"`)
+		w.Write(data)
+		return
+	case "POST plan":
+		// Loading a file starts nothing: the page fills its pages from it.
+		data, err := io.ReadAll(http.MaxBytesReader(w, r.Body, setup.MaxFileSize+1))
+		if err != nil {
+			writeError(w, http.StatusBadRequest, "the plan file is too large")
+			return
+		}
+		plan, err := setup.ParseFile(data)
+		if err != nil {
+			writeError(w, http.StatusBadRequest, err.Error())
+			return
+		}
+		writeJSON(w, http.StatusOK, plan)
+		return
 	case "POST retry":
 		err = s.Setup.Retry()
 	case "POST skip":

@@ -27,3 +27,35 @@ Each step that is done already is skipped, so running the setup again only does 
 The setup stops at that step and shows why. **Try again** runs it again, **Skip this step** goes on without it, and **Stop the setup** ends it. What is installed stays. You can close the page while the setup runs; it goes on in the manager.
 
 Passwords and keys stay in the memory of the manager until the setup is done, and are never written to its disk. When the manager restarts during a setup, fill in the pages again. The steps that are done are skipped.
+
+## Keep your plan
+
+A plan file holds everything the setup asked, without the passwords and keys: the apps, the NAS address, the shares and their usernames, the admin username and email, the VPN countries and the switches. Keep it with your own notes, like in a private repository, together with the [settings file](settings-file.md).
+
+- **Download this server's plan** on the first page, or **Download the plan** after a run. It is the plan of the last setup. A server that was set up without the setup gets a plan of its apps and shares; the accounts on the NAS are unknown, so they stay empty.
+- **Load a plan file** on the first page fills all four pages. Check them, type the passwords and keys, and confirm the privileged container of Gaming again. Loading starts nothing.
+
+The manager keeps the plan of the last run in `setup-plan.yaml` in its data folder, with mode 0600 and without secrets. A file with a password written in by hand loads without it.
+
+```yaml
+version: 1
+apps: [jellyfin, media, photos, music, inbox]
+nas:
+  server: 192.168.1.20
+  oneAccount: false
+  account:
+    username: ""
+  shares:
+    videos: { share: Videos, username: media }
+    photos: { share: Photos, username: immich }
+    backups: { share: Backups, username: backup }
+    music: { share: Music, username: music }
+    inbox: { share: Inbox, username: inbox }
+admin: { username: nick, email: nick@example.com }
+vpn: { countries: Netherlands }
+flareSolverr: true
+animeIndexers: true
+proxmoxBackups: true
+timezone: Europe/Brussels
+storage: local-lvm
+```

@@ -43,54 +43,55 @@ var memoryMiB = map[string]int{
 
 // Plan is what the setup page asks. Its secrets stay in memory, never on disk.
 type Plan struct {
-	Apps  []string `json:"apps"`
-	NAS   NAS      `json:"nas"`
-	Admin Admin    `json:"admin"`
-	VPN   VPN      `json:"vpn"`
+	Apps  []string `json:"apps" yaml:"apps"`
+	NAS   NAS      `json:"nas" yaml:"nas"`
+	Admin Admin    `json:"admin" yaml:"admin"`
+	VPN   VPN      `json:"vpn" yaml:"vpn"`
 	// FlareSolverr and AnimeIndexers are the switches of the media stack.
-	FlareSolverr  bool `json:"flareSolverr"`
-	AnimeIndexers bool `json:"animeIndexers"`
+	FlareSolverr  bool `json:"flareSolverr" yaml:"flareSolverr"`
+	AnimeIndexers bool `json:"animeIndexers" yaml:"animeIndexers"`
 	// ProxmoxBackups keeps the backups of Proxmox on the Backups share.
-	ProxmoxBackups bool `json:"proxmoxBackups"`
-	// ConfirmPrivileged allows the privileged container of Gaming.
-	ConfirmPrivileged bool `json:"confirmPrivileged"`
+	ProxmoxBackups bool `json:"proxmoxBackups" yaml:"proxmoxBackups"`
+	// ConfirmPrivileged allows the privileged container of Gaming. A plan
+	// file never has it: the confirmation is given again every time.
+	ConfirmPrivileged bool `json:"confirmPrivileged" yaml:"-"`
 	// Timezone is the time zone of the browser, for the processing window.
-	Timezone string `json:"timezone"`
+	Timezone string `json:"timezone" yaml:"timezone"`
 	// Storage is the Proxmox storage of the container disks.
-	Storage string `json:"storage"`
+	Storage string `json:"storage" yaml:"storage"`
 }
 
 // NAS is where the shares are. By default each share has an account of its
 // own, so an app can only reach its own folders. OneAccount uses Account for all.
 type NAS struct {
-	Server     string           `json:"server"`
-	OneAccount bool             `json:"oneAccount"`
-	Account    Account          `json:"account"`
-	Shares     map[string]Share `json:"shares"`
+	Server     string           `json:"server" yaml:"server"`
+	OneAccount bool             `json:"oneAccount" yaml:"oneAccount"`
+	Account    Account          `json:"account" yaml:"account"`
+	Shares     map[string]Share `json:"shares" yaml:"shares"`
 }
 
 type Account struct {
-	Username string `json:"username"`
-	Password string `json:"password,omitempty"`
+	Username string `json:"username" yaml:"username"`
+	Password string `json:"password,omitempty" yaml:"password,omitempty"`
 }
 
 // Share is one shared folder of the NAS, like Videos.
 type Share struct {
-	Share string `json:"share"`
-	Account
+	Share   string `json:"share" yaml:"share"`
+	Account `yaml:",inline"`
 }
 
 // Admin is the one login for Jellyfin, the media stack, Seerr and Immich.
 type Admin struct {
-	Username string `json:"username"`
-	Password string `json:"password,omitempty"`
+	Username string `json:"username" yaml:"username"`
+	Password string `json:"password,omitempty" yaml:"password,omitempty"`
 	// Email is the login of Immich, which needs an address.
-	Email string `json:"email"`
+	Email string `json:"email" yaml:"email"`
 }
 
 type VPN struct {
-	WireGuardKey string `json:"wireguardKey,omitempty"`
-	Countries    string `json:"countries"`
+	WireGuardKey string `json:"wireguardKey,omitempty" yaml:"wireguardKey,omitempty"`
+	Countries    string `json:"countries" yaml:"countries"`
 }
 
 var (
