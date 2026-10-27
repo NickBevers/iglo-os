@@ -26,7 +26,6 @@ var GamingSystems = []struct{ Folder, Label string }{
 	{"gba", "Game Boy Advance"},
 	{"n64", "Nintendo 64"},
 	{"gc", "GameCube"},
-	{"wii", "Wii"},
 }
 
 // gamingSharesRoot is where the host mounts the share bindings.

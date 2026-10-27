@@ -29,7 +29,7 @@ func TestGamesShareNeedsTagsAndABinding(t *testing.T) {
 
 func TestGamingLibraryCountsGamesPerSystem(t *testing.T) {
 	roms := filepath.Join(t.TempDir(), "roms")
-	for _, path := range []string{"gba/a.gba", "gba/b.gba", "gba/.hidden", "gba/gamelist.xml", "wii/Some Game/game.wbfs", "n64/media/box.png"} {
+	for _, path := range []string{"gba/a.gba", "gba/b.gba", "gba/.hidden", "gba/gamelist.xml", "gc/Some Game/game.iso", "n64/media/box.png"} {
 		os.MkdirAll(filepath.Dir(filepath.Join(roms, path)), 0o755)
 		os.WriteFile(filepath.Join(roms, path), nil, 0o644)
 	}
@@ -37,7 +37,7 @@ func TestGamingLibraryCountsGamesPerSystem(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	want := map[string]int64{"Game Boy": 0, "Game Boy Color": 0, "Game Boy Advance": 2, "Nintendo 64": 0, "GameCube": 0, "Wii": 1}
+	want := map[string]int64{"Game Boy": 0, "Game Boy Color": 0, "Game Boy Advance": 2, "Nintendo 64": 0, "GameCube": 1}
 	if len(figures) != len(want) {
 		t.Fatalf("figures = %v", figures)
 	}
@@ -77,7 +77,7 @@ func TestGamingGamesListsTitlesAndOwnCovers(t *testing.T) {
 	for _, path := range []string{
 		"roms/gba/Metroid Fusion (USA).gba",
 		"roms/gba/Mario Kart - Super Circuit (USA).gba",
-		"roms/wii/Wii Sports (USA)/game.wbfs",
+		"roms/gc/Super Mario Sunshine (USA)/game.iso",
 		"covers/gba/Metroid Fusion (USA).png",
 		"covers/gba/notes.txt",
 	} {
@@ -88,8 +88,8 @@ func TestGamingGamesListsTitlesAndOwnCovers(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	gba, wii := systems[2], systems[5]
-	if gba.ID != "gba" || len(gba.Games) != 2 || wii.ID != "wii" || len(wii.Games) != 1 {
+	gba, gc := systems[2], systems[4]
+	if gba.ID != "gba" || len(gba.Games) != 2 || gc.ID != "gc" || len(gc.Games) != 1 {
 		t.Fatalf("systems = %+v", systems)
 	}
 	for _, game := range gba.Games {
@@ -100,8 +100,8 @@ func TestGamingGamesListsTitlesAndOwnCovers(t *testing.T) {
 			t.Errorf("mario kart has no cover of its own: %+v", game)
 		}
 	}
-	if wii.Games[0].Name != "Wii Sports (USA)" {
-		t.Errorf("a disc folder keeps its whole name: %+v", wii.Games[0])
+	if gc.Games[0].Name != "Super Mario Sunshine (USA)" {
+		t.Errorf("a disc folder keeps its whole name: %+v", gc.Games[0])
 	}
 
 	data, contentType, err := gamingCover(filepath.Join(root, "covers"), "gba", "Metroid Fusion (USA)")

@@ -32,7 +32,6 @@ var Systems = map[string]string{
 	"gba": "Nintendo - Game Boy Advance",
 	"n64": "Nintendo - Nintendo 64",
 	"gc":  "Nintendo - GameCube",
-	"wii": "Nintendo - Wii",
 }
 
 const (

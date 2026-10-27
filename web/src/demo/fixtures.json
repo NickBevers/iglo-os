@@ -722,10 +722,6 @@
             {
               "label": "GameCube",
               "value": 3
-            },
-            {
-              "label": "Wii",
-              "value": 3
             }
           ],
           "activity": []
@@ -914,10 +910,6 @@
       {
         "label": "GameCube",
         "value": 3
-      },
-      {
-        "label": "Wii",
-        "value": 3
       }
     ],
     "sample": true,
@@ -1027,27 +1019,6 @@
           {
             "name": "Super Smash Bros. Melee (USA) (En,Ja) (Rev 2)",
             "title": "Super Smash Bros. Melee",
-            "cover": false
-          }
-        ]
-      },
-      {
-        "id": "wii",
-        "label": "Wii",
-        "games": [
-          {
-            "name": "Mario Kart Wii (USA) (En,Fr,Es)",
-            "title": "Mario Kart Wii",
-            "cover": false
-          },
-          {
-            "name": "Super Mario Galaxy (USA) (En,Fr,Es)",
-            "title": "Super Mario Galaxy",
-            "cover": false
-          },
-          {
-            "name": "Wii Sports (USA)",
-            "title": "Wii Sports",
             "cover": false
           }
         ]
