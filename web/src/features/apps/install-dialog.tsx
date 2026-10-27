@@ -40,7 +40,7 @@ const descriptions: Record<string, string> = {
     inbox: 'Install FileFlows with read access to Inbox and write access to the Videos output share.',
     gaming: 'Experimental. Install Wolf with ES-DE in a privileged container, with read access to your Games share. It only runs while you play.',
     jellyfin: 'Iglo-OS makes a new container for Jellyfin on this host, with read access to your movies and series.',
-    media: 'Iglo-OS makes a new container for it on this host. Nothing else changes, except that Jellyfin gets read access to the media folder.',
+    media: 'Iglo-OS makes a new container for it on this host. Nothing else changes, except that Jellyfin gets read access to the Videos share, if it has none yet.',
     minecraft: 'Iglo-OS makes a new container on this host with a Paper server: the Minecraft Java server, but faster.',
 }
 
@@ -145,7 +145,7 @@ function MediaStackForm({
                 value={videosBinding}
                 onChange={(value) => set('videosBinding', value)}
                 write
-                help="Where your movies, series and anime are. Each gets its own folder on the share, and its own library in Jellyfin."
+                help="Where your movies, series and anime are. Each gets its own folder on the share, and its own library in Jellyfin. New files get names that Jellyfin reads."
             >
                 {(path) => (
                     <div className="grid gap-4 sm:grid-cols-2">
@@ -256,8 +256,8 @@ function MediaStackForm({
                     <span>
                         Anime trackers
                         <span className="block text-xs text-muted-foreground">
-                            Adds Nyaa.si and Anime Tosho to Prowlarr. Seerr sends anime to Sonarr with its own quality
-                            profile.
+                            Adds Nyaa.si and Anime Tosho to Prowlarr. Anime always gets a quality profile in Sonarr and
+                            Radarr that rejects dubbed-only releases, and one download per episode.
                         </span>
                     </span>
                     <Switch
@@ -299,7 +299,7 @@ function MediaStackForm({
             {defaults.jellyfinVmid ? (
                 <Section
                     title="Jellyfin"
-                    help={`Found in container ${defaults.jellyfinVmid}. It gets read access to the media folder.`}
+                    help={`Found in container ${defaults.jellyfinVmid}. It gets read access to the Videos share.`}
                 >
                     <Field
                         id="jellyfin-key"
@@ -349,7 +349,7 @@ function MediaStackForm({
                         <span>
                             Restart Jellyfin
                             <span className="block text-xs text-muted-foreground">
-                                Jellyfin only sees the media folder after a restart.
+                                Jellyfin only sees the Videos share after a restart.
                             </span>
                         </span>
                         <Switch
@@ -394,7 +394,10 @@ function MediaStackForm({
                 </div>
             </Section>
 
-            <Section title="Subtitles" help="Bazarr adds subtitles to every new movie and episode.">
+            <Section
+                title="Subtitles"
+                help="Bazarr adds subtitles to every new movie and episode, except anime, which keeps the official subtitles in the file."
+            >
                 <Field id="subtitles" label="Languages" help="2-letter codes, like en,nl.">
                     <Input
                         id="subtitles"

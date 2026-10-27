@@ -145,13 +145,16 @@ export function ScopedForm({
                 <p className="text-sm text-muted-foreground">
                     After installation, open Immich to create the first admin account. Create a key with queue
                     read/update permissions and connect it in Background work. Backups include originals and the
-                    database; snapshots alone do not.
+                    database; snapshots alone do not. With a GPU, face detection and smart search use it by themselves;
+                    for video, turn on Administration &gt; Settings &gt; Video transcoding &gt; Hardware acceleration
+                    &gt; Quick Sync.
                 </p>
             )}
             {id === 'inbox' && (
                 <p className="text-sm text-muted-foreground">
                     Open FileFlows to set up a flow, one runner and its schedule. Source files are read only. Configure
-                    output under /media/output; temporary files use /temp.
+                    output under /media/output; temporary files use /temp. With a GPU on the host, flows can use VAAPI
+                    or Quick Sync.
                 </p>
             )}
             {id === 'gaming' && (
