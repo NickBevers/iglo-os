@@ -34,7 +34,7 @@ The daily window uses its explicit IANA timezone, supports crossing midnight and
 
 Disable control and wait for owned queues to resume before changing the server URL. The controller retains ownership on connection failures and retries. It cannot resume queues while the manager or Immich is offline; the original queues may stay paused until control reconnects. Do not delete its state file to disconnect it. If the manager is permanently lost, resume the affected queues in Immich's own administration interface.
 
-The encrypted manager data backup includes this file. Plain `iglo.yaml` export does not yet include workload settings. Restoring a manager backup also restores its endpoint, credentials and recorded queue ownership; verify the destination before starting a restored manager against a different installation.
+The encrypted manager data backup includes this file. The `iglo.yaml` [settings file](settings-file.md) has the settings, without the API key, the gaming deadline or pause ownership. Restoring a manager backup also restores its endpoint, credentials and recorded queue ownership; verify the destination before starting a restored manager against a different installation.
 
 ## Other optimization paths
 

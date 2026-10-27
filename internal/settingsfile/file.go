@@ -20,6 +20,7 @@ import (
 	"iglo/internal/selfupdate"
 	"iglo/internal/tailscale"
 	"iglo/internal/updates"
+	"iglo/internal/workloads"
 )
 
 const (
@@ -41,6 +42,9 @@ type File struct {
 	Tailscale     *Tailscale     `yaml:"tailscale,omitempty"`
 	Jellyfin      *Jellyfin      `yaml:"jellyfin,omitempty"`
 	SelfUpdate    *SelfUpdate    `yaml:"selfUpdate,omitempty"`
+	// BackgroundWork is the control of heavy work. Its Immich API key, the
+	// gaming hold and the paused queues stay on the manager.
+	BackgroundWork *BackgroundWork `yaml:"backgroundWork,omitempty"`
 }
 
 type Notifications struct {
@@ -102,6 +106,32 @@ type Jellyfin struct {
 type SelfUpdate struct {
 	Repo        string `yaml:"repo"`
 	AutoInstall bool   `yaml:"autoInstall"`
+}
+
+type BackgroundWork struct {
+	// Immich is the server whose queues are controlled, and its Proxmox node.
+	Immich Immich `yaml:"immich"`
+	// Workers controls Music and Inbox too.
+	Workers    bool     `yaml:"workers"`
+	ReserveGiB int      `yaml:"reserveGiB"`
+	MaxQueues  int      `yaml:"maxQueues"`
+	Queues     []string `yaml:"queues"`
+	Window     Window   `yaml:"window"`
+}
+
+type Immich struct {
+	// Control is off when Iglo-OS leaves the Immich queues alone.
+	Control bool   `yaml:"control"`
+	URL     string `yaml:"url"`
+	Node    string `yaml:"node"`
+}
+
+// Window is when heavy work may run, if Enabled.
+type Window struct {
+	Enabled  bool   `yaml:"enabled"`
+	Start    string `yaml:"start"`
+	End      string `yaml:"end"`
+	Timezone string `yaml:"timezone"`
 }
 
 // Parse reads a file strictly: unknown keys are an error, so a typo is not ignored.
@@ -204,6 +234,16 @@ func (f File) Validate() error {
 	if f.SelfUpdate != nil && !selfupdate.ValidRepo(f.SelfUpdate.Repo) {
 		return invalid("selfUpdate", errors.New("the repo must look like owner/name"))
 	}
+	if f.BackgroundWork != nil {
+		settings := f.BackgroundWork.settings()
+		// The key is never in the file. The import checks that one is saved.
+		if settings.URL != "" {
+			settings.APIKey = "checked on import"
+		}
+		if err := settings.Validate(); err != nil {
+			return invalid("backgroundWork", errors.New(strings.TrimPrefix(err.Error(), workloads.ErrInvalid.Error()+": ")))
+		}
+	}
 
 	return nil
 }
@@ -302,6 +342,33 @@ func (c Check) input() health.CheckInput {
 
 func (t Tailscale) settings() tailscale.Settings {
 	return tailscale.Settings{ShareSubnet: t.ShareSubnet, Subnet: strings.TrimSpace(t.Subnet)}
+}
+
+func (b BackgroundWork) settings() workloads.Settings {
+	return workloads.Settings{
+		Workers:    b.Workers,
+		Enabled:    b.Immich.Control,
+		URL:        strings.TrimRight(strings.TrimSpace(b.Immich.URL), "/"),
+		Node:       strings.TrimSpace(b.Immich.Node),
+		ReserveGiB: b.ReserveGiB,
+		MaxQueues:  b.MaxQueues,
+		Queues:     nonNil(b.Queues),
+		Window:     b.Window.Enabled,
+		Start:      b.Window.Start,
+		End:        b.Window.End,
+		Timezone:   b.Window.Timezone,
+	}
+}
+
+func backgroundWork(settings workloads.Settings) *BackgroundWork {
+	return &BackgroundWork{
+		Immich:     Immich{Control: settings.Enabled, URL: settings.URL, Node: settings.Node},
+		Workers:    settings.Workers,
+		ReserveGiB: settings.ReserveGiB,
+		MaxQueues:  settings.MaxQueues,
+		Queues:     nonNil(settings.Queues),
+		Window:     Window{Enabled: settings.Window, Start: settings.Start, End: settings.End, Timezone: settings.Timezone},
+	}
 }
 
 func nonNil[T any](values []T) []T {

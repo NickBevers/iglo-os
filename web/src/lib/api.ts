@@ -585,7 +585,8 @@ export type MediaStackAnswers = {
 }
 
 export type SettingsChange = {
-    section: 'selfUpdate' | 'notifications' | 'updates' | 'health' | 'backups' | 'tailscale' | 'jellyfin'
+    section:
+        'selfUpdate' | 'notifications' | 'updates' | 'health' | 'backups' | 'tailscale' | 'jellyfin' | 'backgroundWork'
     status: 'unchanged' | 'changed' | 'applied' | 'skipped' | 'failed'
     message?: string
 }

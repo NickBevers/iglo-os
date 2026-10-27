@@ -33,9 +33,17 @@ jellyfin:
 selfUpdate:
   repo: NickBevers/iglo-os
   autoInstall: false
+backgroundWork:
+  immich: { control: true, url: http://192.168.1.30:2283, node: pve }
+  workers: true
+  reserveGiB: 4
+  maxQueues: 1
+  queues: [videoConversion, faceDetection, facialRecognition, smartSearch]
+  window: { enabled: true, start: "02:00", end: "07:00", timezone: Europe/Brussels }
 ```
 
 - Tokens, passwords and API keys are not in the file. Enter the Telegram bot token and the Jellyfin API key on their pages. Until then, an import skips those sections.
+- Background work leaves out the Immich API key, the gaming hold and which queues Iglo-OS paused. An import skips the section when it turns control on before an API key is saved, or when it names another Immich server. Connect that server on the Background work page first, so its key never goes to the wrong server.
 - A section that is not in the file stays as it is.
 - An import first shows which sections change. Nothing is saved until you apply it.
 - Unknown keys are an error, so a typo does not go unnoticed.

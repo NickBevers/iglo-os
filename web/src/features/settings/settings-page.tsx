@@ -26,6 +26,7 @@ const sectionTitles: Record<SettingsChange['section'], string> = {
     backups: 'Backup job',
     tailscale: 'Tailscale',
     jellyfin: 'Jellyfin',
+    backgroundWork: 'Background work',
 }
 
 const statusBadges: Record<SettingsChange['status'], { label: string; className?: string }> = {

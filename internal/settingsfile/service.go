@@ -14,6 +14,7 @@ import (
 	"iglo/internal/selfupdate"
 	"iglo/internal/tailscale"
 	"iglo/internal/updates"
+	"iglo/internal/workloads"
 )
 
 type UpdatesService interface {
@@ -49,6 +50,11 @@ type SelfUpdateService interface {
 	SaveSettings(input selfupdate.SettingsInput) error
 }
 
+type WorkloadsService interface {
+	Status() workloads.View
+	SaveSettings(workloads.Settings) error
+}
+
 type Service struct {
 	Updates    UpdatesService
 	Health     HealthService
@@ -56,6 +62,8 @@ type Service struct {
 	Tailscale  TailscaleService
 	Jellyfin   JellyfinService
 	SelfUpdate SelfUpdateService
+	// Workloads is left out of the file when it is nil.
+	Workloads WorkloadsService
 
 	// mu stops two imports from running at the same time.
 	mu sync.Mutex
@@ -150,6 +158,10 @@ func (s *Service) current(ctx context.Context) (File, []string) {
 		notes = append(notes, "selfUpdate: left out, because no GitHub repo is set.")
 	}
 
+	if s.Workloads != nil {
+		file.BackgroundWork = backgroundWork(s.Workloads.Status().Settings)
+	}
+
 	return file, notes
 }
 
@@ -227,6 +239,7 @@ func (s *Service) Import(ctx context.Context, data []byte, apply bool) (Result, 
 
 	s.importTailscale(ctx, file, current, add, finish, run)
 	s.importJellyfin(ctx, file, current, add, finish, run)
+	s.importBackgroundWork(file, current, add, finish, run)
 
 	return result, nil
 }
@@ -345,6 +358,30 @@ func (s *Service) importJellyfin(ctx context.Context, file, current File, add ad
 		return nil
 	})
 	finish("jellyfin", err, "")
+}
+
+func (s *Service) importBackgroundWork(file, current File, add addFunc, finish finishFunc, run runFunc) {
+	if file.BackgroundWork == nil {
+		return
+	}
+	if s.Workloads == nil {
+		add("backgroundWork", StatusSkipped, "Update Iglo-OS to import background work.")
+		return
+	}
+	wanted, saved := file.BackgroundWork.settings(), current.BackgroundWork.settings()
+	keySaved := s.Workloads.Status().Configured
+	switch {
+	case reflect.DeepEqual(wanted, saved):
+		add("backgroundWork", StatusUnchanged, "")
+	// A saved API key never goes to another server.
+	case wanted.URL != saved.URL && keySaved:
+		add("backgroundWork", StatusSkipped, "The Immich server is a different one. Connect it with its API key on the Background work page first.")
+	case wanted.Enabled && (!keySaved || wanted.URL != saved.URL):
+		add("backgroundWork", StatusSkipped, "Add the Immich API key on the Background work page first.")
+	default:
+		// An empty API key keeps the saved one.
+		finish("backgroundWork", run(func() error { return s.Workloads.SaveSettings(wanted) }), "")
+	}
 }
 
 // normalize makes equal settings compare equal: no nil lists, and sorted days and guests.
