@@ -2,7 +2,8 @@
 
 Rules for any agent in this repository. They come from building it: each one
 fixed a real bug, a slow path or a leak. The skills in `.claude/skills/` hold
-the step-by-step workflows.
+the step-by-step workflows, and `docs/performance.md` explains the performance
+and memory choices for people.
 
 ## The shape
 
