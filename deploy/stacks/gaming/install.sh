@@ -12,7 +12,11 @@ install_stack() {
         apt-get install -y -q curl vainfo mesa-va-drivers mesa-vulkan-drivers vulkan-tools
         install -d -m 0700 /etc/wolf/cfg
         install -d -m 0755 /var/run/wolf
-        sed "s/IGLO_UUID/$(cat /proc/sys/kernel/random/uuid)/" /opt/gaming/config.toml > /etc/wolf/cfg/config.toml
+        # hidraw, for virtual pads and Wii Remotes, gets its device number when the
+        # kernel loads the driver. 244 is the number of the Wolf quickstart.
+        hidraw=$(sed -n "s/^ *\([0-9][0-9]*\) hidraw\$/\1/p" /proc/devices)
+        sed -e "s/IGLO_UUID/$(cat /proc/sys/kernel/random/uuid)/" -e "s/IGLO_HIDRAW_MAJOR/${hidraw:-244}/" \
+            /opt/gaming/config.toml > /etc/wolf/cfg/config.toml
         chmod 0600 /etc/wolf/cfg/config.toml
     '
     start_wolf

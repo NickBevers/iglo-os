@@ -114,6 +114,34 @@ share settings and saves. The manager keeps one session at a time, so two
 screens can't write the same saves at once. Save in-game and quit the emulator
 before disconnecting or switching clients.
 
+## Wii Remotes with a DolphinBar
+
+Moonlight only forwards gamepads, so a Wii Remote can't come over the stream.
+It connects to the mini PC instead. Plug a Mayflash DolphinBar into a USB port
+of the mini PC and set it to **mode 4**. The sensor bar is built into the
+DolphinBar, so place it at the TV. A USB extension cable may be needed.
+
+The gaming container sees the USB devices of the host. Wolf only adds its own
+virtual devices to the emulator container of a session, so Iglo-OS mounts a
+small init script into it (`dolphinbar.sh`). At the start of each session, the
+script adds the devices of Wii Remotes and Wii Remote Plus controllers, and no
+other USB device. A Wii Remote paired with the host's Bluetooth shows up the
+same way, so that works as a fallback without the DolphinBar.
+
+1. Plug in the DolphinBar before you press Play. The script only looks when a
+   session starts. After plugging it in later, quit Retro games and start it again.
+2. In Dolphin, open **Controllers**. Set each Wii Remote to **Real Wii Remote**
+   and turn on **Continuous Scanning**.
+3. Press 1 and 2 on a Wii Remote to connect it to the DolphinBar.
+
+The installer reads the device number of `hidraw` on the host and allows it in
+the emulator container. The Wolf quickstart uses 244, which only fits some
+kernels. Wolf's own virtual pads need the same number. The diagnose script below
+lists the Wii Remotes that the host sees.
+
+This path is untested on the target hardware. DolphinBar support on Linux has a
+mixed history.
+
 ## Acceptance tests on the target hardware
 
 Run inside the gaming guest:
@@ -132,8 +160,8 @@ GameCube, and a gamepad-friendly Wii game. Record the title, backend, internal
 resolution, FPS/frame pacing, Moonlight network/decode times and visible input
 latency. Test sound, one/two controllers, reconnecting and quitting to ES-DE.
 Repeat a save/load after guest reboot and after switching from PC to a second
-client. A Wii Remote/DolphinBar needs a separate tested USB/motion-input path;
-ordinary Moonlight gamepad forwarding is not an equivalent replacement.
+client. Test a Wii game with Wii Remotes on the DolphinBar: pointing, motion,
+the speaker and rumble, and two remotes at once.
 
 Run a Jellyfin playback stream alongside it, then an allowed background job.
 Watch host RAM, Intel GPU usage, thermals and frame pacing. Lower emulator
