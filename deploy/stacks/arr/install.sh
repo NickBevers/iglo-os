@@ -170,7 +170,7 @@ create_container() {
         --hostname "$CT_HOSTNAME" \
         --unprivileged 1 \
         --features nesting=1,keyctl=1 \
-        --cores 2 --memory 4096 --swap 1024 \
+        --cores 4 --memory 4096 --swap 1024 \
         --rootfs "$STORAGE:16" \
         --net0 "name=eth0,bridge=$BRIDGE,ip=dhcp" \
         --onboot 1 \
