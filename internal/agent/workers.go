@@ -18,11 +18,11 @@ func workerGuest(ctx context.Context, app string, vmid int) error {
 	if (app != MusicApp && app != InboxApp) || vmid < 100 || vmid > 999999999 {
 		return ErrInvalidContainer
 	}
-	data, err := exec.CommandContext(ctx, "pct", "config", strconv.Itoa(vmid)).Output()
+	config, err := containerConfig(ctx, vmid)
 	if err != nil {
 		return errors.New("could not inspect the worker container")
 	}
-	for line := range strings.Lines(string(data)) {
+	for line := range strings.Lines(config) {
 		if tags, ok := strings.CutPrefix(line, "tags: "); ok {
 			found := map[string]bool{}
 			for _, tag := range strings.Split(tags, ";") {

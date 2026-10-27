@@ -165,11 +165,11 @@ func gamingRoot(ctx context.Context, vmid int) (string, error) {
 	}
 	ctx, cancel := context.WithTimeout(ctx, 10*time.Second)
 	defer cancel()
-	config, err := exec.CommandContext(ctx, "pct", "config", strconv.Itoa(vmid)).Output()
+	config, err := containerConfig(ctx, vmid)
 	if err != nil {
 		return "", errors.New("could not inspect the gaming container")
 	}
-	return gamesShare(string(config))
+	return gamesShare(config)
 }
 
 // GamingStats counts the games per system on the Games share of the gaming
