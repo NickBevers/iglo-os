@@ -12,5 +12,8 @@ echo '== Wolf containers =='
 docker compose ps
 echo '== Recent Wolf logs: check the encoder selected during a live session =='
 docker compose logs --tail 120
-echo '== Active sessions from private Unix API =='
-curl --fail --silent --unix-socket /var/run/wolf/wolf.sock http://localhost/api/v1/sessions
+echo '== Wii Remotes (DolphinBar in mode 4, or host Bluetooth) =='
+grep -l -i -E '^HID_ID=.*:0000057E:0000(0306|0330)$' /sys/class/hidraw/hidraw*/device/uevent 2>/dev/null || echo 'none found'
+echo '== Active sessions from private Unix API, without their stream keys =='
+curl --fail --silent --unix-socket /var/run/wolf/wolf.sock http://localhost/api/v1/sessions |
+    grep -o -E '"(client_id|client_ip|video_width|video_height|video_refresh_rate)":("[^"]*"|[0-9]+)' || echo 'none'
