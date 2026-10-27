@@ -11,6 +11,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"regexp"
 	"slices"
 	"strconv"
 	"strings"
@@ -61,6 +62,100 @@ type Game struct {
 	Title string `json:"title"`
 	// Cover is set when the Games share has a cover of its own for the game.
 	Cover bool `json:"cover"`
+}
+
+// GamingSession is one Moonlight stream on Wolf. Wolf also lists the stream
+// keys of each session; they never leave the host.
+type GamingSession struct {
+	ID       string `json:"id"`
+	ClientIP string `json:"clientIP"`
+	Width    int    `json:"width"`
+	Height   int    `json:"height"`
+	FPS      int    `json:"fps"`
+}
+
+// wolfSocket is the API socket of Wolf in the gaming container.
+const wolfSocket = "/var/run/wolf/wolf.sock"
+
+// wolfSessionID is the form of a Wolf session ID: a number.
+var wolfSessionID = regexp.MustCompile(`^[0-9]{1,20}$`)
+
+// ErrNoWolfSession means Wolf has no session with that ID.
+var ErrNoWolfSession = errors.New("no such gaming session")
+
+// wolfCall calls the API of Wolf in the gaming container, with curl on its
+// socket, and returns the answer. Wolf answers with success false, or an HTTP
+// error, when it refuses.
+func wolfCall(ctx context.Context, vmid int, method, path string, body []byte) ([]byte, error) {
+	ctx, cancel := context.WithTimeout(ctx, 12*time.Second)
+	defer cancel()
+	// gamingRoot also checks that vmid is the Gaming app.
+	if _, err := gamingRoot(ctx, vmid); err != nil {
+		return nil, err
+	}
+	args := []string{"exec", strconv.Itoa(vmid), "--", "curl", "--fail-with-body", "--silent", "--show-error", "--max-time", "8",
+		"--unix-socket", wolfSocket, "--request", method, "http://localhost" + path}
+	if body != nil {
+		args = append(args, "--header", "Content-Type: application/json", "--data-binary", "@-")
+	}
+	cmd := exec.CommandContext(ctx, "pct", args...)
+	cmd.Stdin = strings.NewReader(string(body))
+	result, err := cmd.Output()
+	if err != nil {
+		return nil, errors.New("Wolf did not answer; it may still be starting")
+	}
+	var answer struct {
+		Success bool `json:"success"`
+	}
+	if json.Unmarshal(result, &answer) != nil || !answer.Success {
+		return nil, errors.New("Wolf refused the request")
+	}
+	return result, nil
+}
+
+// gamingSessions lists the Moonlight streams that Wolf runs.
+func gamingSessions(ctx context.Context, vmid int) ([]GamingSession, error) {
+	result, err := wolfCall(ctx, vmid, http.MethodGet, "/api/v1/sessions", nil)
+	if err != nil {
+		return nil, err
+	}
+	return wolfSessions(result)
+}
+
+// wolfSessions reads the session list of Wolf, oldest first, because Wolf
+// adds a new session at the end. It keeps only what the manager shows.
+func wolfSessions(data []byte) ([]GamingSession, error) {
+	var answer struct {
+		Sessions []struct {
+			// Wolf calls the session ID client_id in this list.
+			ID       *string `json:"client_id"`
+			ClientIP string  `json:"client_ip"`
+			Width    int     `json:"video_width"`
+			Height   int     `json:"video_height"`
+			FPS      int     `json:"video_refresh_rate"`
+		} `json:"sessions"`
+	}
+	if err := json.Unmarshal(data, &answer); err != nil {
+		return nil, errors.New("Wolf sent an invalid session list")
+	}
+	sessions := []GamingSession{}
+	for _, session := range answer.Sessions {
+		if session.ID == nil || !wolfSessionID.MatchString(*session.ID) {
+			continue
+		}
+		sessions = append(sessions, GamingSession{ID: *session.ID, ClientIP: session.ClientIP, Width: session.Width, Height: session.Height, FPS: session.FPS})
+	}
+	return sessions, nil
+}
+
+// stopGamingSession ends one Moonlight stream. Its emulator stops with it.
+func stopGamingSession(ctx context.Context, vmid int, id string) error {
+	if !wolfSessionID.MatchString(id) {
+		return ErrNoWolfSession
+	}
+	body, _ := json.Marshal(map[string]string{"session_id": id})
+	_, err := wolfCall(ctx, vmid, http.MethodPost, "/api/v1/sessions/stop", body)
+	return err
 }
 
 // gamingRoot finds the Games share of the gaming container on the host.
@@ -235,6 +330,24 @@ func RegisterGaming(mux *http.ServeMux) {
 		w.Header().Set("Content-Type", "application/json")
 		json.NewEncoder(w).Encode(systems)
 	})
+	mux.HandleFunc("GET /v1/gaming/{vmid}/sessions", func(w http.ResponseWriter, r *http.Request) {
+		vmid, _ := strconv.Atoi(r.PathValue("vmid"))
+		sessions, err := gamingSessions(r.Context(), vmid)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusBadGateway)
+			return
+		}
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(sessions)
+	})
+	mux.HandleFunc("POST /v1/gaming/{vmid}/sessions/{id}/stop", func(w http.ResponseWriter, r *http.Request) {
+		vmid, _ := strconv.Atoi(r.PathValue("vmid"))
+		if err := stopGamingSession(r.Context(), vmid, r.PathValue("id")); err != nil {
+			http.Error(w, err.Error(), http.StatusBadGateway)
+			return
+		}
+		w.WriteHeader(http.StatusNoContent)
+	})
 	mux.HandleFunc("GET /v1/gaming/{vmid}/covers/{system}/{name}", func(w http.ResponseWriter, r *http.Request) {
 		vmid, _ := strconv.Atoi(r.PathValue("vmid"))
 		root, err := gamingRoot(r.Context(), vmid)
@@ -256,6 +369,18 @@ func (c *Client) GamingGames(ctx context.Context, vmid int) ([]GameSystem, error
 	var systems []GameSystem
 	err := c.do(ctx, http.MethodGet, "/v1/gaming/"+strconv.Itoa(vmid)+"/games", nil, &systems)
 	return systems, err
+}
+
+// GamingSessions lists the Moonlight streams of the gaming container, oldest first.
+func (c *Client) GamingSessions(ctx context.Context, vmid int) ([]GamingSession, error) {
+	var sessions []GamingSession
+	err := c.do(ctx, http.MethodGet, "/v1/gaming/"+strconv.Itoa(vmid)+"/sessions", nil, &sessions)
+	return sessions, err
+}
+
+// StopGamingSession ends one Moonlight stream of the gaming container.
+func (c *Client) StopGamingSession(ctx context.Context, vmid int, id string) error {
+	return c.do(ctx, http.MethodPost, "/v1/gaming/"+strconv.Itoa(vmid)+"/sessions/"+url.PathEscape(id)+"/stop", nil, nil)
 }
 
 // GamingCover returns your own cover of a game, or ErrNoCover.

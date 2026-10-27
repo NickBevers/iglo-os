@@ -235,6 +235,12 @@ type Service struct {
 	// active is the app of the operation that a monitor still handles, like a rollback after a failed update.
 	active    string
 	rollbacks map[string]string
+
+	gamingMu sync.Mutex
+	// gamingSessions are the Moonlight sessions that WatchGaming saw last.
+	gamingSessions []agent.GamingSession
+	// gamingOwner is the session that came first. The others are stopped.
+	gamingOwner string
 }
 
 func New(options Options) *Service {

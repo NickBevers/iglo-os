@@ -3,6 +3,7 @@ package apps
 import (
 	"context"
 	"errors"
+	"slices"
 	"time"
 
 	"iglo/internal/agent"
@@ -21,6 +22,9 @@ type GamingView struct {
 	LibraryError string         `json:"libraryError,omitempty"`
 	// Sample marks the made-up library of the dev mock and the demo.
 	Sample bool `json:"sample,omitempty"`
+	// Sessions are the Moonlight streams that run now. There is one at most,
+	// because every screen shares the same saves.
+	Sessions []agent.GamingSession `json:"sessions"`
 	// Protected is set while gaming protection defers heavy background work.
 	Protected      bool      `json:"protected"`
 	ProtectedUntil time.Time `json:"protectedUntil,omitzero"`
@@ -31,7 +35,7 @@ type guestActions interface {
 }
 
 func (s *Service) Gaming(ctx context.Context) (GamingView, error) {
-	view := GamingView{Library: []agent.Figure{}}
+	view := GamingView{Library: []agent.Figure{}, Sessions: []agent.GamingSession{}}
 	_, guest, err := s.managedGuest(ctx, agent.GamingApp)
 	if errors.Is(err, ErrNotInstalled) {
 		return view, nil
@@ -42,6 +46,9 @@ func (s *Service) Gaming(ctx context.Context) (GamingView, error) {
 	view.Installed, view.VMID, view.Status = true, guest.VMID, guest.Status
 	if guest.Status == "running" {
 		view.Address = s.guestIP(ctx, guest)
+		s.gamingMu.Lock()
+		view.Sessions = append(view.Sessions, s.gamingSessions...)
+		s.gamingMu.Unlock()
 	}
 	stats, err := s.Agent.AppStats(ctx, agent.GamingApp, guest.VMID)
 	if err != nil {
@@ -107,4 +114,110 @@ func (s *Service) GamingOwnCover(ctx context.Context, system, name string) ([]by
 		return nil, "", agent.ErrNoCover
 	}
 	return a.GamingCover(ctx, guest.VMID, system, name)
+}
+
+type gamingSessionAgent interface {
+	GamingSessions(ctx context.Context, vmid int) ([]agent.GamingSession, error)
+	StopGamingSession(ctx context.Context, vmid int, id string) error
+}
+
+const (
+	// gamingCheck is how often WatchGaming looks for Moonlight sessions while
+	// the gaming container runs. A second session stops within this time.
+	gamingCheck = 10 * time.Second
+	// gamingIdleCheck is how often it looks while the container is stopped.
+	gamingIdleCheck = 30 * time.Second
+)
+
+// WatchGaming follows the Moonlight sessions of the gaming container. While
+// one runs, hold keeps heavy background work deferred, also when the container
+// was started without Play. Every screen shares the same saves, so a session
+// of a second device stops before its emulator can write them.
+func (s *Service) WatchGaming(ctx context.Context, hold func() error) {
+	for {
+		wait := s.checkGaming(ctx, hold)
+		select {
+		case <-ctx.Done():
+			return
+		case <-time.After(wait):
+		}
+	}
+}
+
+func (s *Service) checkGaming(ctx context.Context, hold func() error) time.Duration {
+	ctx, cancel := context.WithTimeout(ctx, 30*time.Second)
+	defer cancel()
+	a, ok := s.Agent.(gamingSessionAgent)
+	if !ok {
+		return gamingIdleCheck
+	}
+	_, guest, err := s.managedGuest(ctx, agent.GamingApp)
+	if err != nil || guest.Status != "running" {
+		s.setGamingSessions(nil, "")
+		return gamingIdleCheck
+	}
+	sessions, err := a.GamingSessions(ctx, guest.VMID)
+	if err != nil {
+		// Wolf may still be starting. A running hold covers a short gap.
+		s.Logger.Debug("gaming sessions", "error", err)
+		s.setGamingSessions(nil, "")
+		return gamingCheck
+	}
+	s.gamingMu.Lock()
+	owner := s.gamingOwner
+	s.gamingMu.Unlock()
+	// Wolf moves a resumed session to the end of its list, so the first one
+	// seen stays the owner. Sessions that are new together go by list order.
+	if !slices.ContainsFunc(sessions, func(session agent.GamingSession) bool { return session.ID == owner }) {
+		owner = ""
+		if len(sessions) > 0 {
+			owner = sessions[0].ID
+		}
+	}
+	kept := []agent.GamingSession{}
+	for _, session := range sessions {
+		if session.ID == owner {
+			kept = append(kept, session)
+			continue
+		}
+		if err := a.StopGamingSession(ctx, guest.VMID, session.ID); err != nil {
+			s.Logger.Warn("could not stop a second gaming session", "client", session.ClientIP, "error", err)
+			kept = append(kept, session)
+			continue
+		}
+		s.Logger.Warn("stopped a second gaming session; play on one screen at a time", "client", session.ClientIP)
+	}
+	if len(kept) > 0 {
+		if err := hold(); err != nil {
+			s.Logger.Warn("could not hold background work for a gaming session", "error", err)
+		}
+	}
+	s.setGamingSessions(kept, owner)
+	return gamingCheck
+}
+
+func (s *Service) setGamingSessions(sessions []agent.GamingSession, owner string) {
+	s.gamingMu.Lock()
+	defer s.gamingMu.Unlock()
+	s.gamingSessions, s.gamingOwner = sessions, owner
+}
+
+// StopGamingSession ends a Moonlight session, like one that a device left
+// running when it disconnected without quitting.
+func (s *Service) StopGamingSession(ctx context.Context, id string) error {
+	_, guest, err := s.managedGuest(ctx, agent.GamingApp)
+	if err != nil {
+		return err
+	}
+	a, ok := s.Agent.(gamingSessionAgent)
+	if !ok {
+		return agent.ErrAppNotAvailable
+	}
+	if err := a.StopGamingSession(ctx, guest.VMID, id); err != nil {
+		return err
+	}
+	s.gamingMu.Lock()
+	defer s.gamingMu.Unlock()
+	s.gamingSessions = slices.DeleteFunc(slices.Clone(s.gamingSessions), func(session agent.GamingSession) bool { return session.ID == id })
+	return nil
 }

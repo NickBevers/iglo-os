@@ -1,8 +1,10 @@
 package agent
 
 import (
+	"encoding/json"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -125,6 +127,38 @@ func TestGameTitle(t *testing.T) {
 	} {
 		if got := GameTitle(name); got != want {
 			t.Errorf("GameTitle(%q) = %q, want %q", name, got, want)
+		}
+	}
+}
+
+func TestWolfSessionsDropTheStreamKeys(t *testing.T) {
+	// The shape of GET /api/v1/sessions in the pinned Wolf image.
+	data := `{"success":true,"sessions":[
+		{"client_ip":"192.168.1.50","aes_key":"SECRETKEY","aes_iv":"SECRETIV","rtsp_fake_ip":"10.0.0.1","video_width":1920,"video_height":1080,"video_refresh_rate":60,"audio_channel_count":2,"app_id":"1","client_id":"4242"},
+		{"client_ip":"192.168.1.60","aes_key":"x","aes_iv":"y","rtsp_fake_ip":"","video_width":1280,"video_height":720,"video_refresh_rate":60,"audio_channel_count":2,"client_id":"77"},
+		{"client_ip":"192.168.1.70","aes_key":"x","aes_iv":"y","rtsp_fake_ip":"","video_width":1,"video_height":1,"video_refresh_rate":1,"audio_channel_count":2,"client_id":"../stop"},
+		{"client_ip":"192.168.1.80","aes_key":"x","aes_iv":"y","rtsp_fake_ip":"","video_width":1,"video_height":1,"video_refresh_rate":1,"audio_channel_count":2}
+	]}`
+	sessions, err := wolfSessions([]byte(data))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(sessions) != 2 || sessions[0] != (GamingSession{ID: "4242", ClientIP: "192.168.1.50", Width: 1920, Height: 1080, FPS: 60}) || sessions[1].ID != "77" {
+		t.Fatalf("sessions = %+v", sessions)
+	}
+	out, _ := json.Marshal(sessions)
+	if strings.Contains(string(out), "SECRET") || strings.Contains(string(out), "aes") {
+		t.Fatalf("stream keys leaked: %s", out)
+	}
+	if _, err := wolfSessions([]byte("not json")); err == nil {
+		t.Fatal("accepted an invalid list")
+	}
+}
+
+func TestStopGamingSessionChecksTheID(t *testing.T) {
+	for _, id := range []string{"", "abc", "1;reboot", "../1", "123456789012345678901"} {
+		if err := stopGamingSession(t.Context(), 120, id); err != ErrNoWolfSession {
+			t.Errorf("%q: err = %v", id, err)
 		}
 	}
 }

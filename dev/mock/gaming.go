@@ -2,6 +2,7 @@ package main
 
 import (
 	"net/http"
+	"os"
 
 	"iglo/internal/agent"
 )
@@ -45,4 +46,35 @@ func registerGaming(mux *http.ServeMux) {
 	mux.HandleFunc("GET /v1/gaming/{vmid}/covers/{system}/{name}", func(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, agent.ErrNoCover.Error(), http.StatusNotFound)
 	})
+	mux.HandleFunc("GET /v1/gaming/{vmid}/sessions", func(w http.ResponseWriter, r *http.Request) {
+		writeJSON(w, fakeSessions())
+	})
+	mux.HandleFunc("POST /v1/gaming/{vmid}/sessions/{id}/stop", func(w http.ResponseWriter, r *http.Request) {
+		switch r.PathValue("id") {
+		case "1001":
+			os.WriteFile(statePath("gaming-pc-ended"), nil, 0o600)
+		case "1002":
+			os.Remove(statePath("gaming-second-session"))
+		default:
+			http.Error(w, "Wolf refused the request", http.StatusBadGateway)
+			return
+		}
+		w.WriteHeader(http.StatusNoContent)
+	})
+}
+
+// fakeSessions plays a PC on Moonlight while the container runs. With
+// .dev/gaming-second-session, a TV joins too, and the manager stops it.
+func fakeSessions() []agent.GamingSession {
+	sessions := []agent.GamingSession{}
+	if _, err := os.Stat(statePath("gaming-running")); err != nil {
+		return sessions
+	}
+	if _, err := os.Stat(statePath("gaming-pc-ended")); err != nil {
+		sessions = append(sessions, agent.GamingSession{ID: "1001", ClientIP: "192.168.1.50", Width: 1920, Height: 1080, FPS: 60})
+	}
+	if _, err := os.Stat(statePath("gaming-second-session")); err == nil {
+		sessions = append(sessions, agent.GamingSession{ID: "1002", ClientIP: "192.168.1.60", Width: 3840, Height: 2160, FPS: 60})
+	}
+	return sessions
 }

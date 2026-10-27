@@ -78,6 +78,26 @@ func (s *server) gamingPlay(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusNoContent)
 }
 
+type gamingSessions interface {
+	StopGamingSession(ctx context.Context, id string) error
+}
+
+// gamingStopSession ends a Moonlight session, like one that a device left
+// running when it disconnected without quitting.
+func (s *server) gamingStopSession(w http.ResponseWriter, r *http.Request) {
+	a, ok := s.Apps.(gamingSessions)
+	if !ok {
+		writeError(w, http.StatusServiceUnavailable, "update Iglo-OS to manage gaming")
+		return
+	}
+	if err := a.StopGamingSession(r.Context(), r.PathValue("id")); err != nil {
+		s.writeAppsResult(w, err, 0)
+		return
+	}
+	s.Logger.Info("gaming session ended from the Gaming page")
+	w.WriteHeader(http.StatusNoContent)
+}
+
 type gamingLibrary interface {
 	GamingGames(context.Context) ([]agent.GameSystem, error)
 	GamingOwnCover(ctx context.Context, system, name string) ([]byte, string, error)

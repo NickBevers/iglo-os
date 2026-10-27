@@ -223,6 +223,8 @@ func (p *fakeProxmox) node(w http.ResponseWriter, r *http.Request) {
 	case r.Method == http.MethodPost && strings.Contains(path, "/status/"):
 		if strings.HasSuffix(path, "lxc/190/status/start") {
 			os.WriteFile(statePath("gaming-running"), nil, 0o600)
+			// Every start brings the PC session back.
+			os.Remove(statePath("gaming-pc-ended"))
 		} else if strings.Contains(path, "lxc/190/status/") {
 			os.Remove(statePath("gaming-running"))
 		}

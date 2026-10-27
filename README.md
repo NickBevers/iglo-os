@@ -33,8 +33,8 @@ revision to install them; pushing a branch does not publish a signed release.
 | [Scoped SMB storage](docs/scoped-storage.md) | Storage page, folder roles, host-only credentials and consumer-aware disconnect | Configure NAS permissions first. Existing media mounts are not automatically migrated. |
 | [Photos / Immich](docs/photos.md) | Pinned installer, SSD database/derivatives, NAS originals, matched backups and recovery verification | Create the Immich admin/API key after installation. Rehearse a full library restore before relying on backups. |
 | [Music and Inbox](docs/workers.md) | One durable Music worker, Music work page, pinned FileFlows installer and admission leases | FileFlows needs its native flow and supplied pre-execute script configured. Active jobs finish after admission is paused. |
-| [Background work](docs/background-work.md) | Immich queue controls and independent worker controls for gaming holds, windows and host RAM headroom | Admission checks do not reserve RAM/GPU capacity or detect gaming sessions automatically. |
-| [Gaming](docs/gaming.md) | Experimental Wolf/ES-DE app from the Apps page, Gaming page with Play and Stop, library counts per system, read-only ROM access and persistent emulator profiles | Privileged LXC after explicit confirmation; hardware streaming, controllers and saves still need acceptance tests. |
+| [Background work](docs/background-work.md) | Immich queue controls and independent worker controls for gaming holds, windows and host RAM headroom | Admission checks do not reserve RAM/GPU capacity. A Moonlight session holds work by itself. |
+| [Gaming](docs/gaming.md) | Experimental Wolf/ES-DE app from the Apps page, Gaming page with Play and Stop, library counts per system, read-only ROM access, persistent emulator profiles, session detection and one session at a time | Privileged LXC after explicit confirmation; hardware streaming, controllers and saves still need acceptance tests. |
 
 Scoped Photos/Music/Inbox updates do not automatically roll back guest disks:
 their NAS files cannot be rewound with the local database or queue. Inspect failed

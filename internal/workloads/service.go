@@ -323,6 +323,38 @@ func (s *Service) Protect(minutes int) error {
 	return nil
 }
 
+const (
+	// sessionHold is how long gaming protection lasts after the last check
+	// that saw a Moonlight session, so a missed check doesn't end it.
+	sessionHold = 15 * time.Minute
+	// sessionRefresh is how much of sessionHold may be left before a check
+	// moves it on, so the file isn't written on every check.
+	sessionRefresh = 10 * time.Minute
+)
+
+// HoldWhilePlaying keeps gaming protection at least sessionHold ahead while a
+// Moonlight session runs. It never shortens a longer hold, like the one of Play.
+func (s *Service) HoldWhilePlaying() error {
+	s.op.Lock()
+	defer s.op.Unlock()
+	now := s.now()
+	old := s.state.GamingUntil
+	if old.After(now.Add(sessionRefresh)) {
+		return nil
+	}
+	s.state.GamingUntil = now.Add(sessionHold)
+	if err := s.save(); err != nil {
+		s.state.GamingUntil = old
+		return err
+	}
+	s.publish(s.Status())
+	// Only a new hold needs to stop work right away.
+	if !old.After(now) {
+		s.signal()
+	}
+	return nil
+}
+
 func (s *Service) signal() {
 	select {
 	case s.wake <- struct{}{}:

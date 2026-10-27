@@ -820,6 +820,7 @@
       }
     ],
     "sample": true,
+    "sessions": [],
     "protected": false
   },
   "/gaming/games": {

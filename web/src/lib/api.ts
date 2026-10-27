@@ -93,8 +93,18 @@ export type Gaming = {
     library: { label: string; value: number }[]
     libraryError?: string
     sample?: boolean
+    // sessions are the Moonlight streams that run now, one at most.
+    sessions: GamingSession[]
     protected: boolean
     protectedUntil?: string
+}
+
+export type GamingSession = {
+    id: string
+    clientIP: string
+    width: number
+    height: number
+    fps: number
 }
 
 // GameSystem is one system folder on the Games share. A game's name is its
@@ -654,6 +664,7 @@ export const api = {
     installScopedApp: (id: string, scoped: ScopedAnswers) => request<void>('POST', `/apps/${id}/install`, { scoped }),
     gaming: () => request<Gaming>('GET', '/gaming'),
     playGaming: (play: boolean) => request<void>('PUT', '/gaming/play', { play }),
+    endGamingSession: (id: string) => request<void>('POST', `/gaming/sessions/${encodeURIComponent(id)}/stop`),
     gamingGames: () => request<{ systems: GameSystem[] }>('GET', '/gaming/games'),
     storageBindings: () => request<{ bindings: StorageBinding[]; sample: boolean }>('GET', '/storage/bindings'),
     createBinding: (input: BindingInput) => request<void>('POST', '/storage/bindings', input),
