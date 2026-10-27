@@ -19,6 +19,7 @@ Open http://localhost:5173 and log in with `admin` / `iglo-dev-password` and the
 - A fake `tailscale` CLI (`dev/bin/tailscale`) logs in 5 seconds after you click Connect.
 - The console opens a shell on your own computer, not in a container.
 - While the fake gaming container runs, a PC plays on Moonlight. To let a TV join and see the manager stop its session, run `touch .dev/gaming-second-session`.
+- The fake host agent sends the same events as the real one, so live updates work in dev mode. It looks for changes once a second, where the real agent relays the events of Wolf and the Music worker as they happen.
 - Everything you change stays in `.dev/`. Delete that folder to start again.
 - A fake Jellyfin on `http://127.0.0.1:18096` has a library, two things playing and recent items. The manager is connected to it on the first start. Images are not faked.
 - The self-update check needs the real GitHub.

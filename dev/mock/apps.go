@@ -372,6 +372,7 @@ func (f *fakeInstalls) playPlayers(answers, logPath, exitPath string) {
 
 // addAppRoutes serves the app routes of the agent with the real installer.
 func addAppRoutes(mux *http.ServeMux, installer *agent.AppInstaller) {
+	agent.RegisterEvents(mux, installer)
 	for _, action := range []agent.AppAction{agent.ActionBackup, agent.ActionVerify} {
 		mux.HandleFunc("POST /v1/apps/photos/"+string(action), func(w http.ResponseWriter, r *http.Request) {
 			var in agent.AppContainerRequest
