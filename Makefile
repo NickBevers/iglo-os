@@ -6,7 +6,7 @@ LDFLAGS := -s -w -X main.version=$(VERSION) -X iglo/internal/selfupdate.DefaultR
 GO_PKGS := ./cmd/... ./internal/... ./dev/... ./web
 BUNDLE := dist/iglo-$(VERSION)-linux-amd64
 
-.PHONY: web build bundle test dev dev-code dev-api dev-web
+.PHONY: web build bundle test dev dev-code dev-api dev-web shellcheck
 
 web:
 	cd web && npm ci && npm run build
@@ -42,6 +42,12 @@ bundle: build
 	install -m 0644 deploy/stacks/gaming/compose.yaml deploy/stacks/gaming/config.toml $(BUNDLE)/stacks/gaming/
 	# COPYFILE_DISABLE stops macOS tar from adding ._ files, which the agent refuses.
 	COPYFILE_DISABLE=1 tar -czf $(BUNDLE).tar.gz -C dist $(notdir $(BUNDLE))
+
+# Every shell script, also the ones without .sh, checked with the sourced
+# files they name. Pinned, so CI and a laptop find the same things.
+SHELL_SCRIPTS := $(shell git ls-files '*.sh') deploy/iglo-mdns dev/bin/tailscale
+shellcheck:
+	docker run --rm -v "$(CURDIR):/mnt" -w /mnt koalaman/shellcheck:v0.10.0 -x -S warning $(SHELL_SCRIPTS)
 
 test:
 	go vet $(GO_PKGS)

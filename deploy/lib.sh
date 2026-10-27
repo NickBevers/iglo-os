@@ -153,6 +153,7 @@ remove_app() {
 }
 
 # Unprivileged LXCs shift ids by 100000, and the apps of the media stack run as uid 1000.
+# shellcheck disable=SC2034 # read by the installers that source this file
 HOST_CONTAINER_UID=101000
 
 # media_folders sets MEDIA_FOLDERS to the folders of the Videos share: movies

@@ -20,8 +20,10 @@ and memory choices for people.
 ## Checks
 
 - Run `make web`, then `make test`, `go test -race ./internal/... ./cmd/...`,
-  `gofmt -l cmd internal dev web/embed.go`, Prettier in `web/`, and `bash -n`
-  on every changed script. CI runs the same on every PR.
+  `gofmt -l cmd internal dev web/embed.go`, Prettier in `web/`, `bash -n` on
+  every changed script, and `make shellcheck` (ShellCheck 0.10.0 in Docker,
+  warnings and up). CI runs the same on every PR. A script that another file
+  reads a variable of gets `# shellcheck disable=SC2034` with the reason.
 - Run `gofmt` after editing Go with a script. Scripted edits break alignment
   and import groups (standard, external, then `iglo/...`).
 - A new route file needs `npx vite build` once, so `routeTree.gen.ts` is
