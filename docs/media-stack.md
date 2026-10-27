@@ -65,13 +65,21 @@ Give a Jellyfin admin username and password in the form, and the installer does 
 
 - that Jellyfin account becomes the owner of Seerr, so you log in to Seerr with it;
 - the movie and series libraries of Jellyfin are turned on;
-- Radarr and Sonarr are added, with the quality profile from Recyclarr and your movies and series folders.
+- Radarr and Sonarr are added, with the quality profile from Recyclarr and your movies and series folders. Sonarr also gets an anime profile, see below.
 
 Without a Jellyfin admin, open Seerr after the install and do its setup yourself. Until then, anyone on your network can open it. If Seerr is already set up, the installer leaves it alone.
 
 The Jellyfin admin password is a secret like the other passwords: it goes to the container on stdin and is never written to a file there. Seerr then makes its own Jellyfin API key.
 
 The agent checks every answer before it writes them to a file that only root can read. The installer deletes that file when it has read it.
+
+## Anime
+
+Anime goes through the same Sonarr and the same series folder, with settings of its own:
+
+- **Trackers.** With **Anime trackers** on in the form, the installer adds the public trackers Nyaa.si and Anime Tosho to Prowlarr, which passes them on to Sonarr and Radarr. They need no account. When one can't be added, the install goes on and its log says so; add it in Prowlarr yourself.
+- **Quality.** Recyclarr syncs the TRaSH Guides profile **[Anime] Remux-1080p** into Sonarr, next to WEB-1080p. One Sonarr has one set of quality sizes, so anime uses the series sizes.
+- **Requests.** Seerr knows which series are anime. It sends them to Sonarr as the anime series type, which numbers episodes the anime way, with the anime profile. Until Recyclarr has made that profile, anime gets the normal one; change it later in Seerr under **Settings > Services > Sonarr**.
 
 ## VPN settings
 

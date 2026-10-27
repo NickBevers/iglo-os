@@ -21,3 +21,9 @@ sonarr:
       - trash_id: 72dae194fc92bf828f32cde7744e51a1 # WEB-1080p
         reset_unmatched_scores:
           enabled: true
+      # For series that Seerr sends as anime. One Sonarr has one set of quality
+      # sizes, so anime shares the series sizes above.
+      # https://trash-guides.info/Sonarr/sonarr-setup-quality-profiles-anime/
+      - trash_id: 20e0fc959f1f1704bed501f23bdae76f # [Anime] Remux-1080p
+        reset_unmatched_scores:
+          enabled: true

@@ -176,3 +176,42 @@ func TestBazarrFormAddsOpenSubtitles(t *testing.T) {
 		t.Fatalf("form = %v", form)
 	}
 }
+
+func TestEnsurePicksAnIndexerByDefinition(t *testing.T) {
+	var posted map[string]any
+	query := ""
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch {
+		case r.Method == http.MethodGet && r.URL.Path == "/api/v1/indexer":
+			w.Write([]byte(`[]`))
+		case r.Method == http.MethodGet && r.URL.Path == "/api/v1/indexer/schema":
+			w.Write([]byte(`[
+				{"implementation":"Cardigann","definitionName":"1337x","enable":false,"appProfileId":0,"fields":[]},
+				{"implementation":"Cardigann","definitionName":"nyaasi","enable":false,"appProfileId":0,"fields":[]}
+			]`))
+		case r.Method == http.MethodPost && r.URL.Path == "/api/v1/indexer":
+			query = r.URL.RawQuery
+			json.NewDecoder(r.Body).Decode(&posted)
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	defer server.Close()
+
+	prowlarr := newServarr("prowlarr", server.URL, "v1", "key", server.Client())
+	err := prowlarr.ensure(context.Background(), provider{
+		resource: "indexer", implementation: "Cardigann", definition: "nyaasi", name: "Nyaa.si", forceSave: true,
+		settings: map[string]any{"enable": true, "appProfileId": 1},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if posted["definitionName"] != "nyaasi" || posted["name"] != "Nyaa.si" || posted["enable"] != true || posted["appProfileId"] != float64(1) || query != "forceSave=true" {
+		t.Fatalf("posted = %v, query = %q", posted, query)
+	}
+
+	err = prowlarr.ensure(context.Background(), provider{resource: "indexer", implementation: "Cardigann", definition: "missing", name: "Missing"})
+	if err == nil {
+		t.Fatal("added an indexer without its definition")
+	}
+}

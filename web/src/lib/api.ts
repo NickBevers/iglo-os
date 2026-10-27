@@ -576,6 +576,8 @@ export type MediaStackAnswers = {
     restartJellyfin: boolean
     // flareSolverr runs FlareSolverr, for indexers behind Cloudflare.
     flareSolverr: boolean
+    // animeIndexers adds Nyaa.si and Anime Tosho to Prowlarr.
+    animeIndexers: boolean
     storage: string
     downloadsSize: number
 }

@@ -62,6 +62,9 @@ type Config struct {
 	MoviesFolder string
 	SeriesFolder string
 
+	// AnimeIndexers adds the public anime trackers Nyaa.si and Anime Tosho to Prowlarr.
+	AnimeIndexers bool
+
 	// FlareSolverr runs, for indexers behind Cloudflare. Without it, Prowlarr
 	// gets no FlareSolverr proxy.
 	FlareSolverr bool
@@ -325,6 +328,10 @@ func configureProwlarr(ctx context.Context, cfg Config, prowlarr *servarr) error
 		}
 	}
 
+	if cfg.AnimeIndexers {
+		addAnimeIndexers(ctx, cfg, prowlarr)
+	}
+
 	if !cfg.FlareSolverr {
 		return nil
 	}
@@ -341,6 +348,32 @@ func configureProwlarr(ctx context.Context, cfg Config, prowlarr *servarr) error
 		fields:         map[string]any{"host": flaresolverrURL},
 		settings:       map[string]any{"tags": []int{tag}},
 	})
+}
+
+// animeIndexers are public anime trackers, by their Cardigann definitions in Prowlarr.
+var animeIndexers = []struct{ definition, name string }{
+	{"nyaasi", "Nyaa.si"},
+	{"animetosho-xyz", "Anime Tosho"},
+}
+
+// addAnimeIndexers adds the anime trackers to Prowlarr, which syncs them to
+// Sonarr and Radarr. A tracker that fails only gets a warning: the stack
+// works without it, and you can add it in Prowlarr later.
+func addAnimeIndexers(ctx context.Context, cfg Config, prowlarr *servarr) {
+	for _, indexer := range animeIndexers {
+		err := prowlarr.ensure(ctx, provider{
+			resource:       "indexer",
+			implementation: "Cardigann",
+			definition:     indexer.definition,
+			name:           indexer.name,
+			forceSave:      true,
+			// 1 is the Standard sync profile of Prowlarr.
+			settings: map[string]any{"enable": true, "appProfileId": 1},
+		})
+		if err != nil {
+			cfg.Logf("Could not add %s to Prowlarr, add it there yourself: %v", indexer.name, err)
+		}
+	}
 }
 
 func configureBazarr(ctx context.Context, cfg Config, client *http.Client) error {
