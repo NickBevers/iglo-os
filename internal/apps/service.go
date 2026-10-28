@@ -140,7 +140,7 @@ var Catalog = []App{{
 }, {
 	ID:          "inbox",
 	Name:        "Inbox",
-	Description: "FileFlows processes your own videos into the Home videos output library. Configure its flow and schedule after installation; sources stay read only.",
+	Description: "FFmpeg processes your own videos into the Home videos output library. Choose an original-codec or playback profile; sources stay read only.",
 	Tag:         "inbox",
 	Stack:       true,
 	Links:       []Link{{Name: "FileFlows", Description: "Converter", Port: 19200}},
@@ -306,6 +306,9 @@ func (s *Service) appView(ctx context.Context, app App, resources []proxmox.Reso
 	if guest, found := findGuest(resources, app); found {
 		appView.Installed, appView.VMID, appView.Status = true, guest.VMID, guest.Status
 		appView.Managed = hasTags(guest, app)
+		if app.ID == "inbox" && slices.Contains(strings.Split(guest.Tags, ";"), "inbox-native") {
+			appView.Links = nil
+		}
 		if appView.Managed && app.Stack {
 			description, err := s.descriptions.get(fmt.Sprint(guest.VMID), time.Minute, func() (string, error) {
 				return s.Proxmox.ContainerDescription(ctx, guest.Node, guest.VMID)
@@ -851,6 +854,9 @@ func (s *Service) monitor(ctx context.Context, op operation, generation int) {
 		s.addresses.forget()
 
 		switch op.action {
+		case agent.ActionMigrate:
+			s.Changed(events.Inbox)
+			s.Notify(ctx, fmt.Sprintf("Inbox migration: %s", status.State))
 		case agent.ActionBackup, agent.ActionVerify:
 			s.Logger.Info("photos recovery finished", "action", op.action, "state", status.State)
 			s.Notify(ctx, fmt.Sprintf("Photos %s: %s", op.action, status.State))

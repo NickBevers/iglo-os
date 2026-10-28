@@ -88,6 +88,8 @@ func run(socketPath string, socketGID int, logger *slog.Logger) error {
 	mux.HandleFunc("GET /v1/upgrade", upgradeStatus(upgrader))
 	apps := agent.NewAppInstaller()
 	agent.RegisterEvents(mux, apps)
+	agent.RegisterInbox(mux)
+	mux.HandleFunc("POST /v1/apps/inbox/migrate", appOnContainer(func(_ string, id int) error { return apps.Recover(agent.InboxApp, id, agent.ActionMigrate) }, "Inbox migration started", logger))
 	for _, action := range []agent.AppAction{agent.ActionBackup, agent.ActionVerify} {
 		mux.HandleFunc("POST /v1/apps/photos/"+string(action), appOnContainer(func(app string, vmid int) error { return apps.Recover(agent.PhotosApp, vmid, action) }, "photos recovery started", logger))
 	}
@@ -141,7 +143,7 @@ func run(socketPath string, socketGID int, logger *slog.Logger) error {
 	})
 	// Music reports its queue and Gaming its library. Photos and Inbox will follow.
 	mux.HandleFunc("GET /v1/apps/{app}/stats", func(w http.ResponseWriter, r *http.Request) {
-		report := map[string]func(context.Context, int) (agent.AppStats, error){agent.MusicApp: agent.MusicStats, agent.GamingApp: agent.GamingStats}[r.PathValue("app")]
+		report := map[string]func(context.Context, int) (agent.AppStats, error){agent.MusicApp: agent.MusicStats, agent.InboxApp: agent.InboxStats, agent.GamingApp: agent.GamingStats}[r.PathValue("app")]
 		if report != nil {
 			vmid, _ := strconv.Atoi(r.URL.Query().Get("vmid"))
 			stats, err := report(r.Context(), vmid)

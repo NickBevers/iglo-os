@@ -152,9 +152,9 @@ export function ScopedForm({
             )}
             {id === 'inbox' && (
                 <p className="text-sm text-muted-foreground">
-                    Open FileFlows to set up a flow, one runner and its schedule. Source files are read only. Configure
-                    output under /media/output; temporary files use /temp. With a GPU on the host, flows can use VAAPI
-                    or Quick Sync.
+                    Open Inbox work to review the profile and resume the paused queue. Sources stay read only. FFmpeg
+                    stages on SSD and publishes to Videos/home-videos. The playback profile uses VAAPI when verified,
+                    with a CPU fallback.
                 </p>
             )}
             {id === 'gaming' && (

@@ -9,7 +9,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"io"
+	"iglo/internal/worker"
 	"net/http"
 	"net/url"
 	"os"
@@ -17,7 +17,6 @@ import (
 	"path/filepath"
 	"regexp"
 	"slices"
-	"strconv"
 	"strings"
 	"sync"
 	"syscall"
@@ -120,29 +119,7 @@ func New(dir, library string) (*Service, error) {
 	return s, nil
 }
 func (s *Service) save() error {
-	data, err := json.Marshal(s.state)
-	if err != nil {
-		return err
-	}
-	f, err := os.CreateTemp(s.Dir, ".queue-*")
-	if err != nil {
-		return err
-	}
-	defer os.Remove(f.Name())
-	if err = f.Chmod(0600); err == nil {
-		_, err = f.Write(data)
-	}
-	if err == nil {
-		err = f.Sync()
-	}
-	closeErr := f.Close()
-	if err != nil {
-		return err
-	}
-	if closeErr != nil {
-		return closeErr
-	}
-	if err := os.Rename(f.Name(), filepath.Join(s.Dir, "queue.json")); err != nil {
+	if err := worker.Save(s.Dir, s.state); err != nil {
 		return err
 	}
 	s.notify()
@@ -176,14 +153,8 @@ func (s *Service) watch() (<-chan struct{}, func()) {
 		s.watchMu.Unlock()
 	}
 }
-func (s *Service) admitted() bool {
-	data, err := os.ReadFile(filepath.Join(s.Dir, "admit-until"))
-	if err != nil {
-		return false
-	}
-	deadline, err := strconv.ParseInt(strings.TrimSpace(string(data)), 10, 64)
-	return err == nil && (deadline == -1 || time.Now().Unix() < deadline)
-}
+func (s *Service) admitted() bool { return worker.Admitted(s.Dir) }
+
 func (s *Service) Status() View {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -339,48 +310,7 @@ func (s *Service) process(ctx context.Context, j Job) (string, error) {
 	if err != nil || !info.Mode().IsRegular() || info.Size() == 0 || info.Size() > maxFile {
 		return "", errors.New("download did not produce a valid bounded media file")
 	}
-	if !s.MountOK() {
-		return "", errors.New("Music share became unavailable; nothing was published")
-	}
-	destDir := filepath.Join(s.Library, folder)
-	if err = os.MkdirAll(destDir, 0775); err != nil {
-		return "", err
-	}
-	resolved, err := filepath.EvalSymlinks(destDir)
-	if err != nil || resolved != destDir {
-		return "", errors.New("Music output must not be a symbolic link")
-	}
-	base := j.ID + ext
-	dest := filepath.Join(destDir, base)
-	temp := filepath.Join(destDir, ".iglo-incoming-"+base)
-	in, err := os.Open(source)
-	if err != nil {
-		return "", err
-	}
-	defer in.Close()
-	out, err := os.OpenFile(temp, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0664)
-	if err != nil {
-		return "", err
-	}
-	defer os.Remove(temp)
-	_, err = io.Copy(out, io.LimitReader(in, maxFile+1))
-	if err == nil {
-		err = out.Sync()
-	}
-	closeErr := out.Close()
-	if err != nil {
-		return "", err
-	}
-	if closeErr != nil {
-		return "", closeErr
-	}
-	if _, err = os.Lstat(dest); !os.IsNotExist(err) {
-		return "", errors.New("destination already exists")
-	}
-	if err = os.Rename(temp, dest); err != nil {
-		return "", err
-	}
-	return folder + "/" + base, nil
+	return worker.Publish(ctx, source, s.Library, folder, j.ID+ext, maxFile, s.MountOK)
 }
 
 // Keep diagnostics bounded even if an upstream program produces excessive output.

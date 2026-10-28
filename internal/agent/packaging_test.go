@@ -44,7 +44,7 @@ func TestHostInstallsEveryComposeFile(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	for _, name := range []string{"VERSION", "stacks/music/iglo-music", "stacks/arr/iglo-arr", "stacks/jellyfin/iglo-jellyfin"} {
+	for _, name := range []string{"VERSION", "stacks/music/iglo-music", "stacks/inbox/iglo-inbox", "stacks/arr/iglo-arr", "stacks/jellyfin/iglo-jellyfin"} {
 		if err := os.WriteFile(filepath.Join(bundle, name), nil, 0600); err != nil {
 			t.Fatal(err)
 		}
