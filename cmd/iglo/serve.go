@@ -100,6 +100,7 @@ func serve() error {
 	if err != nil {
 		return err
 	}
+	go updateService.RunNotifications(ctx)
 	go updateService.RunScheduler(ctx)
 
 	jellyfinService, err := jellyfin.NewService(cfg.DataDir)

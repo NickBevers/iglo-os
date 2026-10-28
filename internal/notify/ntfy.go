@@ -31,10 +31,12 @@ func (n Ntfy) Send(ctx context.Context, text string) error {
 	if !n.Configured() {
 		return nil
 	}
-	client := n.HTTP
-	if client == nil {
-		client = &http.Client{Timeout: 15 * time.Second}
+	client := &http.Client{Timeout: 15 * time.Second}
+	if n.HTTP != nil {
+		*client = *n.HTTP
 	}
+	// Credentials belong only to this endpoint, including on same-host redirects.
+	client.CheckRedirect = func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }
 
 	request, err := http.NewRequestWithContext(ctx, http.MethodPost, n.Server+"/"+n.Topic, strings.NewReader(text))
 	if err != nil {

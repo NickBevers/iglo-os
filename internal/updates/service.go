@@ -69,12 +69,18 @@ type Service struct {
 	Options
 	path string
 
-	mu    sync.Mutex
-	state state
-	busy  string
+	mu             sync.Mutex
+	state          state
+	busy           string
+	outbox         *notify.Outbox
+	customNotifier bool
 }
 
 func New(options Options) (*Service, error) {
+	if options.Logger == nil {
+		options.Logger = slog.Default()
+	}
+	customNotifier := options.NewNotifier != nil
 	if options.NewNotifier == nil {
 		options.NewNotifier = func(settings Settings) Notifier {
 			return notify.All{
@@ -93,7 +99,11 @@ func New(options Options) (*Service, error) {
 		return nil, err
 	}
 
-	return &Service{Options: options, path: path, state: loaded}, nil
+	outbox, err := notify.NewOutbox(filepath.Join(options.DataDir, "notifications.json"))
+	if err != nil {
+		return nil, err
+	}
+	return &Service{Options: options, path: path, state: loaded, outbox: outbox, customNotifier: customNotifier}, nil
 }
 
 // start runs an operation in the background, one at a time.
@@ -389,15 +399,55 @@ func (s *Service) finishRun(run Run, status RunStatus, message, log string) Run 
 	return run
 }
 
-// Notify sends a message to Telegram and ntfy, as far as they are set up.
-// Other services use it for alerts.
+// Notify persists a short alert before delivery. Failed destinations retry
+// independently, including after a manager restart.
 func (s *Service) Notify(ctx context.Context, text string) {
-	s.mu.Lock()
-	notifier := s.NewNotifier(s.state.Settings)
-	s.mu.Unlock()
+	destinations := s.notificationDestinations()
+	if err := s.outbox.Enqueue(text, destinations, s.Now()); err != nil {
+		s.Logger.Error("could not queue notification", "error", err)
+		return
+	}
+	s.flushNotifications(ctx)
+}
 
-	if err := notifier.Send(ctx, text); err != nil {
-		s.Logger.Warn("could not send notification", "error", err)
+func (s *Service) notificationDestinations() []notify.Destination {
+	s.mu.Lock()
+	settings := s.state.Settings
+	s.mu.Unlock()
+	if s.customNotifier {
+		return []notify.Destination{{ID: "custom", Send: s.NewNotifier(settings).Send}}
+	}
+	var targets []notify.Destination
+	telegram := notify.Telegram{BotToken: settings.Telegram.BotToken, ChatID: settings.Telegram.ChatID}
+	if telegram.Configured() {
+		targets = append(targets, notify.Destination{ID: notify.DestinationID("telegram", telegram.ChatID), Send: telegram.Send})
+	}
+	ntfy := notify.Ntfy{Server: settings.Ntfy.Server, Topic: settings.Ntfy.Topic, Token: settings.Ntfy.Token}
+	if ntfy.Configured() {
+		targets = append(targets, notify.Destination{ID: notify.DestinationID("ntfy", ntfy.Server, ntfy.Topic), Send: ntfy.Send})
+	}
+	return targets
+}
+
+func (s *Service) flushNotifications(ctx context.Context) {
+	if err := s.outbox.Flush(ctx, s.notificationDestinations(), s.Now()); err != nil {
+		s.Logger.Warn("notification delivery pending", "error", err)
+	}
+}
+
+// RunNotifications checks retries twice a minute. An empty queue makes no
+// network calls or file writes, and each destination has exponential backoff.
+func (s *Service) RunNotifications(ctx context.Context) {
+	s.flushNotifications(ctx)
+	ticker := time.NewTicker(30 * time.Second)
+	defer ticker.Stop()
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-ticker.C:
+			s.flushNotifications(ctx)
+		}
 	}
 }
 
