@@ -23,8 +23,13 @@ bind_share() {
     local options="$BINDING_PATH,mp=$destination,backup=0"
     [[ "$access" != ro ]] || options+=",ro=1"
     pct set "$ctid" "--mp$index" "$options"
-    install -d -m 0755 "/etc/systemd/system/pve-container@$ctid.service.d"
-    printf '[Unit]\nRequires=%s\nAfter=%s\n' "$BINDING_UNIT" "$BINDING_UNIT" > "/etc/systemd/system/pve-container@$ctid.service.d/iglo-$id.conf"
+    # Proxmox starts a container with pve-container@, or pve-container-debug@
+    # in debug mode (pve-container 7d99e49, vm_start). The share mounts first in both.
+    local unit
+    for unit in pve-container pve-container-debug; do
+        install -d -m 0755 "/etc/systemd/system/$unit@$ctid.service.d"
+        printf '[Unit]\nRequires=%s\nAfter=%s\n' "$BINDING_UNIT" "$BINDING_UNIT" >"/etc/systemd/system/$unit@$ctid.service.d/iglo-$id.conf"
+    done
     systemctl daemon-reload
 }
 
@@ -53,6 +58,7 @@ free_mount_index() {
 remove_binding_dependencies() {
     local ctid="$1"
     [[ "$ctid" =~ ^[1-9][0-9]{2,8}$ ]] || die "Invalid container"
-    rm -f "/etc/systemd/system/pve-container@$ctid.service.d/iglo-"*.conf
+    rm -f "/etc/systemd/system/pve-container@$ctid.service.d/iglo-"*.conf \
+        "/etc/systemd/system/pve-container-debug@$ctid.service.d/iglo-"*.conf
     systemctl daemon-reload
 }
