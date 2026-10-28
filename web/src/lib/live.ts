@@ -26,21 +26,21 @@ const topicKeys: Record<string, string[]> = {
 
 // connectLive opens the stream and returns a function that closes it.
 export function connectLive(client: QueryClient): () => void {
-    if (import.meta.env.VITE_DEMO === '1') {
+    if (import.meta.env?.VITE_DEMO === '1') {
         return () => {}
     }
     const source = new EventSource('/api/events')
     const pending = new Set<string>()
     let timer: ReturnType<typeof setTimeout> | undefined
-    let dropped = false
 
     // A burst of events, like the lines of an install, refreshes each query once.
     const refresh = (topics: Iterable<string>) => {
         for (const topic of topics) {
             pending.add(topic)
         }
-        clearTimeout(timer)
+        if (timer) return
         timer = setTimeout(() => {
+            timer = undefined
             for (const topic of pending) {
                 const key = topicKeys[topic]
                 if (key) {
@@ -51,16 +51,24 @@ export function connectLive(client: QueryClient): () => void {
         }, 200)
     }
 
-    source.onopen = () => {
-        live = true
-        // Events may have gone missing while the stream was closed.
-        if (dropped) {
-            refresh(Object.keys(topicKeys))
+    // Invalidation also wakes active query observers so their interval
+    // functions immediately see the new connection state.
+    const refreshActive = () => {
+        for (const queryKey of Object.values(topicKeys)) {
+            void client.invalidateQueries({ queryKey, refetchType: 'active' })
         }
     }
+    source.onopen = () => {
+        live = true
+        // Includes the initial connection: a change may have happened after
+        // the page fetched its first snapshot but before the stream opened.
+        refreshActive()
+    }
     source.onerror = () => {
-        live = false
-        dropped = true
+        if (live) {
+            live = false
+            refreshActive()
+        }
     }
     source.onmessage = (event: MessageEvent<string>) => refresh([event.data])
 
