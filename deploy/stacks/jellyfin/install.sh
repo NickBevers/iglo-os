@@ -28,6 +28,8 @@ GPU=""
 GPU_DEVICE="/dev/dri/renderD128"
 # VAINFO_FILE keeps what the GPU decodes, for the codecs that Jellyfin turns on.
 VAINFO_FILE=""
+# HUC is y when the HuC firmware of the GPU runs, for the Intel low-power encoders.
+HUC=""
 
 while [[ $# -gt 0 ]]; do
     case "$1" in
@@ -197,13 +199,32 @@ setup_gpu() {
     if ! pct exec "$CT_ID" -- runuser -u jellyfin -- /usr/lib/jellyfin-ffmpeg/vainfo --display drm --device "$GPU_DEVICE" >"$VAINFO_FILE" 2>&1; then
         log "Jellyfin can't use the GPU, it transcodes on the CPU"
         GPU=""
+    elif huc_running "$GPU_DEVICE"; then
+        HUC=y
     fi
+}
+
+# huc_running says whether the HuC firmware of GPU $1 runs. The Intel
+# low-power encoders need it for their bitrate control. Linux loads it by
+# default on Alder Lake and newer (enable_guc=2 or 3, intel_uc.c), and
+# writes "\tstatus: RUNNING" to huc_info once it is up (intel_uc_fw.c).
+# Checked against Linux v6.14 on 28 October 2026.
+huc_running() {
+    local pci dir
+    pci="$(basename "$(readlink -f "/sys/class/drm/$(basename "$1")/device")")"
+    for dir in /sys/kernel/debug/dri/*; do
+        # The name file says "i915 dev=0000:00:02.0 unique=...".
+        grep -qs " dev=$pci\b" "$dir/name" || continue
+        grep -qsx $'\tstatus: RUNNING' "$dir"/gt*/uc/huc_info && return 0
+    done
+    return 1
 }
 
 configure_jellyfin() {
     log "Setting up Jellyfin"
     local flags=()
     [[ -n "$GPU" ]] && flags+=(--gpu --vainfo "$VAINFO_FILE")
+    [[ -n "$GPU" && "$HUC" == y ]] && flags+=(--huc)
     [[ "$THEME" == "y" ]] && flags+=(--theme)
     [[ -z "$ANIME_FOLDER" ]] || flags+=(--anime "/data/media/$ANIME_FOLDER")
     [[ -z "$ANIME_MOVIES_FOLDER" ]] || flags+=(--anime-movies "/data/media/$ANIME_MOVIES_FOLDER")
@@ -248,7 +269,7 @@ main() {
     cat <<EOF
 
   Jellyfin:  http://$ip:8096   <- log in as '$JELLYFIN_ADMIN_USERNAME'
-  Hardware transcoding: $([[ -n "$GPU" ]] && echo "on (VA-API, $GPU_DEVICE)" || echo "off, the CPU transcodes")
+  Hardware transcoding: $([[ -n "$GPU" ]] && echo "on (VA-API, $GPU_DEVICE$([[ "$HUC" == y ]] && echo ", HuC loaded"))" || echo "off, the CPU transcodes")
 
 EOF
 }
