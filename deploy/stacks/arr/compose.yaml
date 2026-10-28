@@ -14,7 +14,7 @@ services:
   gluetun:
     # Pinned: the VPN locations of Iglo-OS and the settings below are checked
     # against this version. dev/vpnlocations makes the list for a new one.
-    image: qmcgaw/gluetun:v3.41.3
+    image: qmcgaw/gluetun:v3.41.3@sha256:fa19cc76b2af13d57a8d3dc3066f2ada061b1c761b8aecf989b3877c0486e027 # v3.41.3, pinned 2026-10-28
     container_name: gluetun
     cap_add: [NET_ADMIN]
     devices:
@@ -61,7 +61,7 @@ services:
     restart: unless-stopped
 
   qbittorrent:
-    image: lscr.io/linuxserver/qbittorrent:latest
+    image: lscr.io/linuxserver/qbittorrent:latest@sha256:75ecbb1c89ab7b0a21c4bde40b4820e4f1649d2d56d83b91913422155e8d2a5f # 5.3.0_v2.1.2-ls485, pinned 2026-10-28
     container_name: qbittorrent
     network_mode: service:gluetun
     depends_on:
@@ -76,7 +76,7 @@ services:
     restart: unless-stopped
 
   prowlarr:
-    image: lscr.io/linuxserver/prowlarr:latest
+    image: lscr.io/linuxserver/prowlarr:latest@sha256:04be30163fbaf48d6aeee7b5893c9f6614ffbad6d853971df0d6dcdf01c7f104 # 2.7.0.5723-ls166, pinned 2026-10-28
     container_name: prowlarr
     network_mode: service:gluetun
     depends_on:
@@ -92,7 +92,7 @@ services:
     restart: unless-stopped
 
   flaresolverr:
-    image: ghcr.io/flaresolverr/flaresolverr:latest
+    image: ghcr.io/flaresolverr/flaresolverr:latest@sha256:c80ae007ce2ccdcd217a12426e4f039ef763ff90738c808d38810c3e59323767 # v3.5.2, pinned 2026-10-28
     container_name: flaresolverr
     # Only runs when COMPOSE_PROFILES in .env has flaresolverr.
     profiles: [flaresolverr]
@@ -108,7 +108,7 @@ services:
     restart: unless-stopped
 
   radarr:
-    image: lscr.io/linuxserver/radarr:latest
+    image: lscr.io/linuxserver/radarr:latest@sha256:084b3b2ab1d0ef930660727259546a241f2bdf67c9ed085d54bf1486a6887c9b # 6.4.4.10685-ls324, pinned 2026-10-28
     container_name: radarr
     environment:
       <<: *servarr-env
@@ -123,7 +123,7 @@ services:
     restart: unless-stopped
 
   sonarr:
-    image: lscr.io/linuxserver/sonarr:latest
+    image: lscr.io/linuxserver/sonarr:latest@sha256:48e36b608b461273b9dae857725cd0561a127f2c694b687318f6d0c5ce63e5c9 # 4.0.20.3014-ls1, pinned 2026-10-28
     container_name: sonarr
     environment:
       <<: *servarr-env
@@ -138,7 +138,7 @@ services:
     restart: unless-stopped
 
   bazarr:
-    image: lscr.io/linuxserver/bazarr:latest
+    image: lscr.io/linuxserver/bazarr:latest@sha256:9a625883f054e722795affe5e3ca71057e6ed817ecdf99f4a99624346fcc509c # v1.6.2-ls370, pinned 2026-10-28
     container_name: bazarr
     environment:
       <<: *servarr-env
@@ -150,7 +150,7 @@ services:
     restart: unless-stopped
 
   seerr:
-    image: ghcr.io/seerr-team/seerr:v3
+    image: ghcr.io/seerr-team/seerr:v3@sha256:d8fab675b55ad293ded98fd71efcfd46054cbad9746534ae1cc4794a88c0b3be # v3.5.1, pinned 2026-10-28
     container_name: seerr
     init: true
     environment:
@@ -162,7 +162,7 @@ services:
     restart: unless-stopped
 
   recyclarr:
-    image: ghcr.io/recyclarr/recyclarr:8
+    image: ghcr.io/recyclarr/recyclarr:8@sha256:b1fbb929ba718fdbdac2c1fc25b32b0ae916d7a5a0892c2068c9bfae6f1a9209 # 8.8.0, pinned 2026-10-28
     container_name: recyclarr
     user: 1000:1000
     environment:

@@ -52,6 +52,9 @@ and memory choices for people.
   for a pinned image digest, read its `org.opencontainers.image.revision`
   label, then the source at that commit.
 - Write the version and the date you checked in the code comment or the docs.
+- Pin every image of a stack to a digest (`image: repo:tag@sha256:… # version`),
+  with `go run ./dev/pinimages FILE`. A test fails on an image without one.
+  Immich is pinned by its release in `.env` instead.
 - Things that were wrong from memory: Wolf's `stable` branch is old while the
   `stable` image is new; Wolf lists a session's ID as `client_id`; Prowlarr's
   Nyaa and Anime Tosho are Cardigann definitions, picked by `definitionName`;

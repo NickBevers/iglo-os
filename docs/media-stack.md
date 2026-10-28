@@ -151,7 +151,7 @@ The Apps page shows "Update available" when the stack in the container is from a
 1. It makes a snapshot of the container.
 2. It updates the packages in the container.
 3. It copies the `compose.yaml`, `recyclarr.yml` and `iglo-arr` of this Iglo-OS release into the container.
-4. It downloads the new images and restarts the apps that changed.
+4. It downloads the new images and restarts the apps that changed. Every image is pinned to a digest, so an update gets exactly the images that this Iglo-OS release was tested with; the version is in a comment next to each image in `compose.yaml`.
 
 The settings in the apps stay, because Iglo-OS does not keep your passwords. If the update fails, Iglo-OS rolls the container back to the snapshot.
 

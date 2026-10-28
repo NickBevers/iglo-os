@@ -87,7 +87,8 @@ The installers only run on a Proxmox host. Test them in a nested Proxmox VM on y
    ```
 
 2. Set the new version in the install command of `README.md`, and merge that to `main`.
-3. Tag the version and push the tag. GitHub Actions builds, tests, signs and publishes the release.
+3. Move the app images to their newest versions: `go run ./dev/pinimages deploy/stacks/arr/compose.yaml` pins each tag to the digest it points to now, with the version from the image's label. Test the stack with them on a server before the release; `dev/pinimages` refuses nothing, the test is the check. Every image in the stacks has a digest, and a test fails on one without.
+4. Tag the version and push the tag. GitHub Actions builds, tests, signs and publishes the release.
 
    ```sh
    git tag -a v0.6.0 -m v0.6.0 && git push origin v0.6.0
