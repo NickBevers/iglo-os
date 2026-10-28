@@ -44,9 +44,10 @@ type pendingMessage struct {
 // removed independently, so a failed provider does not repeat another's alerts.
 // Messages contain the same short, non-secret summaries sent to the providers.
 type Outbox struct {
-	mu      sync.Mutex
-	path    string
-	pending []pendingMessage
+	mu       sync.Mutex
+	flushing sync.Mutex
+	path     string
+	pending  []*pendingMessage
 }
 
 func NewOutbox(path string) (*Outbox, error) {
@@ -68,7 +69,7 @@ func NewOutbox(path string) (*Outbox, error) {
 		return nil, errors.New("too many pending notifications")
 	}
 	for _, item := range q.pending {
-		if len(item.Text) > messageBytes || len(item.Targets) > 2 {
+		if item == nil || len(item.Text) > messageBytes || len(item.Targets) > 2 {
 			return nil, errors.New("invalid pending notification")
 		}
 	}
@@ -114,7 +115,7 @@ func (q *Outbox) Enqueue(text string, destinations []Destination, now time.Time)
 	}
 	previous := len(q.pending)
 	for _, chunk := range chunks {
-		q.pending = append(q.pending, pendingMessage{Text: chunk, Targets: slices.Clone(targets), Next: now})
+		q.pending = append(q.pending, &pendingMessage{Text: chunk, Targets: slices.Clone(targets), Next: now})
 	}
 	if err := q.save(); err != nil {
 		q.pending = q.pending[:previous]
@@ -123,44 +124,59 @@ func (q *Outbox) Enqueue(text string, destinations []Destination, now time.Time)
 	return nil
 }
 
+// Flush serializes deliveries without holding the state lock during HTTP.
+// Enqueue remains available while a destination is slow or unavailable.
 func (q *Outbox) Flush(ctx context.Context, destinations []Destination, now time.Time) error {
-	q.mu.Lock()
-	defer q.mu.Unlock()
+	q.flushing.Lock()
+	defer q.flushing.Unlock()
 	active := map[string]Destination{}
 	for _, destination := range destinations {
 		active[destination.ID] = destination
 	}
+	q.mu.Lock()
+	items := slices.Clone(q.pending)
+	q.mu.Unlock()
 	var errs []error
-	changed := false
-	for index := range q.pending {
-		item := &q.pending[index]
-		// Never redirect queued messages to a replacement server or topic.
-		kept := slices.DeleteFunc(item.Targets, func(id string) bool { _, ok := active[id]; return !ok })
-		changed = changed || len(kept) != len(item.Targets)
-		item.Targets = kept
-		if now.Before(item.Next) || ctx.Err() != nil {
-			continue
+	for _, item := range items {
+		if ctx.Err() != nil {
+			break
 		}
-		var failed []string
-		for _, id := range item.Targets {
-			if err := active[id].Send(ctx, item.Text); err != nil {
-				errs = append(errs, err)
-				failed = append(failed, id)
+		q.mu.Lock()
+		targets := slices.Clone(item.Targets)
+		next := item.Next
+		q.mu.Unlock()
+		kept := slices.DeleteFunc(targets, func(id string) bool { _, ok := active[id]; return !ok })
+		changed := len(kept) != len(targets)
+		attempted := false
+		failed := kept
+		if !now.Before(next) {
+			failed = nil
+			for index, id := range kept {
+				if ctx.Err() != nil {
+					failed = append(failed, kept[index:]...)
+					break
+				}
+				attempted = true
+				if err := active[id].Send(ctx, item.Text); err != nil {
+					errs = append(errs, err)
+					failed = append(failed, id)
+				}
 			}
 		}
-		if len(item.Targets) == 0 {
+		if !changed && !attempted {
 			continue
 		}
+		q.mu.Lock()
 		item.Targets = failed
-		item.Attempts++
-		item.Next = now.Add(min(30*time.Second*time.Duration(1<<min(item.Attempts-1, 6)), 30*time.Minute))
-		changed = true
-	}
-	q.pending = slices.DeleteFunc(q.pending, func(item pendingMessage) bool { return len(item.Targets) == 0 })
-	if changed {
+		if attempted {
+			item.Attempts++
+			item.Next = now.Add(min(30*time.Second*time.Duration(1<<min(item.Attempts-1, 6)), 30*time.Minute))
+		}
+		q.pending = slices.DeleteFunc(q.pending, func(item *pendingMessage) bool { return len(item.Targets) == 0 })
 		if err := q.save(); err != nil {
 			errs = append(errs, fmt.Errorf("save notification deliveries: %w", err))
 		}
+		q.mu.Unlock()
 	}
 	return errors.Join(errs...)
 }

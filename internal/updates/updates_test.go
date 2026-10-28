@@ -262,6 +262,7 @@ func TestScheduledRunUpdatesContainersButOnlyChecksHost(t *testing.T) {
 	}
 
 	service.scheduledRun(context.Background())
+	service.flushNotifications(context.Background())
 
 	if got := fakeAgent.updatedVMIDs(); !slices.Equal(got, []int{101}) {
 		t.Fatalf("expected only jellyfin updated, got %v", got)
@@ -433,5 +434,26 @@ func TestScopedUpdatesNeverRewindNASMetadata(t *testing.T) {
 				}
 			})
 		}
+	}
+}
+
+func TestLiveUpdatesIgnoreCheckTimes(t *testing.T) {
+	s, _, _, _ := newTestService(t)
+	topics := []string{}
+	s.Changed = func(topic string) { topics = append(topics, topic); s.Settings() }
+	s.publishChanged()
+	s.mu.Lock()
+	s.state.Host.CheckedAt = s.Now()
+	s.mu.Unlock()
+	s.publishChanged()
+	if len(topics) != 1 || topics[0] != "updates" {
+		t.Fatal(topics)
+	}
+	s.mu.Lock()
+	s.busy = "Updating"
+	s.mu.Unlock()
+	s.publishChanged()
+	if len(topics) != 2 {
+		t.Fatal("busy state did not publish")
 	}
 }
