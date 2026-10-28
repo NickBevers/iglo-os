@@ -6,12 +6,13 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"iglo/internal/music"
 	"net/http"
 	"os/exec"
 	"strconv"
 	"strings"
 	"time"
+
+	"iglo/internal/music"
 )
 
 func workerGuest(ctx context.Context, app string, vmid int) error {
@@ -36,12 +37,19 @@ func workerGuest(ctx context.Context, app string, vmid int) error {
 	return errors.New("this container is not a managed worker")
 }
 func musicCall(ctx context.Context, vmid int, method, path string, body any, out any) error {
+	return nativeWorkerCall(ctx, MusicApp, vmid, method, path, body, out)
+}
+func nativeWorkerCall(ctx context.Context, app string, vmid int, method, path string, body any, out any) error {
 	ctx, cancel := context.WithTimeout(ctx, 12*time.Second)
 	defer cancel()
-	if err := workerGuest(ctx, MusicApp, vmid); err != nil {
+	if err := workerGuest(ctx, app, vmid); err != nil {
 		return err
 	}
-	args := []string{"exec", strconv.Itoa(vmid), "--", "curl", "--fail-with-body", "--silent", "--show-error", "--max-time", "8", "--request", method, "http://127.0.0.1:8788" + path}
+	port := "8788"
+	if app == InboxApp {
+		port = "8789"
+	}
+	args := []string{"exec", strconv.Itoa(vmid), "--", "curl", "--fail-with-body", "--silent", "--show-error", "--max-time", "8", "--request", method, "http://127.0.0.1:" + port + path}
 	var data []byte
 	if body != nil {
 		data, _ = json.Marshal(body)
@@ -51,7 +59,7 @@ func musicCall(ctx context.Context, vmid int, method, path string, body any, out
 	cmd.Stdin = bytes.NewReader(data)
 	result, err := cmd.Output()
 	if err != nil {
-		return fmt.Errorf("music worker refused the request: %s", strings.TrimSpace(string(result)))
+		return fmt.Errorf("worker refused the request: %s", strings.TrimSpace(string(result)))
 	}
 	if out != nil {
 		return json.Unmarshal(result, out)

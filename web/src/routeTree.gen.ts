@@ -16,6 +16,7 @@ import { Route as AppAppsRouteImport } from './routes/_app/apps'
 import { Route as AppBackupsRouteImport } from './routes/_app/backups'
 import { Route as AppGamingRouteImport } from './routes/_app/gaming'
 import { Route as AppHealthRouteImport } from './routes/_app/health'
+import { Route as AppInboxRouteImport } from './routes/_app/inbox'
 import { Route as AppJellyfinRouteImport } from './routes/_app/jellyfin'
 import { Route as AppLogsRouteImport } from './routes/_app/logs'
 import { Route as AppMusicRouteImport } from './routes/_app/music'
@@ -59,6 +60,11 @@ const AppGamingRoute = AppGamingRouteImport.update({
 const AppHealthRoute = AppHealthRouteImport.update({
   id: '/health',
   path: '/health',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppInboxRoute = AppInboxRouteImport.update({
+  id: '/inbox',
+  path: '/inbox',
   getParentRoute: () => AppRoute,
 } as any)
 const AppJellyfinRoute = AppJellyfinRouteImport.update({
@@ -119,6 +125,7 @@ export interface FileRoutesByFullPath {
   '/backups': typeof AppBackupsRoute
   '/gaming': typeof AppGamingRoute
   '/health': typeof AppHealthRoute
+  '/inbox': typeof AppInboxRoute
   '/jellyfin': typeof AppJellyfinRoute
   '/logs': typeof AppLogsRoute
   '/music': typeof AppMusicRoute
@@ -136,6 +143,7 @@ export interface FileRoutesByTo {
   '/backups': typeof AppBackupsRoute
   '/gaming': typeof AppGamingRoute
   '/health': typeof AppHealthRoute
+  '/inbox': typeof AppInboxRoute
   '/jellyfin': typeof AppJellyfinRoute
   '/logs': typeof AppLogsRoute
   '/music': typeof AppMusicRoute
@@ -156,6 +164,7 @@ export interface FileRoutesById {
   '/_app/backups': typeof AppBackupsRoute
   '/_app/gaming': typeof AppGamingRoute
   '/_app/health': typeof AppHealthRoute
+  '/_app/inbox': typeof AppInboxRoute
   '/_app/jellyfin': typeof AppJellyfinRoute
   '/_app/logs': typeof AppLogsRoute
   '/_app/music': typeof AppMusicRoute
@@ -177,6 +186,7 @@ export interface FileRouteTypes {
     | '/backups'
     | '/gaming'
     | '/health'
+    | '/inbox'
     | '/jellyfin'
     | '/logs'
     | '/music'
@@ -194,6 +204,7 @@ export interface FileRouteTypes {
     | '/backups'
     | '/gaming'
     | '/health'
+    | '/inbox'
     | '/jellyfin'
     | '/logs'
     | '/music'
@@ -213,6 +224,7 @@ export interface FileRouteTypes {
     | '/_app/backups'
     | '/_app/gaming'
     | '/_app/health'
+    | '/_app/inbox'
     | '/_app/jellyfin'
     | '/_app/logs'
     | '/_app/music'
@@ -280,6 +292,13 @@ declare module '@tanstack/react-router' {
       path: '/health'
       fullPath: '/health'
       preLoaderRoute: typeof AppHealthRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/_app/inbox': {
+      id: '/_app/inbox'
+      path: '/inbox'
+      fullPath: '/inbox'
+      preLoaderRoute: typeof AppInboxRouteImport
       parentRoute: typeof AppRoute
     }
     '/_app/jellyfin': {
@@ -360,6 +379,7 @@ interface AppRouteChildren {
   AppBackupsRoute: typeof AppBackupsRoute
   AppGamingRoute: typeof AppGamingRoute
   AppHealthRoute: typeof AppHealthRoute
+  AppInboxRoute: typeof AppInboxRoute
   AppJellyfinRoute: typeof AppJellyfinRoute
   AppLogsRoute: typeof AppLogsRoute
   AppMusicRoute: typeof AppMusicRoute
@@ -378,6 +398,7 @@ const AppRouteChildren: AppRouteChildren = {
   AppBackupsRoute: AppBackupsRoute,
   AppGamingRoute: AppGamingRoute,
   AppHealthRoute: AppHealthRoute,
+  AppInboxRoute: AppInboxRoute,
   AppJellyfinRoute: AppJellyfinRoute,
   AppLogsRoute: AppLogsRoute,
   AppMusicRoute: AppMusicRoute,

@@ -258,8 +258,8 @@ install_scripts() {
     fi
     if [[ -d "$BUNDLE_DIR/stacks/inbox" ]]; then
         install -d -m 0755 "$SCRIPTS_DIR/stacks/inbox"
-        install -m 0755 "$BUNDLE_DIR/stacks/inbox/install.sh" "$SCRIPTS_DIR/stacks/inbox/"
-        install -m 0644 "$BUNDLE_DIR/stacks/inbox/compose.yaml" "$BUNDLE_DIR/stacks/inbox/compose.gpu.yaml" "$BUNDLE_DIR/stacks/inbox/pre-execute.cs" "$SCRIPTS_DIR/stacks/inbox/"
+        install -m 0755 "$BUNDLE_DIR/stacks/inbox/install.sh" "$BUNDLE_DIR/stacks/inbox/iglo-inbox" "$SCRIPTS_DIR/stacks/inbox/"
+        install -m 0644 "$BUNDLE_DIR/stacks/inbox/compose.yaml" "$BUNDLE_DIR/stacks/inbox/compose.gpu.yaml" "$BUNDLE_DIR/stacks/inbox/pre-execute.cs" "$BUNDLE_DIR/stacks/inbox/iglo-inbox.service" "$SCRIPTS_DIR/stacks/inbox/"
     fi
     if [[ -d "$BUNDLE_DIR/stacks/photos" ]]; then
         install -d -m 0755 "$SCRIPTS_DIR/stacks/photos"

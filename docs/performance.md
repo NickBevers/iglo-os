@@ -250,7 +250,7 @@ Jellyfin used it, for two codecs. Each change below works without a GPU too.
 - **Immich** gets the render node and the OpenVINO image, so face detection and
   smart search run on the GPU. Video conversion uses Quick Sync after one
   switch in Immich.
-- **FileFlows** gets the render node for its conversions.
+- **Inbox** gets the render node. FFmpeg probes H.264 VAAPI and falls back to CPU.
 - **Optional, not assumed.** The GPU settings sit in a separate compose file
   that loads only when the host has a render node.
 
@@ -360,3 +360,18 @@ provider does not hold the queue's state lock or delay another alert being
 saved. Each delivery pass has a 20-second deadline; an idle worker checks its
 queue twice a minute without network calls or writes. New alerts wake it at
 once.
+
+## Native Inbox cost
+
+Checked on 28 October 2026. One long-lived guest SSE stream serves all tabs.
+The manager checks the shared Proxmox resources twice per minute for the guest.
+Agent config reads use the existing 30-second cache. A healthy page has one
+fallback request per minute; disconnected pages make two idle requests or
+twelve while work waits/runs. Each request uses one `pct exec curl`. Mutations
+refresh immediately. Streams relay names only.
+
+Guest scans are bounded to 5000 entries every five minutes, at startup or on
+request. Each scan checks its two mounts once, not per file. A 10-second
+admission tick returns before mount checks when no work waits. Queue state is
+written only on change. Original-codec jobs avoid full software decoding.
+New installs have no Docker. Hardware savings have not been measured.

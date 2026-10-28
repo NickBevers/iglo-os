@@ -14,6 +14,7 @@ while [[ $# -gt 0 ]]; do
         --remove) MODE=remove;shift;;
         --backup) MODE=backup;shift;;
         --verify) MODE=verify;shift;;
+        --migrate) MODE=migrate;shift;;
         *) die "Unknown option: $1";;
     esac
 done
@@ -65,10 +66,10 @@ scoped_cleanup() {
     exit "$code"
 }
 scoped_files() {
-    pct exec "$CT_ID" -- install -d -m 0700 "/opt/$APP"
+    pct exec "$CT_ID" -- install -d -m 0700 "/opt/$APP" || return
     for file in "$STACK_DIR"/*; do
         [[ "$(basename "$file")" != install.sh ]] || continue
-        pct push "$CT_ID" "$file" "/opt/$APP/$(basename "$file")" --perms 0600
+        pct push "$CT_ID" "$file" "/opt/$APP/$(basename "$file")" --perms 0600 || return
     done
 }
 # render_device gives Photos or Inbox the render node of the host GPU, when
@@ -105,7 +106,13 @@ scoped_main() {
         remove_binding_dependencies "$CT_ID"
         return
     fi
-    [[ "$APP" == music ]] || require_docker_lxc
+    if [[ "$MODE" == migrate ]]; then
+        [[ "$APP" == inbox ]] || die "Migration is only supported for Inbox"
+        require_app_container "$CT_ID" inbox;require_running "$CT_ID"
+        migrate_stack
+        return
+    fi
+    [[ "$APP" == music || "$APP" == inbox ]] || require_docker_lxc
     if [[ "$MODE" == update ]]; then
         require_app_container "$CT_ID" "$APP";require_running "$CT_ID"
         local saved
@@ -146,10 +153,11 @@ scoped_main() {
         gaming) bind_share "$CT_ID" 0 "$LIBRARY_BINDING" games ro /data/games;gaming_devices "$CT_ID";;
     esac
     pct start "$CT_ID";wait_for_network "$CT_ID"
-    [[ "$APP" == music ]] || install_docker "$CT_ID"
+    [[ "$APP" == music || "$APP" == inbox ]] || install_docker "$CT_ID"
     pct push "$CT_ID" "$ANSWERS" /etc/iglo-stack.conf --perms 0600
     scoped_files
     install_stack
+    if [[ "$APP" == inbox ]]; then pct set "$CT_ID" --tags "iglo;inbox;inbox-native"; fi
     CREATED_CT=""
     echo "IGLO app $APP $CT_ID $(container_ip "$CT_ID")"
 }

@@ -38,7 +38,7 @@ type InstallDialogProps = {
 const descriptions: Record<string, string> = {
     photos: 'Install Immich in an isolated container with a local database and scoped access to your Photos and Backups shares.',
     music: 'Install a music worker with local staging and write access to your Music share.',
-    inbox: 'Install FileFlows with read access to Inbox and write access to the Videos output share.',
+    inbox: 'Install the native FFmpeg worker with read access to Inbox and write access to the Videos output share.',
     gaming: 'Experimental. Install Wolf with ES-DE in a privileged container, with read access to your Games share. It only runs while you play.',
     jellyfin: 'Iglo-OS makes a new container for Jellyfin on this host, with read access to your movies and series.',
     media: 'Iglo-OS makes a new container for it on this host. Nothing else changes, except that Jellyfin gets read access to the Videos share, if it has none yet.',

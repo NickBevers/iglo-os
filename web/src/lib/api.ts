@@ -1,3 +1,24 @@
+export type InboxProfile = 'preserve' | 'compatible'
+export interface InboxJob {
+    id: string
+    path: string
+    profile: InboxProfile
+    state: string
+    error?: string
+    file?: string
+    createdAt: string
+}
+export interface InboxQueue {
+    backend: 'native' | 'fileflows'
+    storageReady: boolean
+    paused: boolean
+    admitted: boolean
+    profile: InboxProfile
+    gpu: boolean
+    jobs: InboxJob[]
+    scanError?: string
+    sample?: boolean
+}
 export class ApiError extends Error {
     status: number
 
@@ -756,6 +777,13 @@ async function request<T>(method: string, path: string, body?: unknown, contentT
 }
 
 export const api = {
+    inboxJobs: () => request<InboxQueue>('GET', '/inbox'),
+    submitInbox: (input: { path: string; profile: InboxProfile }) => request<InboxJob>('POST', '/inbox', input),
+    inboxSettings: (input: { paused: boolean; profile: InboxProfile }) =>
+        request<void>('PUT', '/inbox/settings', input),
+    scanInbox: () => request<void>('POST', '/inbox/scan'),
+    retryInbox: (id: string) => request<void>('POST', `/inbox/retry/${encodeURIComponent(id)}`),
+    migrateInbox: () => request<void>('POST', '/inbox/migrate', { confirm: true }),
     musicJobs: () => request<MusicQueue>('GET', '/music/jobs'),
     submitMusic: (input: { url: string; video: boolean }) => request<MusicJob>('POST', '/music/jobs', input),
     pauseMusic: (paused: boolean) => request<void>('PUT', '/music/pause', { paused }),

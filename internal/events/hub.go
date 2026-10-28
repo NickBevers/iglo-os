@@ -14,6 +14,7 @@ const (
 	Gaming    = "gaming"
 	Workloads = "workloads"
 	Music     = "music"
+	Inbox     = "inbox"
 	Jellyfin  = "jellyfin"
 	Setup     = "setup"
 )

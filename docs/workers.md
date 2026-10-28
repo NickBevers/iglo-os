@@ -47,62 +47,72 @@ does not automatically cover this separate guest.
 Guest backups include the queue, not the NAS music. Only submit media you are
 entitled to download; no account cookies, subscriptions or login bypass are set up.
 
-## Inbox / FileFlows
+## Native FFmpeg Inbox
 
-Inbox installs the stable FileFlows image, pinned to the registry digest checked
-22 October 2026. It has two CPU cores and a 1536 MiB Docker memory ceiling inside
-a 2048 MiB guest. The UI listens on guest port **19200**. Its built-in Agent is
-the processor: no second machine or extra worker container is required.
+New installs use a native Go service and Debian FFmpeg, without Docker. One
+worker runs at a time, with two CPU cores and a 1536 MiB systemd ceiling in the
+existing 2048 MiB guest budget. These are limits, not measured memory use.
+The loopback API on port 8789 reaches clients only through the manager/agent.
 
-| Container path | Access and purpose |
-| --- | --- |
-| `/media/inbox` | Read-only Inbox share: sources cannot be replaced/deleted by a flow |
-| `/media/output` | Only the Videos share's `home-videos` output folder is exposed to FileFlows |
-| `/temp` | SSD staging, disposable |
-| `/app/Data` | SSD flow/configuration database, included in guest backups |
-| `/app/common` | Persistent tools/DockerMods on SSD |
-| `/gate` | Read-only manager admission lease |
+Open **Services → Inbox work**, review the profile and resume the initially
+paused queue. Sources are read only at `/data/inbox`. Output goes to
+`/data/videos/home-videos`. SSD staging and state live in
+`/var/lib/iglo-inbox/worker`. Scans run at startup, on demand and every five
+minutes, accepting files unchanged for 30 seconds. Remote SMB writes do not
+reliably generate local inotify events.
 
-Finish the native setup before enabling a library:
+- **Original codecs**, the default, copies primary video, audio and subtitles,
+  metadata and chapters without re-encoding. MOV/MP4 keeps that container family;
+  other sources publish Matroska. Unsupported combinations fail without publishing.
+- **Playback** publishes H.264 8-bit MP4, copying compatible streams. Other video
+  uses a verified VAAPI encoder or CPU fallback. Incompatible audio becomes AAC.
+  Resolution stays. HDR needing conversion and subtitled inputs require the
+  original-codec profile. Automatic tone mapping is not enabled.
 
-1. Open FileFlows, set authentication and restrict access to your LAN/Tailscale.
-2. In DockerMods, install the current **FFmpeg FileFlows Edition** only; set its
-   FFmpeg/ffprobe paths as indicated by that mod. The minimal stable image does
-   not promise a bundled FFmpeg. Do not install every mod.
-3. Use the internal Agent with **one runner**, temporary directory `/temp`, and
-   an overnight native schedule. If optional runner-cost fields are licensed,
-   leave them at defaults; additional agents and a paid API are not assumed.
-4. Paste the bundled `/opt/inbox/pre-execute.cs` into that Agent's **Pre-Execute
-   Script**. It reads `/gate/admit-until`. A missing/expired lease returns false.
-5. Create a library at `/media/inbox` and a copy-only flow: inspect the video,
-   convert/remux in `/temp`, validate the output, then copy to a unique filename
-   under `/media/output`. Do not use **Replace Original**, delete
-   source or move-source actions; the read-only source mount intentionally refuses
-   them. Use a small test clip first and confirm playback, duration, streams and
-   subtitles before processing an archive.
-6. Enable the library only after the flow and admission script have been tested.
+Limits are one primary video stream, four hours and 16 GiB per source/output.
+Free SSD space must cover the source, 16 GiB output allowance and 4 GiB headroom.
+FFprobe validates duration, dimensions, counts and codecs. FFmpeg reads all
+output video/audio packets. This checks containers/packets, not visual quality.
+Review small samples on your clients before processing an archive.
 
-This installs the real service and supplies its admission script. It does **not**
-claim an imported flow, a licensed API connection or verified conversions.
-Configure and export the tested flow from the native UI. When the host has a
-GPU, the installer passes its render node to the container and loads
-`compose.gpu.yaml`, so FileFlows can use VAAPI or Quick Sync in its flows. Pick
-the hardware encoder in the flow; FileFlows doesn't switch by itself.
+Publication uses a hidden file on the NAS, flushes it and renames to a unique
+job filename. Originals are never replaced/deleted. Failed work and unavailable
+mounts never publish completed output. The last 100 jobs are retained, with a
+separate bounded fingerprint set to avoid processing old completed versions
+again after history eviction. Size/mtime changes identify a new version.
+Interrupted jobs fail explicitly; inspect output before retrying.
 
-Updates stop FileFlows, archive `/app/Data` on local SSD, then replace the image.
-Scoped Music/Photos/Inbox updates do not automatically rewind guest disks on
-failure: NAS publications cannot be rolled back with those disks. Inspect the
-operation and exported app state before choosing a recovery action.
-Local pre-update archives are included in guest disk backups and need retention;
-they are not a substitute for a separate NAS/off-device backup. Removing the
-guest deletes its flows/database, while NAS sources and outputs remain.
+The Go worker uses the repository license. Debian FFmpeg is FOSS, under LGPL/GPL
+depending on build options. Do not use `--enable-nonfree` builds. Checked on
+28 October 2026 against FFmpeg 7.1.5 source and Debian 13; installed package
+revisions may differ.
+
+### Existing FileFlows installations
+
+Updates keep FileFlows until explicit migration from **Inbox work**. Migration
+stops FileFlows and archives local data under `/var/backups/iglo-inbox` on SSD.
+App files and Compose configuration stay. Custom flows are not imported; the
+native queue starts paused. Failures before migration commits restart FileFlows.
+Docker is disabled only if the dedicated guest has exactly its one stopped
+FileFlows container. Packages remain for deliberate rollback.
+
+For manual rollback, stop and disable `iglo-inbox`, restore the FileFlows archive
+if needed, enable Docker and run `docker compose up -d` in `/opt/inbox`. Remove
+the `inbox-native` tag and `/var/lib/iglo-inbox/worker/native-ready` marker only
+after checking the intended backend. Inspect NAS outputs to prevent duplicates.
+Guest disk rollback cannot undo NAS writes.
+
+Legacy FileFlows retains its port 19200 UI, native schedule and required
+`/opt/inbox/pre-execute.cs` admission script. Local archives need retention and
+a separate off-device backup. Removing the guest deletes worker state and
+archives; NAS originals and output stay.
 
 ## Shared processing admission
 
 In **Background work**, select the Proxmox node and enable **Control Music and
 Inbox admission**. This setting is independent of an Immich key. Set 4 GiB
 headroom and the desired window/timezone. A two-hour gaming hold defers new jobs.
-Existing jobs finish. Native FileFlows scheduling and manual Music pause also
+Existing jobs finish. Legacy FileFlows scheduling and manual worker pause also
 apply; an external lease never overrides either one.
 
 The manager checks every 15 seconds and sends a new 60-second admission lease
@@ -121,7 +131,7 @@ Go tests cover URL restrictions, durable publication, failed download/NAS-loss
 behavior, symlink rejection, manual pause and expired leases. Controller tests
 cover worker leases without Immich, gaming, low RAM and the daily window.
 The development fixture uses explicit simulated jobs and downloads no media.
-Real YouTube extraction, FileFlows flow execution, Proxmox guest installation,
+Real YouTube extraction, Intel VAAPI encoding, Proxmox guest installation,
 NAS outages and power-cycle recovery still need hardware acceptance testing.
 
 Primary references:
@@ -130,19 +140,11 @@ Primary references:
 [Agent controls](https://fileflows.com/docs/webconsole/agents/),
 [Pre-Execute Script](https://fileflows.com/docs/webconsole/agents/pre-execute-script).
 
-## FOSS replacement assessment
 
-FFmpeg is the preferred candidate for replacing FileFlows in a later change.
-The current Inbox installer still uses FileFlows. Checked on 28 October 2026
-against [FFmpeg 7.1.5 licensing](https://github.com/FFmpeg/FFmpeg/blob/n7.1.5/LICENSE.md)
-and the [Debian 13 package](https://packages.debian.org/trixie/ffmpeg). FFmpeg
-is LGPL or GPL depending on its build options. Use a distribution build
-without incompatible additions enabled through `--enable-nonfree`.
+Native Inbox tests run real local FFmpeg copying, CPU conversion, GPU failure
+fallback, subtitles and malformed input. The mock simulates migration and
+publication. It does not run host installers or measure hardware performance.
 
-A native Inbox worker could reuse Music's durable queue, admission leases,
-SSD staging and checked NAS publication. FFprobe would inspect sources,
-compatible files would be remuxed without re-encoding, and conversion would
-use a detected hardware encoder with a CPU fallback. It would retain the
-read-only source mount and validate duration and streams before publishing.
-This needs a worker and migration path; replacing a container image alone
-does not replace FileFlows scheduling, flow state or admission behavior.
+FFmpeg references: [7.1.5 source](https://github.com/FFmpeg/FFmpeg/tree/n7.1.5),
+[license](https://github.com/FFmpeg/FFmpeg/blob/n7.1.5/LICENSE.md),
+[Debian 13 package](https://packages.debian.org/trixie/ffmpeg).

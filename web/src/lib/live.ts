@@ -20,6 +20,7 @@ const topicKeys: Record<string, string[]> = {
     gaming: ['gaming'],
     workloads: ['workloads'],
     music: ['music-jobs'],
+    inbox: ['inbox-jobs'],
     jellyfin: ['jellyfin'],
     setup: ['setup'],
 }

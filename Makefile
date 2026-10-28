@@ -18,6 +18,8 @@ build: web
 	GOOS=linux GOARCH=amd64 CGO_ENABLED=0 go build -trimpath -ldflags "$(LDFLAGS)" -o $(BUNDLE)/stacks/jellyfin/iglo-jellyfin ./cmd/iglo-jellyfin
 	GOOS=linux GOARCH=amd64 CGO_ENABLED=0 go build -trimpath -ldflags "$(LDFLAGS)" -o $(BUNDLE)/stacks/music/iglo-music ./cmd/iglo-music
 
+	GOOS=linux GOARCH=amd64 CGO_ENABLED=0 go build -trimpath -ldflags "$(LDFLAGS)" -o $(BUNDLE)/stacks/inbox/iglo-inbox ./cmd/iglo-inbox
+
 bundle: build
 	echo "$(VERSION)" >$(BUNDLE)/VERSION
 	install -m 0755 deploy/install.sh $(BUNDLE)/install.sh
@@ -37,7 +39,7 @@ bundle: build
 	install -m 0755 deploy/stacks/music/install.sh $(BUNDLE)/stacks/music/
 	install -m 0644 deploy/stacks/music/iglo-music.service $(BUNDLE)/stacks/music/
 	install -m 0755 deploy/stacks/inbox/install.sh $(BUNDLE)/stacks/inbox/
-	install -m 0644 deploy/stacks/inbox/compose.yaml deploy/stacks/inbox/compose.gpu.yaml deploy/stacks/inbox/pre-execute.cs $(BUNDLE)/stacks/inbox/
+	install -m 0644 deploy/stacks/inbox/compose.yaml deploy/stacks/inbox/compose.gpu.yaml deploy/stacks/inbox/pre-execute.cs deploy/stacks/inbox/iglo-inbox.service $(BUNDLE)/stacks/inbox/
 	mkdir -p $(BUNDLE)/stacks/gaming
 	install -m 0755 deploy/stacks/gaming/install.sh deploy/stacks/gaming/diagnose.sh $(BUNDLE)/stacks/gaming/
 	install -m 0644 deploy/stacks/gaming/compose.yaml deploy/stacks/gaming/config.toml $(BUNDLE)/stacks/gaming/

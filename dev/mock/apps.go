@@ -178,6 +178,12 @@ func (f *fakeInstalls) playOnContainer(stack, action, logPath, exitPath string) 
 	finish := func(code int) { os.WriteFile(exitPath, []byte(fmt.Sprintln(code)), 0o600) }
 
 	installed := map[string]string{"arr": "media-installed", "jellyfin": "jellyfin-installed", "minecraft": "minecraft-installed", "photos": "photos-installed", "music": "music-installed", "inbox": "inbox-installed", "gaming": "gaming-installed"}[stack]
+	if stack == "inbox" && action == "--migrate" {
+		write("==> Development simulation: archive FileFlows and start paused native worker")
+		os.WriteFile(statePath("inbox-native"), nil, 0600)
+		finish(0)
+		return
+	}
 	if action == "--backup" || action == "--verify" {
 		write("==> Development simulation: no files copied or database restored")
 		write("==> Simulated Photos recovery finished")
@@ -278,6 +284,9 @@ func (f *fakeInstalls) play(stack, answers, logPath, exitPath string) {
 			finish(1)
 			return
 		}
+	}
+	if stack == "inbox" {
+		os.WriteFile(statePath("inbox-native"), nil, 0600)
 	}
 	switch stack {
 	case "photos", "music", "inbox", "gaming":
@@ -413,6 +422,18 @@ func (f *fakeInstalls) playPlayers(answers, logPath, exitPath string) {
 
 // addAppRoutes serves the app routes of the agent with the real installer.
 func addAppRoutes(mux *http.ServeMux, installer *agent.AppInstaller) {
+	mux.HandleFunc("POST /v1/apps/inbox/migrate", func(w http.ResponseWriter, r *http.Request) {
+		var in agent.AppContainerRequest
+		if json.NewDecoder(r.Body).Decode(&in) != nil {
+			http.Error(w, "invalid request", 400)
+			return
+		}
+		if err := installer.Recover(agent.InboxApp, in.VMID, agent.ActionMigrate); err != nil {
+			http.Error(w, err.Error(), 400)
+			return
+		}
+		w.WriteHeader(202)
+	})
 	agent.RegisterEvents(mux, installer)
 	for _, action := range []agent.AppAction{agent.ActionBackup, agent.ActionVerify} {
 		mux.HandleFunc("POST /v1/apps/photos/"+string(action), func(w http.ResponseWriter, r *http.Request) {

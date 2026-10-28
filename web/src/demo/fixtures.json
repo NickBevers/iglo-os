@@ -8872,5 +8872,24 @@
       "ERROR: Backup of VM 101 failed - no space left on device",
       "INFO: Backup job finished with errors"
     ]
+  },
+  "/inbox": {
+    "backend": "native",
+    "storageReady": true,
+    "paused": true,
+    "admitted": true,
+    "profile": "preserve",
+    "gpu": true,
+    "sample": true,
+    "jobs": [
+      {
+        "id": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "path": "family/holiday.mov",
+        "profile": "preserve",
+        "state": "succeeded",
+        "file": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.mov",
+        "createdAt": "2026-10-28T10:00:00Z"
+      }
+    ]
   }
 }

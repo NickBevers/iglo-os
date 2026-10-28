@@ -1,0 +1,23 @@
+[Unit]
+Description=Iglo native video Inbox worker
+After=network-online.target
+Wants=network-online.target
+RequiresMountsFor=/data/inbox /data/videos
+[Service]
+ExecStart=/usr/local/bin/iglo-inbox
+User=iglo-inbox
+Group=1000
+Restart=on-failure
+CPUQuota=200%
+MemoryMax=1536M
+TasksMax=128
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/var/lib/iglo-inbox/worker /data/videos/home-videos
+IPAddressDeny=any
+IPAddressAllow=localhost
+UMask=0002
+[Install]
+WantedBy=multi-user.target
