@@ -100,3 +100,8 @@ The manager publishes Health, Updates and Backups topics while using the dev
 mock too. Add or refresh a health check, run an update check, or start a backup
 restore check to exercise them through `/api/events`. These topics come from
 the real manager services; the mock supplies their normal API dependencies.
+
+The shared shadcn stylesheet is kept in `web/src/styles/shadcn.css`, from
+shadcn 4.21.0, with its MIT license alongside it. The app needs this CSS,
+not the shadcn CLI and its dependency tree. Refresh the stylesheet deliberately
+when updating the shared component styles.

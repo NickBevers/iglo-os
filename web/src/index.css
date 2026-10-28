@@ -1,6 +1,6 @@
 @import 'tailwindcss';
 @import 'tw-animate-css';
-@import 'shadcn/tailwind.css';
+@import './styles/shadcn.css';
 /* standard.css has both the weight and the width axis. */
 @import '@fontsource-variable/mona-sans/standard.css';
 @import '@fontsource-variable/jetbrains-mono';

@@ -47,6 +47,9 @@ and memory choices for people.
 
 ## Upstream software
 
+- Prefer free, open source software throughout the stack. Check the license
+  before adding a component. A free tier alone does not meet that preference.
+
 - Check an API, an event name or a file format against the source of the
   version we pin, never from memory. The `iglo-upstream-check` skill shows how:
   for a pinned image digest, read its `org.opencontainers.image.revision`
