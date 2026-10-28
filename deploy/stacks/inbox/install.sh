@@ -63,7 +63,10 @@ rollback_native_migration() {
 migrate_stack() {
     ! native_ready || die "Inbox already uses the native worker"
     # Load checked bindings again; no NAS path is supplied by the caller.
-    local saved
+    local saved tags
+    tags="$(pct config "$CT_ID" | sed -n 's/^tags: //p')"
+    [[ ";$tags;" == *";iglo;"* && ";$tags;" == *";inbox;"* ]] || die "Could not read the managed Inbox tags"
+    [[ ";$tags;" == *";inbox-native;"* ]] || tags="$tags;inbox-native"
     saved=$(mktemp)
     pct pull "$CT_ID" /etc/iglo-stack.conf "$saved"
     load_scoped_answers "$saved";rm -f "$saved"
@@ -83,7 +86,7 @@ migrate_stack() {
     trap rollback_native_migration EXIT
     scoped_files
     install_native
-    pct set "$CT_ID" --tags "iglo;inbox;inbox-native" --description "$(app_description "$APP, installed by Iglo-OS")"
+    pct set "$CT_ID" --tags "$tags" --description "$(app_description "$APP, installed by Iglo-OS")"
     trap - EXIT
     pct exec "$CT_ID" -- bash -euc '
         # Only retire Docker when the dedicated guest contains no other

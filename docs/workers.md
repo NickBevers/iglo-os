@@ -92,7 +92,8 @@ revisions may differ.
 Updates keep FileFlows until explicit migration from **Inbox work**. Migration
 stops FileFlows and archives local data under `/var/backups/iglo-inbox` on SSD.
 App files and Compose configuration stay. Custom flows are not imported; the
-native queue starts paused. Failures before migration commits restart FileFlows.
+native queue starts paused. Existing container tags are retained when adding
+`inbox-native`. Failures before migration commits restart FileFlows.
 Docker is disabled only if the dedicated guest has exactly its one stopped
 FileFlows container. Packages remain for deliberate rollback.
 

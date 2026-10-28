@@ -139,7 +139,7 @@ export function InboxPage() {
                                     }
                                 >
                                     <option value="preserve">Original codecs</option>
-                                    <option value="compatible">Playback: H.264 and AAC</option>
+                                    <option value="compatible">Playback: H.264 MP4</option>
                                 </select>
                             </Field>
                             <p className="text-sm text-muted-foreground">
