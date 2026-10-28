@@ -13,6 +13,9 @@ export function isLive() {
 
 // topicKeys are the queries that each topic of the manager refreshes.
 const topicKeys: Record<string, string[]> = {
+    health: ['health'],
+    updates: ['updates'],
+    backups: ['backups'],
     apps: ['apps'],
     gaming: ['gaming'],
     workloads: ['workloads'],

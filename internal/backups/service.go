@@ -20,6 +20,7 @@ import (
 	"time"
 
 	"iglo/internal/agent"
+	"iglo/internal/events"
 	"iglo/internal/proxmox"
 )
 
@@ -57,6 +58,7 @@ type Agent interface {
 }
 
 type Options struct {
+	Changed func(string)
 	DataDir string
 	Proxmox Proxmox
 	Agent   Agent
@@ -112,7 +114,9 @@ type Service struct {
 	state state
 	busy  string
 	// ours holds the tasks Iglo-OS started, which report their own result.
-	ours map[string]bool
+	ours      map[string]bool
+	inventory inventoryCache
+	shown     string
 }
 
 func New(options Options) (*Service, error) {
@@ -166,11 +170,19 @@ func (s *Service) SaveJob(ctx context.Context, job agent.BackupJob) error {
 		return err
 	}
 
-	return s.Agent.SaveBackupJob(ctx, job)
+	if err := s.Agent.SaveBackupJob(ctx, job); err != nil {
+		return err
+	}
+	s.forgetInventory()
+	if s.Changed != nil {
+		s.Changed(events.Backups)
+	}
+	return nil
 }
 
 // start runs an operation in the background, one at a time.
 func (s *Service) start(ctx context.Context, name string, operation func(context.Context) Run) error {
+	defer s.publishChanged()
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
@@ -180,7 +192,9 @@ func (s *Service) start(ctx context.Context, name string, operation func(context
 	s.busy = name
 
 	go func() {
+		defer s.publishChanged()
 		run := operation(ctx)
+		s.forgetInventory()
 
 		icon := "✅"
 		if !run.Succeeded {
@@ -552,6 +566,11 @@ func (s *Service) checkTasks(ctx context.Context) {
 		}
 	}
 
+	// Completed scheduled tasks also invalidate the archive inventory.
+	if newest != since {
+		s.forgetInventory()
+		defer s.publishChanged()
+	}
 	// Most checks find no new task, so only a new one is written to disk.
 	s.mu.Lock()
 	if newest != s.state.LastTask {
@@ -605,4 +624,15 @@ func newID() string {
 	rand.Read(bytes)
 
 	return hex.EncodeToString(bytes)
+}
+
+func (s *Service) publishChanged() {
+	s.mu.Lock()
+	shown := fmt.Sprint(s.busy, s.state.History, s.state.LastTask)
+	changed := shown != s.shown
+	s.shown = shown
+	s.mu.Unlock()
+	if changed && s.Changed != nil {
+		s.Changed(events.Backups)
+	}
 }

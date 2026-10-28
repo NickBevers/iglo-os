@@ -105,3 +105,30 @@ func TestOutboxNeverReroutesOldAlerts(t *testing.T) {
 		t.Fatal("old alert rerouted")
 	}
 }
+
+func TestSlowDeliveryDoesNotBlockEnqueue(t *testing.T) {
+	q, _ := NewOutbox(filepath.Join(t.TempDir(), "notifications.json"))
+	entered, release := make(chan struct{}), make(chan struct{})
+	targets := []Destination{{ID: "one", Send: func(context.Context, string) error { close(entered); <-release; return nil }}}
+	q.Enqueue("first", targets, time.Time{})
+	done := make(chan error, 1)
+	go func() { done <- q.Flush(context.Background(), targets, time.Time{}) }()
+	<-entered
+	queued := make(chan error, 1)
+	go func() { queued <- q.Enqueue("second", targets, time.Time{}) }()
+	select {
+	case err := <-queued:
+		if err != nil {
+			t.Error(err)
+		}
+	case <-time.After(time.Second):
+		t.Error("slow provider blocked new alerts")
+	}
+	close(release)
+	if err := <-done; err != nil {
+		t.Fatal(err)
+	}
+	if len(q.pending) != 1 || q.pending[0].Text != "second" {
+		t.Fatal("concurrent enqueue lost")
+	}
+}
