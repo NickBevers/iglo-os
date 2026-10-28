@@ -512,7 +512,31 @@
         "backups": []
       }
     ],
-    "history": []
+    "history": [
+      {
+        "id": "check1",
+        "kind": "check",
+        "vmid": 101,
+        "target": "jellyfin (101)",
+        "succeeded": true,
+        "message": "the backup of 2026-10-27 03:00 restores and starts",
+        "startedAt": "2026-10-27T05:00:02+01:00",
+        "finishedAt": "2026-10-27T05:03:41+01:00"
+      }
+    ],
+    "check": {
+      "last": {
+        "id": "check1",
+        "kind": "check",
+        "vmid": 101,
+        "target": "jellyfin (101)",
+        "succeeded": true,
+        "message": "the backup of 2026-10-27 03:00 restores and starts",
+        "startedAt": "2026-10-27T05:00:02+01:00",
+        "finishedAt": "2026-10-27T05:03:41+01:00"
+      },
+      "next": "2026-11-26T05:00:00+01:00"
+    }
   },
   "/tailscale": {
     "installed": true,

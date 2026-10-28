@@ -69,11 +69,38 @@ func (f *fakeProxmox) WaitTask(_ context.Context, _, upid string) error {
 	return nil
 }
 
-type fakeAgent struct{ saved []agent.BackupJob }
+// fakeAgent restores at once, like the host agent's Restorer would, and
+// records it in the calls of pve so the order shows.
+type fakeAgent struct {
+	saved    []agent.BackupJob
+	pve      *fakeProxmox
+	mu       sync.Mutex
+	status   agent.RestoreStatus
+	failWith string
+}
 
 func (f *fakeAgent) SaveBackupJob(_ context.Context, job agent.BackupJob) error {
 	f.saved = append(f.saved, job)
 	return nil
+}
+
+func (f *fakeAgent) Restore(_ context.Context, request agent.RestoreRequest) (agent.RestoreStatus, error) {
+	kind := "host restore"
+	if request.Check {
+		kind = "host check"
+	}
+	f.pve.record(fmt.Sprintf("%s %d %s %s", kind, request.VMID, request.Volid, request.Storage))
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	started := time.Now()
+	f.status = agent.RestoreStatus{Request: request, Succeeded: f.failWith == "", Message: f.failWith, StartedAt: started, FinishedAt: started}
+	return agent.RestoreStatus{Running: true, Request: request, StartedAt: started}, nil
+}
+
+func (f *fakeAgent) RestoreStatus(context.Context) (agent.RestoreStatus, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return f.status, nil
 }
 
 type harness struct {
@@ -103,15 +130,16 @@ func newHarness(t *testing.T) *harness {
 				},
 			},
 		},
-		agent: &fakeAgent{},
 	}
+	h.agent = &fakeAgent{pve: h.pve}
 
 	service, err := New(Options{
-		DataDir:  t.TempDir(),
-		Proxmox:  h.pve,
-		Agent:    h.agent,
-		SelfVMID: 100,
-		Logger:   slog.New(slog.DiscardHandler),
+		DataDir:     t.TempDir(),
+		Proxmox:     h.pve,
+		Agent:       h.agent,
+		SelfVMID:    100,
+		Logger:      slog.New(slog.DiscardHandler),
+		RestorePoll: time.Millisecond,
 		Notify: func(_ context.Context, text string) {
 			h.mu.Lock()
 			h.messages = append(h.messages, text)
@@ -204,7 +232,8 @@ func TestRestoreRunningContainer(t *testing.T) {
 	}
 	run := h.wait(t)
 
-	want := []string{"shutdown 101", "restore lxc 101 " + volid + " local-lvm", "start 101"}
+	// A container is restored by the host agent: only root may restore its bind mounts.
+	want := []string{"shutdown 101", "host restore 101 " + volid + " local-lvm", "start 101"}
 	if !run.Succeeded || !slices.Equal(h.pve.calls, want) {
 		t.Fatalf("run = %+v, calls = %v", run, h.pve.calls)
 	}
@@ -316,5 +345,91 @@ func TestSaveJobValidates(t *testing.T) {
 	}
 	if len(h.agent.saved) != 0 {
 		t.Fatal("invalid job reached the agent")
+	}
+}
+
+func TestCheckRestoresACopy(t *testing.T) {
+	h := newHarness(t)
+	volid := "local:backup/vzdump-lxc-101-2026_09_30-03_00_01.tar.zst"
+	if err := h.service.Check(context.Background(), volid); err != nil {
+		t.Fatal(err)
+	}
+	run := h.wait(t)
+	if !run.Succeeded || run.Kind != RunCheck || !slices.Equal(h.pve.calls, []string{"host check 101 " + volid + " local-lvm"}) {
+		t.Fatalf("run = %+v, calls = %v", run, h.pve.calls)
+	}
+	view, _ := h.service.Status(context.Background())
+	if view.Check.Last == nil || view.Check.Last.ID != run.ID || !view.Check.Next.After(time.Now().Add(29*24*time.Hour)) {
+		t.Fatalf("check view = %+v", view.Check)
+	}
+
+	// A failed check says why, and the original is never stopped or touched.
+	h = newHarness(t)
+	h.agent.failWith = "the copy started, but its system is \"starting\""
+	h.service.Check(context.Background(), volid)
+	if run := h.wait(t); run.Succeeded || !strings.Contains(run.Message, "starting") || len(h.pve.calls) != 1 {
+		t.Fatalf("run = %+v, calls = %v", run, h.pve.calls)
+	}
+
+	if err := h.service.Check(context.Background(), "local:backup/vzdump-qemu-200-2026_09_30-03_00_01.vma.zst"); !errors.Is(err, ErrRefused) {
+		t.Fatalf("a VM backup: %v", err)
+	}
+}
+
+func TestNextCheckGoesRound(t *testing.T) {
+	backups := func(volids ...string) []BackupView {
+		var views []BackupView
+		for index, volid := range volids {
+			views = append(views, BackupView{VolID: volid, CreatedAt: time.Unix(int64(index), 0)})
+		}
+		return views
+	}
+	guests := []GuestView{
+		{VMID: 130, Type: "lxc", Backups: backups("b130-old", "b130-new")},
+		{VMID: 101, Type: "lxc", Backups: backups("b101")},
+		{VMID: 200, Type: "qemu", Backups: backups("b200")},
+		{VMID: 140, Type: "lxc"},
+	}
+	for after, want := range map[int]string{0: "b101", 101: "b130-new", 130: "b101", 999: "b101"} {
+		if got := nextCheck(guests, after); got != want {
+			t.Errorf("after %d: %q, want %q", after, got, want)
+		}
+	}
+	if nextCheck(nil, 0) != "" {
+		t.Error("a check without backups")
+	}
+}
+
+func TestMonthlyCheckWaits(t *testing.T) {
+	h := newHarness(t)
+	now := time.Date(2026, 11, 1, 5, 10, 0, 0, time.Local)
+	h.service.Now = func() time.Time { return now }
+	holding := true
+	h.service.Hold = func() bool { return holding }
+
+	// A game is on: wait.
+	h.service.monthlyCheck(context.Background())
+	if len(h.pve.calls) != 0 {
+		t.Fatalf("checked during a game: %v", h.pve.calls)
+	}
+	// Not 05:00: wait.
+	holding = false
+	now = now.Add(2 * time.Hour)
+	h.service.monthlyCheck(context.Background())
+	if len(h.pve.calls) != 0 {
+		t.Fatalf("checked at %s: %v", now, h.pve.calls)
+	}
+
+	now = now.Add(22 * time.Hour)
+	h.service.monthlyCheck(context.Background())
+	h.wait(t)
+	if !slices.Equal(h.pve.calls, []string{"host check 101 local:backup/vzdump-lxc-101-2026_09_30-03_00_01.tar.zst local-lvm"}) {
+		t.Fatalf("calls = %v", h.pve.calls)
+	}
+	// The next one waits a month.
+	now = now.Add(24 * time.Hour)
+	h.service.monthlyCheck(context.Background())
+	if len(h.pve.calls) != 1 {
+		t.Fatalf("checked again after a day: %v", h.pve.calls)
 	}
 }

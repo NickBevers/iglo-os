@@ -57,6 +57,7 @@ export function GuestBackups({ backups }: { backups: Backups }) {
                             backups={backups}
                             onBackUp={() => action.mutate(() => api.backUpGuest(guest.vmid))}
                             onConfirm={setConfirm}
+                            onCheck={(backup) => action.mutate(() => api.checkBackup(backup.volid))}
                         />
                     ))}
                 </ul>
@@ -97,9 +98,10 @@ type GuestRowProps = {
     backups: Backups
     onBackUp: () => void
     onConfirm: (confirm: Confirm) => void
+    onCheck: (backup: GuestBackup) => void
 }
 
-function GuestRow({ guest, backups, onBackUp, onConfirm }: GuestRowProps) {
+function GuestRow({ guest, backups, onBackUp, onConfirm, onCheck }: GuestRowProps) {
     const [open, setOpen] = useState(false)
     const save = useSaveBackupJob()
     const latest = guest.backups[0]
@@ -163,6 +165,26 @@ function GuestRow({ guest, backups, onBackUp, onConfirm }: GuestRowProps) {
                             <span className="w-16 text-right text-muted-foreground tabular-nums">
                                 {formatBytes(backup.size)}
                             </span>
+                            {guest.type === 'lxc' && (
+                                <Tooltip>
+                                    <TooltipTrigger
+                                        render={
+                                            <Button
+                                                variant="ghost"
+                                                size="sm"
+                                                disabled={busy}
+                                                onClick={() => onCheck(backup)}
+                                            />
+                                        }
+                                    >
+                                        Test
+                                    </TooltipTrigger>
+                                    <TooltipContent>
+                                        Restores this backup to a copy without network or NAS shares, starts it and
+                                        removes it again. The container itself is not touched.
+                                    </TooltipContent>
+                                </Tooltip>
+                            )}
                             <RestoreButton
                                 guest={guest}
                                 disabled={busy}

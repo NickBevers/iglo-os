@@ -105,6 +105,8 @@ type Backups interface {
 	SaveJob(ctx context.Context, job agent.BackupJob) error
 	BackUp(ctx context.Context, vmid int) error
 	Restore(ctx context.Context, vmid int, volid string) error
+	// Check restores a backup to a copy, starts it and removes it again.
+	Check(ctx context.Context, volid string) error
 	Delete(ctx context.Context, volid string) error
 }
 
@@ -232,6 +234,7 @@ func New(options Options) http.Handler {
 	mux.Handle("POST /api/backups/guests/{vmid}", s.requireSession(http.HandlerFunc(s.backupsBackUp)))
 	mux.Handle("POST /api/backups/restore", s.requireSession(http.HandlerFunc(s.backupsRestore)))
 	mux.Handle("POST /api/backups/delete", s.requireSession(http.HandlerFunc(s.backupsDelete)))
+	mux.Handle("POST /api/backups/check", s.requireSession(http.HandlerFunc(s.backupsCheck)))
 	mux.Handle("GET /api/logs/journal", s.requireSession(http.HandlerFunc(s.logsJournal)))
 	mux.Handle("GET /api/logs/docker", s.requireSession(http.HandlerFunc(s.logsDocker)))
 	mux.Handle("GET /api/logs/tasks", s.requireSession(http.HandlerFunc(s.logsTasks)))

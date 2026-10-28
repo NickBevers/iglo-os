@@ -1,11 +1,11 @@
 import { useQuery } from '@tanstack/react-query'
-import { CircleCheckIcon, CircleXIcon, Loader2Icon, TriangleAlertIcon } from 'lucide-react'
+import { CircleCheckIcon, CircleDashedIcon, CircleXIcon, Loader2Icon, TriangleAlertIcon } from 'lucide-react'
 
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { Badge } from '@/components/ui/badge'
 import { Card } from '@/components/ui/card'
 import { Skeleton } from '@/components/ui/skeleton'
-import type { BackupRun } from '@/lib/api'
+import type { BackupRun, Backups } from '@/lib/api'
 import { formatDateTime, formatRelative } from '@/lib/format'
 import { backupsQuery } from '@/lib/queries'
 import { GuestBackups } from './guest-backups'
@@ -63,6 +63,8 @@ export function BackupsPage() {
                 <GuestBackups backups={data} />
             </section>
 
+            <RestoreCheck check={data.check} />
+
             <JobCard key={JSON.stringify(job)} backups={data} />
 
             <section className="flex flex-col gap-3">
@@ -73,11 +75,45 @@ export function BackupsPage() {
     )
 }
 
+// The next check is up to a month away, so it gets a date, not a weekday.
+const checkDate = new Intl.DateTimeFormat(undefined, { dateStyle: 'medium', timeStyle: 'short' })
+
+// RestoreCheck says whether the backups restore: once a month at 05:00, the
+// newest backup of the next container goes to a copy that starts once.
+function RestoreCheck({ check }: { check: Backups['check'] }) {
+    const last = check.last
+    return (
+        <Card className="flex flex-row items-start gap-3 p-4 text-sm">
+            {!last ? (
+                <CircleDashedIcon className="mt-0.5 size-4 shrink-0 text-muted-foreground" aria-hidden />
+            ) : last.succeeded ? (
+                <CircleCheckIcon className="mt-0.5 size-4 shrink-0 text-success" aria-label="succeeded" />
+            ) : (
+                <CircleXIcon className="mt-0.5 size-4 shrink-0 text-destructive" aria-label="failed" />
+            )}
+            <div className="flex flex-col gap-1">
+                <span className="font-medium">
+                    {!last
+                        ? 'No restore check yet'
+                        : `${last.succeeded ? 'Restore check passed' : 'Restore check failed'}: ${last.target}, ${formatRelative(last.finishedAt)}`}
+                </span>
+                <span className="text-muted-foreground">
+                    {last && !last.succeeded ? `${last.message}. ` : ''}
+                    Once a month, the newest backup of the next container is restored to a copy without network or NAS
+                    shares, started and removed again. Next: {checkDate.format(new Date(check.next))}. Test a backup any
+                    time with Test.
+                </span>
+            </div>
+        </Card>
+    )
+}
+
 function BackupHistory({ runs }: { runs: BackupRun[] }) {
     if (runs.length === 0) {
         return (
             <Card className="p-6 text-center text-sm text-muted-foreground">
-                Backups, restores and deletes from Iglo-OS show up here. Failed scheduled backups are sent to Telegram.
+                Backups, restores, restore checks and deletes from Iglo-OS show up here. Failed scheduled backups are
+                sent to Telegram.
             </Card>
         )
     }

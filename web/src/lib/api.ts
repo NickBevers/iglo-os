@@ -478,7 +478,7 @@ export type GuestBackup = {
 
 export type BackupRun = {
     id: string
-    kind: 'backup' | 'restore' | 'delete'
+    kind: 'backup' | 'restore' | 'delete' | 'check'
     vmid: number
     target: string
     succeeded: boolean
@@ -501,6 +501,8 @@ export type Backups = {
         backups: GuestBackup[]
     }[]
     history: BackupRun[]
+    // check is the monthly restore check: the last one, and when the next is due.
+    check: { last?: BackupRun; next: string }
 }
 
 export type LogEntry = { time: string; level: number; source: string; message: string }
@@ -809,6 +811,7 @@ export const api = {
     backUpGuest: (vmid: number) => request<void>('POST', `/backups/guests/${vmid}`),
     restoreBackup: (vmid: number, volid: string) => request<void>('POST', '/backups/restore', { vmid, volid }),
     deleteBackup: (volid: string) => request<void>('POST', '/backups/delete', { volid }),
+    checkBackup: (volid: string) => request<void>('POST', '/backups/check', { volid }),
     journal: (vmid: number, priority: number, lines = 500) =>
         request<LogEntry[]>(
             'GET',
