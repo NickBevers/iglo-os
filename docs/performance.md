@@ -256,6 +256,49 @@ Jellyfin used it, for two codecs. Each change below works without a GPU too.
 
 None of this is measured on the target hardware yet.
 
+## Power at idle
+
+A home server idles most of the day, so its idle power is most of its bill.
+
+**What was wrong.** The Proxmox kernel starts every CPU on the `performance`
+governor (`CONFIG_CPU_FREQ_DEFAULT_GOV_PERFORMANCE` in proxmox/pve-kernel).
+With `intel_pstate` and HWP, as on the i7-12700T, that sets the lowest speed
+to the highest and the energy preference to 0, the most power hungry
+(`intel_pstate_hwp_set`, Linux v7.0). Idle cores still sleep, but every bit of
+work runs at full speed and voltage.
+
+**What we did.** The installer adds `iglo-power.service`. At boot it sets the
+`powersave` governor with the energy preference `balance_performance`. With
+`intel_pstate` and `amd-pstate-epp` in active mode, `powersave` lets the CPU
+pick its own speed and still boosts under load. With other drivers, like
+`acpi-cpufreq`, `powersave` would pin the lowest speed, so the service leaves
+them alone. Checked on 28 October 2026.
+
+Check it on the host:
+
+```sh
+cd /sys/devices/system/cpu/cpufreq/policy0
+cat scaling_driver scaling_governor energy_performance_preference
+systemctl status iglo-power
+```
+
+- **To save more**, run `systemctl edit iglo-power`, add `[Service]` and
+  `Environment=IGLO_EPP=balance_power`, then `systemctl restart iglo-power`.
+  Game streaming and emulators may feel it first.
+- **To turn it off**, run `systemctl disable --now iglo-power` and reboot. An
+  update of Iglo-OS keeps it off.
+
+**What Iglo-OS can't set.** The deepest idle states of the whole chip, package
+C8 and lower, need every device to allow them. That comes from the BIOS: CPU
+C-states and PCIe power management (ASPM). `powertop` shows the result in its
+Idle stats tab, as the time the package spends in each C-state.
+
+We don't run `powertop --auto-tune`. It changes every device at once, also USB
+autosuspend, which can make USB adapters and controllers drop out. Try its
+suggestions one at a time in its Tunables tab instead.
+
+Not measured yet on the target hardware.
+
 ## What we tried and didn't do
 
 - **Bun instead of Node for the build.** Measured: installs went from 4.6 s to

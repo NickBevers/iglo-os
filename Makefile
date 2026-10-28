@@ -21,7 +21,8 @@ build: web
 bundle: build
 	echo "$(VERSION)" >$(BUNDLE)/VERSION
 	install -m 0755 deploy/install.sh $(BUNDLE)/install.sh
-	install -m 0644 deploy/lib.sh deploy/storage.sh deploy/secrets.sh deploy/scoped-stack.sh deploy/iglo.service deploy/iglo-agent.service deploy/iglo-mdns.service 'deploy/iglo-secrets@.service' $(BUNDLE)/
+	install -m 0644 deploy/lib.sh deploy/storage.sh deploy/secrets.sh deploy/scoped-stack.sh deploy/iglo.service deploy/iglo-agent.service deploy/iglo-mdns.service 'deploy/iglo-secrets@.service' deploy/iglo-power.service $(BUNDLE)/
+	install -m 0755 deploy/power.sh $(BUNDLE)/power.sh
 	install -m 0755 deploy/iglo-mdns $(BUNDLE)/iglo-mdns
 	install -m 0755 deploy/stacks/arr/install.sh $(BUNDLE)/stacks/arr/install.sh
 	install -m 0644 deploy/stacks/arr/compose.yaml deploy/stacks/arr/recyclarr.yml $(BUNDLE)/stacks/arr/
