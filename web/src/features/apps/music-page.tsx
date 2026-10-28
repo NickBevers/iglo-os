@@ -11,13 +11,16 @@ import { Field } from './form-parts'
 
 export function MusicPage() {
     // Each check asks the worker in its container, so poll fast only while jobs wait or run.
+    // The live stream says when a job changes, so then the poll is only a fallback.
     const query = useQuery({
         queryKey: ['music-jobs'],
         queryFn: api.musicJobs,
         refetchInterval: (query) =>
-            !isLive() && query.state.data?.jobs.some((job) => job.state === 'queued' || job.state === 'running')
-                ? 5000
-                : 30000,
+            isLive()
+                ? 60000
+                : query.state.data?.jobs.some((job) => job.state === 'queued' || job.state === 'running')
+                  ? 5000
+                  : 30000,
     })
     const client = useQueryClient()
     const [url, setURL] = useState('')

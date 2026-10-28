@@ -76,29 +76,68 @@ func (s *Bindings) run(ctx context.Context, name string, args ...string) ([]byte
 	return s.output(ctx, name, args...)
 }
 
-func (s *Bindings) consumers(path string) ([]string, error) {
+var mountPointKey = regexp.MustCompile(`^mp[0-9]+$`)
+
+// containerMounts reads the mount point sources of every container config,
+// by container ID. List reads them once for all shares.
+func (s *Bindings) containerMounts() (map[string][]string, error) {
 	files, err := filepath.Glob(filepath.Join(s.Containers, "*.conf"))
 	if err != nil {
 		return nil, err
 	}
-	result := []string{}
+	result := map[string][]string{}
 	for _, file := range files {
 		data, err := os.ReadFile(file)
 		if err != nil {
 			return nil, err
 		}
+		id := strings.TrimSuffix(filepath.Base(file), ".conf")
 		for line := range strings.Lines(string(data)) {
 			key, value, ok := strings.Cut(line, ":")
-			if !ok || !regexp.MustCompile(`^mp[0-9]+$`).MatchString(key) {
+			if !ok || !mountPointKey.MatchString(key) {
 				continue
 			}
-			if source, _, _ := strings.Cut(strings.TrimSpace(value), ","); source == path || strings.HasPrefix(source, path+"/") {
-				result = append(result, strings.TrimSuffix(filepath.Base(file), ".conf"))
-				break
-			}
+			source, _, _ := strings.Cut(strings.TrimSpace(value), ",")
+			result[id] = append(result[id], source)
 		}
 	}
 	return result, nil
+}
+
+// consumersOf lists the containers that mount path or a folder in it.
+func consumersOf(mounts map[string][]string, path string) []string {
+	result := []string{}
+	for id, sources := range mounts {
+		if slices.ContainsFunc(sources, func(source string) bool { return source == path || strings.HasPrefix(source, path+"/") }) {
+			result = append(result, id)
+		}
+	}
+	slices.Sort(result)
+	return result
+}
+
+func (s *Bindings) consumers(path string) ([]string, error) {
+	mounts, err := s.containerMounts()
+	if err != nil {
+		return nil, err
+	}
+	return consumersOf(mounts, path), nil
+}
+
+// mountedShares lists the SMB mounts of the host with one findmnt, as mount
+// point to source. findmnt fails when there is none.
+func (s *Bindings) mountedShares(ctx context.Context) map[string]string {
+	result := map[string]string{}
+	out, err := s.run(ctx, "findmnt", "--types", "cifs", "--list", "--noheadings", "--output", "TARGET,SOURCE")
+	if err != nil {
+		return result
+	}
+	for line := range strings.Lines(string(out)) {
+		if fields := strings.Fields(line); len(fields) == 2 {
+			result[fields[0]] = fields[1]
+		}
+	}
+	return result
 }
 
 func (s *Bindings) List(ctx context.Context) ([]Binding, error) {
@@ -110,6 +149,14 @@ func (s *Bindings) List(ctx context.Context) ([]Binding, error) {
 	}
 	result := []Binding{}
 	storages := s.proxmoxStorages()
+	mounts, err := s.containerMounts()
+	if err != nil {
+		return nil, err
+	}
+	var mounted map[string]string
+	if !s.Simulation && len(files) > 0 {
+		mounted = s.mountedShares(ctx)
+	}
 	for _, file := range files {
 		data, err := os.ReadFile(file)
 		if err != nil {
@@ -119,18 +166,10 @@ func (s *Bindings) List(ctx context.Context) ([]Binding, error) {
 		if err = json.Unmarshal(data, &b); err != nil {
 			return nil, err
 		}
-		b.Consumers, err = s.consumers(b.Path)
-		if err != nil {
-			return nil, err
-		}
+		b.Consumers = consumersOf(mounts, b.Path)
 		b.ProxmoxStorage = storages[filepath.Clean(b.Path)]
-		if s.Simulation {
-			b.Mounted = true
-		} else {
-			out, err := s.run(ctx, "findmnt", "--mountpoint", b.Path, "--noheadings", "--output", "FSTYPE,SOURCE")
-			f := strings.Fields(string(out))
-			b.Mounted = err == nil && len(f) == 2 && f[0] == "cifs" && f[1] == b.Source
-		}
+		source, found := mounted[filepath.Clean(b.Path)]
+		b.Mounted = s.Simulation || found && source == b.Source
 		result = append(result, b)
 	}
 	return result, nil

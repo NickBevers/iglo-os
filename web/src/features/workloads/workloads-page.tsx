@@ -1,4 +1,4 @@
-import { useState, type FormEvent } from 'react'
+import { useState, type SubmitEvent } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { AlertTriangleIcon } from 'lucide-react'
 import { toast } from 'sonner'
@@ -162,7 +162,8 @@ export function WorkloadsPage() {
 function SettingsForm({ data }: { data: Workloads }) {
     const [settings, setSettings] = useState<WorkloadSettings>(data.settings)
     const [key, setKey] = useState('')
-    const overview = useQuery(overviewQuery)
+    // Only the list of nodes. The status bar refreshes the overview every 15 seconds.
+    const overview = useQuery({ ...overviewQuery, refetchInterval: false })
     const client = useQueryClient()
     const nodes = Object.fromEntries((overview.data?.nodes ?? []).map((node) => [node.name, node.name]))
     // A server with one node needs no choice.
@@ -179,7 +180,7 @@ function SettingsForm({ data }: { data: Workloads }) {
     function set<K extends keyof WorkloadSettings>(name: K, value: WorkloadSettings[K]) {
         setSettings((current) => ({ ...current, [name]: value }))
     }
-    function submit(event: FormEvent) {
+    function submit(event: SubmitEvent) {
         event.preventDefault()
         save.mutate()
     }

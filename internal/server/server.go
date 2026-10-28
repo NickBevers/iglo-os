@@ -2,7 +2,6 @@ package server
 
 import (
 	"context"
-	"encoding/json"
 	"io/fs"
 	"log/slog"
 	"net"
@@ -271,7 +270,7 @@ func New(options Options) http.Handler {
 	})
 	mux.Handle("/", spa(options.Web))
 
-	return securityHeaders(csrf(mux))
+	return securityHeaders(csrf(compressJSON(mux)))
 }
 
 func (s *server) requireSession(next http.Handler) http.Handler {
@@ -342,12 +341,6 @@ func clientIP(r *http.Request) string {
 	}
 
 	return host
-}
-
-func writeJSON(w http.ResponseWriter, status int, value any) {
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(status)
-	json.NewEncoder(w).Encode(value)
 }
 
 func writeError(w http.ResponseWriter, status int, message string) {

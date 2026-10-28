@@ -73,8 +73,9 @@ export const selfUpdateQuery = queryOptions({
 export const tailscaleQuery = queryOptions({
     queryKey: ['tailscale'],
     queryFn: api.tailscale,
-    // Poll fast during a login, so the page sees the login link and the result quickly.
-    refetchInterval: (query) => (query.state.data?.connecting ? 2000 : 15000),
+    // Poll fast during a login, so the page sees the login link and the result
+    // quickly. Otherwise each check starts two tailscale commands, so it is slow.
+    refetchInterval: (query) => (query.state.data?.connecting ? 2000 : 60000),
 })
 
 export const backupsQuery = queryOptions({

@@ -42,7 +42,8 @@ export function LogsPage() {
     const [follow, setFollow] = useState(false)
     const [openTask, setOpenTask] = useState<TaskEntry | null>(null)
 
-    const { data: overview } = useQuery(overviewQuery)
+    // Only the list of guests. The status bar refreshes the overview every 15 seconds.
+    const { data: overview } = useQuery({ ...overviewQuery, refetchInterval: false })
     const containers = (overview?.guests ?? []).filter((guest) => guest.type === 'lxc' && guest.status === 'running')
     const guestItems = Object.fromEntries(
         containers.map((guest) => [String(guest.vmid), `${guest.name} (${guest.vmid})`]),

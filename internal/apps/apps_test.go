@@ -21,6 +21,7 @@ type fakeAgent struct {
 	saved     *agent.SavedAnswers
 	requests  []agent.InstallRequest
 	actions   []string
+	stats     int
 }
 
 func (f *fakeAgent) UpdateApp(_ context.Context, app string, vmid int) error {
@@ -48,6 +49,9 @@ func (f *fakeAgent) MinecraftPlayers(_ context.Context, vmid int) (agent.Minecra
 }
 
 func (f *fakeAgent) AppStats(_ context.Context, app string, vmid int) (agent.AppStats, error) {
+	f.mu.Lock()
+	f.stats++
+	f.mu.Unlock()
 	if app != "music" {
 		return agent.AppStats{}, agent.ErrNoStats
 	}
@@ -655,7 +659,8 @@ func TestStatusHasTheStatsOfARunningApp(t *testing.T) {
 		proxmox.Resource{Type: "lxc", Node: "pve", VMID: 160, Name: "music", Status: "running", Tags: "iglo;music"},
 		proxmox.Resource{Type: "lxc", Node: "pve", VMID: 170, Name: "photos", Status: "stopped", Tags: "iglo;photos"},
 	)
-	service := New(Options{Agent: &fakeAgent{status: agent.AppInstallStatus{State: agent.UpgradeIdle}}, Proxmox: &fakeProxmox{resources: resources}, SelfVMID: 100})
+	fake := &fakeAgent{status: agent.AppInstallStatus{State: agent.UpgradeIdle}}
+	service := New(Options{Agent: fake, Proxmox: &fakeProxmox{resources: resources}, SelfVMID: 100})
 
 	view, err := service.Status(context.Background())
 	if err != nil {
@@ -663,6 +668,10 @@ func TestStatusHasTheStatsOfARunningApp(t *testing.T) {
 	}
 	if music := appByID(t, view, "music"); music.Stats == nil || music.Stats.Figures[0].Value != 1534 {
 		t.Fatalf("music = %+v", music)
+	}
+	// The next view, like during an install, uses the stats it has.
+	if music := appByID(t, mustStatus(t, service), "music"); music.Stats == nil || fake.stats != 1 {
+		t.Fatalf("music = %+v after %d stats calls", music, fake.stats)
 	}
 	// A stopped app has no stats, and an app without stats still shows.
 	if photos := appByID(t, view, "photos"); !photos.Installed || photos.Stats != nil {

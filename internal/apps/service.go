@@ -252,6 +252,9 @@ type Service struct {
 	descriptions ttlCache[string]
 	addresses    ttlCache[string]
 	storages     ttlCache[[]proxmox.BackupStorage]
+	// stats are kept for 30 seconds. During an install the Apps view is built
+	// about once a second, and stats can cost a pct exec or reads on a share.
+	stats ttlCache[agent.AppStats]
 
 	gamingMu sync.Mutex
 	// gamingSessions are the Moonlight sessions that WatchGaming saw last.
@@ -361,7 +364,10 @@ func (s *Service) appView(ctx context.Context, app App, resources []proxmox.Reso
 	}
 	// Stats are best effort: the dashboard shows the app without them.
 	if app.Stats && appView.Installed && (appView.Status == "running" || app.HostStats) {
-		if stats, err := s.Agent.AppStats(ctx, app.ID, appView.VMID); err == nil {
+		stats, err := s.stats.get(fmt.Sprint(app.ID, "/", appView.VMID), 30*time.Second, func() (agent.AppStats, error) {
+			return s.Agent.AppStats(ctx, app.ID, appView.VMID)
+		})
+		if err == nil {
 			appView.Stats = &stats
 		}
 	}
@@ -875,6 +881,7 @@ func (s *Service) monitor(ctx context.Context, op operation, generation int) {
 		// The operation changed a container: its version, address or ID.
 		s.descriptions.forget()
 		s.addresses.forget()
+		s.stats.forget()
 
 		switch op.action {
 		case agent.ActionMigrate:
