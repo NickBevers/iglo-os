@@ -208,7 +208,7 @@ setup_gpu() {
 # low-power encoders need it for their bitrate control. Linux loads it by
 # default on Alder Lake and newer (enable_guc=2 or 3, intel_uc.c), and
 # writes "\tstatus: RUNNING" to huc_info once it is up (intel_uc_fw.c).
-# Checked against Linux v6.14 on 28 October 2026.
+# Checked against Linux v6.14 and v7.0, the Proxmox kernel, on 28 October 2026.
 huc_running() {
     local pci dir
     pci="$(basename "$(readlink -f "/sys/class/drm/$(basename "$1")/device")")"

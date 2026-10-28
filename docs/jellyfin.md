@@ -43,7 +43,7 @@ If the check fails, Jellyfin transcodes on the CPU, and the log says so. For Int
 
 Intel GPUs from about 2020 have two encoders. The low-power one runs in the fixed-function video engine, so it is faster and leaves the GPU's shader cores free, for example for tone mapping. Its bitrate control needs the HuC firmware.
 
-You set nothing on the host. Linux loads HuC by default on Alder Lake and newer: the UHD 770 of the i7-12700T gets `enable_guc=2`, which loads HuC but keeps the older GuC submission off. Linux v6.14 (`intel_uc.c`) and the [Jellyfin guide](https://jellyfin.org/docs/general/post-install/transcoding/hardware-acceleration/intel/) say so, checked on 28 October 2026. Don't force `enable_guc=3` on it: the kernel leaves GuC submission off on Alder Lake-S on purpose.
+You set nothing on the host. Linux loads HuC by default on Alder Lake and newer: the UHD 770 of the i7-12700T gets `enable_guc=2`, which loads HuC but keeps the older GuC submission off. Linux v6.14 and v7.0, the kernel of Proxmox (`intel_uc.c`), and the [Jellyfin guide](https://jellyfin.org/docs/general/post-install/transcoding/hardware-acceleration/intel/) say so, checked on 28 October 2026. Don't force `enable_guc=3` on it: the kernel leaves GuC submission off on Alder Lake-S on purpose.
 
 The installer reads `/sys/kernel/debug/dri/*/gt*/uc/huc_info` on the host. It turns the low-power encoders on only when HuC says `RUNNING`, and the summary at the end says "HuC loaded". To check by hand, as root on the host:
 
