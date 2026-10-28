@@ -286,6 +286,9 @@ func (s *Service) enqueue(in Input, info fs.FileInfo) (Job, error) {
 		return Job{}, err
 	}
 	j := Job{ID: hex.EncodeToString(random[:]), Input: in, Size: info.Size(), Modified: info.ModTime(), State: "queued", CreatedAt: time.Now()}
+	if len(s.state.Seen) >= 10000 {
+		return Job{}, errors.New("Inbox fingerprint limit reached; scan to retire missing sources")
+	}
 	old := s.state.Jobs
 	s.state.Jobs = append(jobs, j)
 	s.state.Seen[id] = true
