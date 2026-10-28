@@ -178,8 +178,8 @@ function NASPage({ setup, draft, setDraft, roles }: PageProps & { roles: string[
             <CardHeader>
                 <CardTitle>Shares on the NAS</CardTitle>
                 <CardDescription>
-                    Each app gets only its own folders. On an Umbrel, share each folder in Files and look up its account
-                    in Settings &gt; File sharing.
+                    Each app gets only its own folders. On an Umbrel, open Settings &gt; File sharing, choose Specific
+                    folders and add each folder below. They all use the one SMB login, umbrel, shown on that page.
                 </CardDescription>
             </CardHeader>
             <CardContent className="flex flex-col gap-5">
@@ -203,7 +203,7 @@ function NASPage({ setup, draft, setDraft, roles }: PageProps & { roles: string[
                                 One account for all shares
                                 <span className="block text-xs text-muted-foreground">
                                     Easier, but then every app can reach every share. Separate accounts keep each app to
-                                    its own folders.
+                                    its own folders. An Umbrel has only one login, so turn this on there.
                                 </span>
                             </span>
                             <Switch checked={nas.oneAccount} onCheckedChange={(on) => setNAS({ oneAccount: on })} />
