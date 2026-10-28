@@ -113,7 +113,7 @@ function BackupHistory({ runs }: { runs: BackupRun[] }) {
         return (
             <Card className="p-6 text-center text-sm text-muted-foreground">
                 Backups, restores, restore checks and deletes from Iglo-OS show up here. Failed scheduled backups are
-                sent to Telegram.
+                sent to Telegram and ntfy.
             </Card>
         )
     }
