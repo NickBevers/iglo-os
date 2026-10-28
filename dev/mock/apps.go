@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -26,7 +27,7 @@ type fakeInstalls struct {
 
 func newAppInstaller() (*agent.AppInstaller, error) {
 	stacks := statePath("stacks")
-	for _, dir := range []string{"arr", "jellyfin", "minecraft", "photos", "music", "inbox", "gaming"} {
+	for _, dir := range []string{"arr", "jellyfin", "minecraft", "photos", "music", "inbox", "gaming", "headscale"} {
 		if err := os.MkdirAll(filepath.Join(stacks, dir), 0o700); err != nil {
 			return nil, err
 		}
@@ -36,7 +37,13 @@ func newAppInstaller() (*agent.AppInstaller, error) {
 	}
 
 	fake := &fakeInstalls{}
-	return agent.NewAppInstallerWith(statePath("apps"), stacks, fake.start, fake.isRunning), nil
+	return agent.NewAppInstallerWith(statePath("apps"), stacks, fake.start, fake.isRunning, func(ctx context.Context, name string, args ...string) ([]byte, error) {
+		if name == "pct" && len(args) == 2 && args[0] == "config" && args[1] == "210" {
+			host := mockHeadscaleHost()
+			return []byte("tags: iglo;headscale\ndescription: Headscale+controller%0Aiglo-headscale-hostname%3A " + host + "\n"), nil
+		}
+		return nil, errors.New("unsupported simulated host command")
+	}), nil
 }
 
 func (f *fakeInstalls) isRunning() bool {
@@ -177,7 +184,7 @@ func (f *fakeInstalls) playOnContainer(stack, action, logPath, exitPath string) 
 	}
 	finish := func(code int) { os.WriteFile(exitPath, []byte(fmt.Sprintln(code)), 0o600) }
 
-	installed := map[string]string{"arr": "media-installed", "jellyfin": "jellyfin-installed", "minecraft": "minecraft-installed", "photos": "photos-installed", "music": "music-installed", "inbox": "inbox-installed", "gaming": "gaming-installed"}[stack]
+	installed := map[string]string{"arr": "media-installed", "jellyfin": "jellyfin-installed", "minecraft": "minecraft-installed", "photos": "photos-installed", "music": "music-installed", "inbox": "inbox-installed", "gaming": "gaming-installed", "headscale": "headscale-installed"}[stack]
 	if stack == "inbox" && action == "--migrate" {
 		write("==> Development simulation: archive FileFlows and start paused native worker")
 		os.WriteFile(statePath("inbox-native"), nil, 0600)
@@ -191,7 +198,7 @@ func (f *fakeInstalls) playOnContainer(stack, action, logPath, exitPath string) 
 		return
 	}
 	if action == "--remove" {
-		if id := map[string]string{"arr": "130", "jellyfin": "140", "photos": "170", "music": "160", "inbox": "180", "gaming": "190"}[stack]; id != "" {
+		if id := map[string]string{"arr": "130", "jellyfin": "140", "photos": "170", "music": "160", "inbox": "180", "gaming": "190", "headscale": "210"}[stack]; id != "" {
 			os.Remove(statePath("binding-containers/" + id + ".conf"))
 		}
 		write("==> Shutting down the container")
@@ -204,6 +211,8 @@ func (f *fakeInstalls) playOnContainer(stack, action, logPath, exitPath string) 
 
 	write("==> Updating the packages in the container")
 	switch stack {
+	case "headscale":
+		write("==> Development simulation: checked SQLite backup, controller refresh and local health")
 	case "photos", "music", "inbox", "gaming":
 		write("==> Development simulation: scoped app update")
 	case "arr":
@@ -248,6 +257,8 @@ func (f *fakeInstalls) play(stack, answers, logPath, exitPath string) {
 
 	steps := []string{"==> Mounting the media", "==> Downloading Debian 13 template"}
 	switch stack {
+	case "headscale":
+		steps = []string{"==> Development simulation: no host, DNS or router changes", "==> Checking memory budget and static address", "==> Starting native Headscale and Caddy in a 512 MiB guest", "==> Local health simulated; public reachability not verified"}
 	case "photos", "music", "inbox":
 		steps = []string{"==> Development simulation: no host or NAS changes", "==> Checking scoped storage bindings", "==> Creating isolated app container", "==> Starting the stack"}
 	case "gaming":
@@ -287,6 +298,15 @@ func (f *fakeInstalls) play(stack, answers, logPath, exitPath string) {
 	}
 	if stack == "inbox" {
 		os.WriteFile(statePath("inbox-native"), nil, 0600)
+	}
+	if stack == "headscale" {
+		os.WriteFile(statePath("headscale-answers"), []byte(answers), 0600)
+		os.WriteFile(statePath("headscale-installed"), nil, 0600)
+		write("==> Development simulation: native controller, SQLite and Caddy; no DNS or router changes")
+		write("Local checks simulated. Certificate and internet reachability are not verified.")
+		write("IGLO app headscale 210 192.168.1.210")
+		finish(0)
+		return
 	}
 	switch stack {
 	case "photos", "music", "inbox", "gaming":
@@ -435,6 +455,7 @@ func addAppRoutes(mux *http.ServeMux, installer *agent.AppInstaller) {
 		w.WriteHeader(202)
 	})
 	agent.RegisterEvents(mux, installer)
+	agent.RegisterHeadscale(mux, installer)
 	for _, action := range []agent.AppAction{agent.ActionBackup, agent.ActionVerify} {
 		mux.HandleFunc("POST /v1/apps/photos/"+string(action), func(w http.ResponseWriter, r *http.Request) {
 			var in agent.AppContainerRequest

@@ -1,3 +1,11 @@
+export type HeadscaleAnswers = {
+    hostname: string
+    address: string
+    gateway: string
+    storage: string
+    rateMB: number
+    prerequisites: boolean
+}
 export type InboxProfile = 'preserve' | 'compatible'
 export interface InboxJob {
     id: string
@@ -589,6 +597,7 @@ export type MinecraftAnswers = {
 export type MinecraftPlayers = { whitelist: string[]; operators: string[] }
 
 export type SavedAnswers = {
+    headscale?: HeadscaleAnswers
     scoped: ScopedAnswers
     answers: MediaStackAnswers
     jellyfin: JellyfinAnswers
@@ -609,6 +618,7 @@ export type AppStats = {
 }
 
 export type CatalogApp = {
+    controllerHost?: string
     id: string
     name: string
     description: string
@@ -789,6 +799,7 @@ export const api = {
     submitMusic: (input: { url: string; video: boolean }) => request<MusicJob>('POST', '/music/jobs', input),
     pauseMusic: (paused: boolean) => request<void>('PUT', '/music/pause', { paused }),
     photosRecovery: (action: 'backup' | 'verify') => request<void>('POST', `/photos/recovery/${action}`),
+    installHeadscale: (headscale: HeadscaleAnswers) => request<void>('POST', '/apps/headscale/install', { headscale }),
     installScopedApp: (id: string, scoped: ScopedAnswers) => request<void>('POST', `/apps/${id}/install`, { scoped }),
     gaming: () => request<Gaming>('GET', '/gaming'),
     playGaming: (play: boolean) => request<void>('PUT', '/gaming/play', { play }),
@@ -872,7 +883,8 @@ export const api = {
     retryApp: (id: string) => request<void>('POST', `/apps/${id}/retry`),
     forgetAppAnswers: (id: string) => request<void>('DELETE', `/apps/${id}/answers`),
     updateApp: (id: string) => request<void>('POST', `/apps/${id}/update`),
-    removeApp: (id: string) => request<void>('POST', `/apps/${id}/remove`),
+    removeApp: (id: string, confirm?: string) =>
+        request<void>('POST', `/apps/${id}/remove`, confirm === undefined ? undefined : { confirm }),
     minecraftPlayers: () => request<MinecraftPlayers>('GET', '/apps/minecraft/players'),
     changeMinecraftPlayers: (players: MinecraftPlayers) => request<void>('PUT', '/apps/minecraft/players', players),
     vpnSettings: (id: string) => request<VpnView>('GET', `/apps/${id}/vpn`),

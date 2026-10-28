@@ -280,13 +280,14 @@ type appAnswers interface {
 }
 
 // stackDirs are the folders of the installers in the stacks folder.
-var stackDirs = map[string]string{MediaStackApp: "arr", JellyfinApp: "jellyfin", MinecraftApp: "minecraft", PhotosApp: "photos", MusicApp: "music", InboxApp: "inbox", GamingApp: "gaming"}
+var stackDirs = map[string]string{MediaStackApp: "arr", JellyfinApp: "jellyfin", MinecraftApp: "minecraft", PhotosApp: "photos", MusicApp: "music", InboxApp: "inbox", GamingApp: "gaming", HeadscaleApp: "headscale"}
 
 // InstallRequest is what the manager sends: the answers of the media stack,
 // of Jellyfin or of Minecraft. With KeepSecrets, empty secret fields take the
 // values of the saved answers of the last failed install.
 type InstallRequest struct {
-	Scoped ScopedAnswers `json:"scoped"`
+	Headscale HeadscaleAnswers `json:"headscale"`
+	Scoped    ScopedAnswers    `json:"scoped"`
 	MediaStackAnswers
 	Jellyfin    JellyfinAnswers  `json:"jellyfin"`
 	Minecraft   MinecraftAnswers `json:"minecraft"`
@@ -296,6 +297,7 @@ type InstallRequest struct {
 // SavedAnswers are the answers of the last failed install, without the
 // secrets. The secrets stay on the host.
 type SavedAnswers struct {
+	Headscale         HeadscaleAnswers  `json:"headscale"`
 	Scoped            ScopedAnswers     `json:"scoped"`
 	Answers           MediaStackAnswers `json:"answers"`
 	Jellyfin          JellyfinAnswers   `json:"jellyfin"`
@@ -309,6 +311,7 @@ type SavedAnswers struct {
 }
 
 type savedFile struct {
+	Headscale HeadscaleAnswers  `json:"headscale"`
 	Scoped    ScopedAnswers     `json:"scoped"`
 	Answers   MediaStackAnswers `json:"answers"`
 	Jellyfin  JellyfinAnswers   `json:"jellyfin"`
@@ -317,6 +320,9 @@ type savedFile struct {
 }
 
 func (f savedFile) answersFor(app string) appAnswers {
+	if app == HeadscaleApp {
+		return f.Headscale
+	}
 	if ScopedApp(app) {
 		return scopedAppAnswers{app, f.Scoped}
 	}
@@ -330,7 +336,8 @@ func (f savedFile) answersFor(app string) appAnswers {
 }
 
 type AppInstallStatus struct {
-	App string `json:"app,omitempty"`
+	ExitCode int    `json:"exitCode,omitempty"`
+	App      string `json:"app,omitempty"`
 	// Action is empty in the status of an install from before updates and removals.
 	Action     AppAction    `json:"action,omitempty"`
 	State      UpgradeState `json:"state"`
@@ -384,8 +391,12 @@ func commandOutput(ctx context.Context, name string, args ...string) ([]byte, er
 
 // NewAppInstallerWith runs the installers with start instead of systemd-run,
 // and asks running whether one still runs. The dev mock uses it to play installs.
-func NewAppInstallerWith(dir, stacksDir string, start func(script string, args []string, cleanup, logPath, exitPath string) error, running func() bool) *AppInstaller {
-	return &AppInstaller{Dir: dir, StacksDir: stacksDir, start: start, running: running, now: time.Now, output: commandOutput}
+func NewAppInstallerWith(dir, stacksDir string, start func(script string, args []string, cleanup, logPath, exitPath string) error, running func() bool, outputs ...func(context.Context, string, ...string) ([]byte, error)) *AppInstaller {
+	output := commandOutput
+	if len(outputs) > 0 {
+		output = outputs[0]
+	}
+	return &AppInstaller{Dir: dir, StacksDir: stacksDir, start: start, running: running, now: time.Now, output: output}
 }
 
 func (i *AppInstaller) statusPath() string { return filepath.Join(i.Dir, "status.json") }
@@ -412,6 +423,9 @@ func (i *AppInstaller) Install(app string, request InstallRequest) error {
 		}
 	}
 
+	if app == HeadscaleApp {
+		return i.installLocked(app, savedFile{Headscale: request.Headscale})
+	}
 	if app == JellyfinApp {
 		answers := request.Jellyfin
 		// Only for the same admin: a new username needs its own password.
@@ -507,6 +521,9 @@ func (i *AppInstaller) Update(app string, vmid int) error {
 
 // Remove removes the container of an installed app. Its backups stay.
 func (i *AppInstaller) Remove(app string, vmid int) error {
+	if app == HeadscaleApp {
+		return fmt.Errorf("%w: confirm the controller hostname before removal", ErrInvalidAnswers)
+	}
 	return i.runOnContainer(app, ActionRemove, vmid)
 }
 
@@ -543,7 +560,7 @@ func (i *AppInstaller) ChangeVPN(vmid int, settings VPNSettings) error {
 	return i.run(MediaStackApp, ActionVPN, script, []string{"--vpn", "--ctid", strconv.Itoa(vmid), "--answers", answersPath}, answersPath)
 }
 
-func (i *AppInstaller) runOnContainer(app string, action AppAction, vmid int) error {
+func (i *AppInstaller) runOnContainer(app string, action AppAction, vmid int, extra ...string) error {
 	if _, ok := stackDirs[app]; !ok {
 		return ErrUnknownApp
 	}
@@ -559,7 +576,7 @@ func (i *AppInstaller) runOnContainer(app string, action AppAction, vmid int) er
 		return err
 	}
 
-	return i.run(app, action, script, []string{"--" + string(action), "--ctid", strconv.Itoa(vmid)}, "")
+	return i.run(app, action, script, append([]string{"--" + string(action), "--ctid", strconv.Itoa(vmid)}, extra...), "")
 }
 
 // prepare checks that nothing runs and that the installer is on the host, and
@@ -652,8 +669,12 @@ func (i *AppInstaller) Status() AppInstallStatus {
 		if info, statErr := os.Stat(i.exitPath()); statErr == nil {
 			status.FinishedAt = info.ModTime()
 		}
+		code := strings.TrimSpace(string(exit))
+		if value, parseErr := strconv.Atoi(code); parseErr == nil && value >= 0 && value <= 255 {
+			status.ExitCode = value
+		}
 		status.State = UpgradeSucceeded
-		if code := strings.TrimSpace(string(exit)); code != "0" {
+		if code != "0" {
 			status.State, status.Message = UpgradeFailed, fmt.Sprintf("the %s stopped with exit code %s", status.Action.name(), code)
 		}
 	case !i.running():
@@ -697,6 +718,7 @@ func (i *AppInstaller) Saved(app string) (*SavedAnswers, error) {
 
 	answers, jellyfin, minecraft := file.Answers, file.Jellyfin, file.Minecraft
 	view := &SavedAnswers{
+		Headscale:                file.Headscale,
 		Scoped:                   file.Scoped,
 		HasJellyfinAPIKey:        answers.JellyfinAPIKey != "",
 		HasJellyfinAdminPassword: answers.JellyfinAdminPassword != "" || jellyfin.AdminPassword != "",

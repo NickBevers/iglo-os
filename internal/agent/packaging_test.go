@@ -67,7 +67,8 @@ func TestHostInstallsEveryComposeFile(t *testing.T) {
 		if err != nil {
 			return err
 		}
-		if entry.IsDir() || !strings.HasPrefix(entry.Name(), "compose") || !strings.HasSuffix(entry.Name(), ".yaml") {
+		relativePath, _ := filepath.Rel(bundle, path)
+		if entry.IsDir() || (!strings.HasPrefix(relativePath, "stacks/headscale/") && (!strings.HasPrefix(entry.Name(), "compose") || !strings.HasSuffix(entry.Name(), ".yaml"))) {
 			return nil
 		}
 		relative, err := filepath.Rel(bundle, path)

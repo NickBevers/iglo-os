@@ -14,12 +14,16 @@ import {
     AlertDialogTitle,
 } from '@/components/ui/alert-dialog'
 import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
 import { api, type CatalogApp } from '@/lib/api'
 import { appsQuery } from '@/lib/queries'
 import { PlayersDialog } from './players-dialog'
 import { VpnDialog } from './vpn-dialog'
 
 const updateText: Record<string, string> = {
+    headscale:
+        'The controller and relay pause briefly. Iglo keeps a checked local database backup and preserves device identities, certificates and policy. Unsupported version changes are refused. An interrupted upgrade can lose registrations made after its backup.',
     music: 'Iglo-OS updates the worker and its pinned download tools. An active job can be interrupted and will need resubmission; queued jobs and published NAS files stay.',
     inbox: 'Native Inbox updates the worker and FFmpeg. Legacy FileFlows keeps its backend and exports local app data before updating. Use Inbox work for an explicit migration. NAS files need their own backup.',
     photos: 'Iglo-OS pauses Photos while copying the database and originals to Backups, then installs the Immich version bundled with this Iglo-OS release. Large libraries can take a long time. Keep a separate off-device backup too.',
@@ -31,6 +35,8 @@ const updateText: Record<string, string> = {
 }
 
 const removeText: Record<string, string> = {
+    headscale:
+        'The controller database, device identities and TLS certificates are deleted. Every device must join again unless you restore a backup. If Iglo uses this controller, its remote access will stop. Keep LAN access available. Repeated reinstalls may hit certificate issuance limits.',
     music: 'The queue and any unfinished staging files are deleted. Published music on the NAS stays.',
     inbox: 'Worker settings, history and any archived FileFlows data on the local disk are deleted. NAS sources and completed outputs stay.',
     photos: 'The local database is deleted with the container. Export and verify a Photos recovery backup first. Originals and existing backups on the NAS stay in place.',
@@ -46,6 +52,7 @@ export function AppActions({ app }: { app: CatalogApp }) {
     const [confirm, setConfirm] = useState<'update' | 'remove' | null>(null)
     const [vpnOpen, setVpnOpen] = useState(false)
     const [playersOpen, setPlayersOpen] = useState(false)
+    const [hostname, setHostname] = useState('')
 
     const refresh = () => queryClient.invalidateQueries({ queryKey: appsQuery.queryKey })
     const update = useMutation({
@@ -54,7 +61,7 @@ export function AppActions({ app }: { app: CatalogApp }) {
         onError: (error) => toast.error(`Could not update ${app.name}`, { description: error.message }),
     })
     const remove = useMutation({
-        mutationFn: () => api.removeApp(app.id),
+        mutationFn: () => api.removeApp(app.id, app.id === 'headscale' ? hostname : undefined),
         onSuccess: refresh,
         onError: (error) => toast.error(`Could not remove ${app.name}`, { description: error.message }),
     })
@@ -168,14 +175,32 @@ export function AppActions({ app }: { app: CatalogApp }) {
                             </span>
                             <span>
                                 The backups of the container stay, so you can restore it on the Backups page.
+                                {app.id === 'headscale' &&
+                                    ' Controller backups contain private keys. Protect them and keep an off-device recovery copy.'}
                                 {['media', 'jellyfin'].includes(app.id) &&
                                     ' The Videos share stays connected. Disconnect it on the Storage page once no app uses it.'}
                             </span>
                         </AlertDialogDescription>
                     </AlertDialogHeader>
+                    {app.id === 'headscale' && (
+                        <div className="flex flex-col gap-2">
+                            <Label htmlFor="remove-controller">
+                                Type {app.controllerHost || 'the installed hostname'} to confirm
+                            </Label>
+                            <Input
+                                id="remove-controller"
+                                value={hostname}
+                                onChange={(e) => setHostname(e.target.value)}
+                                autoComplete="off"
+                            />
+                        </div>
+                    )}
                     <AlertDialogFooter>
                         <AlertDialogCancel>Cancel</AlertDialogCancel>
                         <AlertDialogAction
+                            disabled={
+                                app.id === 'headscale' && (!app.controllerHost || hostname !== app.controllerHost)
+                            }
                             variant="destructive"
                             onClick={() => {
                                 setConfirm(null)

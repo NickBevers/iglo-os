@@ -20,6 +20,7 @@ import { appsQuery } from '@/lib/queries'
 import { Field, Section } from './form-parts'
 import { JellyfinForm } from './jellyfin-form'
 import { ScopedForm } from './scoped-form'
+import { HeadscaleForm } from './headscale-form'
 import { MinecraftForm } from './minecraft-form'
 import { keepSaved } from './keep-saved'
 import { VpnFields } from './vpn-fields'
@@ -36,6 +37,8 @@ type InstallDialogProps = {
 }
 
 const descriptions: Record<string, string> = {
+    headscale:
+        'Install your own Headscale controller and HTTPS proxy. Public DNS and router settings stay under your control.',
     photos: 'Install Immich in an isolated container with a local database and scoped access to your Photos and Backups shares.',
     music: 'Install a music worker with local staging and write access to your Music share.',
     inbox: 'Install the native FFmpeg worker with read access to Inbox and write access to the Videos output share.',
@@ -54,7 +57,9 @@ export function InstallDialog({ app, defaults, saved, open, onOpenChange }: Inst
                     <DialogDescription>{descriptions[app.id]}</DialogDescription>
                 </DialogHeader>
                 {open &&
-                    (app.id === 'jellyfin' ? (
+                    (app.id === 'headscale' ? (
+                        <HeadscaleForm defaults={defaults} saved={saved} onDone={() => onOpenChange(false)} />
+                    ) : app.id === 'jellyfin' ? (
                         <JellyfinForm defaults={defaults} saved={saved} onDone={() => onOpenChange(false)} />
                     ) : app.id === 'minecraft' ? (
                         <MinecraftForm defaults={defaults} saved={saved} onDone={() => onOpenChange(false)} />

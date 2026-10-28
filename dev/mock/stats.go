@@ -11,6 +11,7 @@ import (
 // host has one after the app is installed from the Apps page, and the dashboard
 // shows it with sample stats.
 var scopedApps = []map[string]any{
+	{"type": "lxc", "node": "pve", "vmid": 210, "name": "headscale", "status": "running", "tags": "iglo;headscale", "maxcpu": 1, "maxmem": 536870912},
 	{"type": "lxc", "node": "pve", "vmid": 160, "name": "music", "status": "running", "tags": "iglo;music", "cpu": 0.04, "maxcpu": 2, "mem": 420_000_000, "maxmem": 1_073_741_824, "uptime": 86_400},
 	{"type": "lxc", "node": "pve", "vmid": 170, "name": "photos", "status": "running", "tags": "iglo;photos", "cpu": 0.11, "maxcpu": 4, "mem": 3_100_000_000, "maxmem": 6_442_450_944, "uptime": 86_400},
 	{"type": "lxc", "node": "pve", "vmid": 180, "name": "inbox", "status": "running", "tags": "iglo;inbox", "cpu": 0.62, "maxcpu": 4, "mem": 1_400_000_000, "maxmem": 2_147_483_648, "uptime": 86_400},

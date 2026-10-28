@@ -39,3 +39,7 @@ The manager checks the GitHub releases every 6 hours. When there is a new versio
 The host agent only installs a bundle that is signed with the release key. It keeps the previous version, and brings it back when the new version does not start within a minute.
 
 For a private repo, create a fine-grained token with read-only access to Contents of this repo only, and enter it on the Updates page.
+
+## Headscale controller
+
+Headscale updates keep checked local recovery points. A verified local recovery is not overwritten with an older snapshot. Unsupported version changes need a reviewed upgrade path. See [controller updates](headscale.md#updates-backups-and-removal).

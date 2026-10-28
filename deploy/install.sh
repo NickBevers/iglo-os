@@ -261,6 +261,11 @@ install_scripts() {
         install -m 0755 "$BUNDLE_DIR/stacks/inbox/install.sh" "$BUNDLE_DIR/stacks/inbox/iglo-inbox" "$SCRIPTS_DIR/stacks/inbox/"
         install -m 0644 "$BUNDLE_DIR/stacks/inbox/compose.yaml" "$BUNDLE_DIR/stacks/inbox/compose.gpu.yaml" "$BUNDLE_DIR/stacks/inbox/pre-execute.cs" "$BUNDLE_DIR/stacks/inbox/iglo-inbox.service" "$SCRIPTS_DIR/stacks/inbox/"
     fi
+    if [[ -d "$BUNDLE_DIR/stacks/headscale" ]]; then
+        install -d -m 0755 "$SCRIPTS_DIR/stacks/headscale"
+        install -m 0755 "$BUNDLE_DIR/stacks/headscale/install.sh" "$BUNDLE_DIR/stacks/headscale/guest.sh" "$SCRIPTS_DIR/stacks/headscale/"
+        install -m 0644 "$BUNDLE_DIR/stacks/headscale/validate.py" "$BUNDLE_DIR/stacks/headscale/config.yaml.in" "$BUNDLE_DIR/stacks/headscale/Caddyfile.in" "$BUNDLE_DIR/stacks/headscale/headscale.service" "$BUNDLE_DIR/stacks/headscale/caddy.service" "$BUNDLE_DIR/stacks/headscale/nftables.conf" "$SCRIPTS_DIR/stacks/headscale/"
+    fi
     if [[ -d "$BUNDLE_DIR/stacks/photos" ]]; then
         install -d -m 0755 "$SCRIPTS_DIR/stacks/photos"
         install -m 0755 "$BUNDLE_DIR/stacks/photos/install.sh" "$BUNDLE_DIR/stacks/photos/recovery.sh" "$SCRIPTS_DIR/stacks/photos/"

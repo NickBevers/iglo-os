@@ -50,3 +50,7 @@ On a new Proxmox host, extract the release bundle and run `./install.sh --restor
 The Settings page can also download an encrypted copy of the data of Iglo-OS: the account, tokens, settings, history and the certificate authority. Use it when the Proxmox backups are gone. You need your password and a passphrase of at least 12 characters. Keep the passphrase: without it, nobody can open the file.
 
 To restore it, install Iglo-OS, log in, and upload the file on the Settings page. Iglo-OS restarts with the data from the file, and you log in with the account from the backup. The file uses AES-256-GCM with a key from Argon2id.
+
+## Headscale controller
+
+Headscale guest backups contain device identities and private keys. Protect them and keep an encrypted off-device recovery copy. See [controller recovery](headscale.md#updates-backups-and-removal).

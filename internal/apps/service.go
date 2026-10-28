@@ -153,9 +153,12 @@ var Catalog = []App{{
 	Stats:       true,
 	HostStats:   true,
 	Links:       []Link{},
+}, {
+	ID: agent.HeadscaleApp, Name: "Headscale", Description: "Your own private network controller and relay. Native services in a 512 MiB container. Requires public HTTPS and a static LAN address.", Tag: "headscale", Stack: true, Links: []Link{},
 }}
 
 type AppView struct {
+	ControllerHost string `json:"controllerHost,omitempty"`
 	App
 	Installed bool `json:"installed"`
 	// Managed is set when Iglo-OS installed the container, so it can update and remove it.
@@ -314,6 +317,9 @@ func (s *Service) appView(ctx context.Context, app App, resources []proxmox.Reso
 				return s.Proxmox.ContainerDescription(ctx, guest.Node, guest.VMID)
 			})
 			if err == nil {
+				if app.ID == agent.HeadscaleApp {
+					appView.ControllerHost = agent.HeadscaleHostname(description)
+				}
 				if match := versionPattern.FindStringSubmatch(description); match != nil {
 					appView.Version = match[1]
 				}
@@ -505,6 +511,15 @@ func (s *Service) guestIP(ctx context.Context, guest proxmox.Resource) string {
 }
 
 func (s *Service) Install(ctx context.Context, background context.Context, id string, request agent.InstallRequest) error {
+	if id == agent.HeadscaleApp {
+		if err := request.Headscale.Validate(); err != nil {
+			return err
+		}
+		if err := s.headscaleBudget(ctx); err != nil {
+			return err
+		}
+		return s.start(ctx, background, id, func(app App) error { return s.Agent.InstallApp(ctx, id, request) })
+	}
 	if index := slices.IndexFunc(Catalog, func(app App) bool { return app.ID == id }); index >= 0 && Catalog[index].Planned {
 		return ErrPlanned
 	}
@@ -535,6 +550,11 @@ func (s *Service) Install(ctx context.Context, background context.Context, id st
 
 // Retry runs the install again with the answers the agent saved.
 func (s *Service) Retry(ctx context.Context, background context.Context, id string) error {
+	if id == agent.HeadscaleApp {
+		if err := s.headscaleBudget(ctx); err != nil {
+			return err
+		}
+	}
 	return s.start(ctx, background, id, func(app App) error {
 		return s.Agent.RetryApp(ctx, app.ID)
 	})
@@ -590,6 +610,9 @@ func (s *Service) Update(ctx context.Context, background context.Context, id str
 
 // Remove removes the container of the app with its disks and snapshots. Its backups stay.
 func (s *Service) Remove(ctx context.Context, background context.Context, id string) error {
+	if id == agent.HeadscaleApp {
+		return fmt.Errorf("%w: confirm the controller hostname before removal", agent.ErrInvalidAnswers)
+	}
 	app, guest, err := s.managedGuest(ctx, id)
 	if err != nil {
 		return err
@@ -904,7 +927,14 @@ func (s *Service) finishUpdate(ctx context.Context, op operation, status agent.A
 	if agent.ScopedApp(op.app.ID) {
 		rollback = "Automatic disk rollback is disabled because NAS data is outside the guest. Inspect the failed operation and application backup before recovering."
 	}
-	if op.snapshot != "" {
+	localRecovery := op.app.ID == agent.HeadscaleApp && (status.ExitCode == 3 || status.ExitCode == 4)
+	if localRecovery {
+		rollback = "Controller binaries and state were not replaced. No snapshot rollback was needed."
+		if status.ExitCode == 4 {
+			rollback = "The previous controller was restored locally and passed health checks. The older snapshot was not applied."
+		}
+	}
+	if op.snapshot != "" && !localRecovery {
 		rollback = fmt.Sprintf("Iglo-OS rolled the container back to snapshot %s, from before the update.", op.snapshot)
 		if err := s.Proxmox.RollbackSnapshot(ctx, op.guest.Node, vmid, op.snapshot); err != nil {
 			rollback = fmt.Sprintf("The rollback to snapshot %s failed too: %v. Roll it back in Proxmox.", op.snapshot, err)

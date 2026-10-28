@@ -42,6 +42,9 @@ bundle: build
 	mkdir -p $(BUNDLE)/stacks/gaming
 	install -m 0755 deploy/stacks/gaming/install.sh deploy/stacks/gaming/diagnose.sh $(BUNDLE)/stacks/gaming/
 	install -m 0644 deploy/stacks/gaming/compose.yaml deploy/stacks/gaming/config.toml $(BUNDLE)/stacks/gaming/
+	mkdir -p $(BUNDLE)/stacks/headscale
+	install -m 0755 deploy/stacks/headscale/install.sh deploy/stacks/headscale/guest.sh $(BUNDLE)/stacks/headscale/
+	install -m 0644 deploy/stacks/headscale/validate.py deploy/stacks/headscale/config.yaml.in deploy/stacks/headscale/Caddyfile.in deploy/stacks/headscale/headscale.service deploy/stacks/headscale/caddy.service deploy/stacks/headscale/nftables.conf $(BUNDLE)/stacks/headscale/
 	# COPYFILE_DISABLE stops macOS tar from adding ._ files, which the agent refuses.
 	COPYFILE_DISABLE=1 tar -czf $(BUNDLE).tar.gz -C dist $(notdir $(BUNDLE))
 

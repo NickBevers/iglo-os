@@ -760,6 +760,22 @@
         },
         "operation": null,
         "saved": null
+      },
+      {
+        "id": "headscale",
+        "name": "Headscale",
+        "description": "Your own private network controller and relay. Native services in a 512 MiB container. Requires public HTTPS and a static LAN address.",
+        "planned": false,
+        "links": [],
+        "installed": true,
+        "managed": true,
+        "updateAvailable": false,
+        "version": "v0.7.1",
+        "controllerHost": "vpn.example.com",
+        "vmid": 210,
+        "status": "running",
+        "operation": null,
+        "saved": null
       }
     ],
     "defaults": {

@@ -1,0 +1,25 @@
+[Unit]
+Description=Iglo private network controller
+After=network-online.target nftables.service
+Requires=nftables.service
+Wants=network-online.target
+[Service]
+User=headscale
+Group=headscale
+Environment=GOMEMLIMIT=256MiB GOMAXPROCS=1
+ExecStart=/usr/local/bin/headscale --config /etc/headscale/config.yaml serve
+Restart=on-failure
+RestartSec=5
+RuntimeDirectory=headscale
+RuntimeDirectoryMode=0700
+MemoryMax=320M
+CPUQuota=100%
+TasksMax=96
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/var/lib/headscale /run/headscale
+UMask=0077
+[Install]
+WantedBy=multi-user.target

@@ -88,6 +88,7 @@ for tests, a real Proxmox and releases.
 - [Logs and console](docs/logs-and-console.md)
 - [Jellyfin: install and the Jellyfin page](docs/jellyfin.md)
 - [Tailscale and self-hosted Headscale](docs/tailscale.md)
+- [Install your own Headscale controller](docs/headscale.md)
 - [App names (seerr.iglo.local)](docs/app-names.md)
 - [Media stack](docs/media-stack.md)
 - [Movies and series on the Videos share](docs/media-folder.md)
