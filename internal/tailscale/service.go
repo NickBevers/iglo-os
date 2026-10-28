@@ -11,15 +11,18 @@ import (
 	"log/slog"
 	"net"
 	"net/netip"
+	"net/url"
 	"os"
 	"os/exec"
 	"os/user"
 	"path/filepath"
 	"regexp"
 	"slices"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
+	"unicode"
 )
 
 const (
@@ -72,6 +75,8 @@ type Settings struct {
 	Subnet      string `json:"subnet"`
 	// UseTag logs the manager in as tag:iglo instead of as a user.
 	UseTag bool `json:"useTag"`
+	// LoginServer is an optional self-hosted control server. Empty uses Tailscale.
+	LoginServer string `json:"loginServer"`
 }
 
 type ServiceView struct {
@@ -124,6 +129,7 @@ type Service struct {
 	Options
 	path string
 
+	changes    sync.Mutex
 	mu         sync.Mutex
 	settings   Settings
 	connecting bool
@@ -155,6 +161,19 @@ func New(options Options) (*Service, error) {
 		}
 	}
 
+	if err := service.settings.Validate(); err != nil {
+		return nil, err
+	}
+	// A killed login cannot clean up its short-lived credential file.
+	stale, err := filepath.Glob(filepath.Join(options.DataDir, ".tailscale-key-*"))
+	if err != nil {
+		return nil, err
+	}
+	for _, path := range stale {
+		if err := os.Remove(path); err != nil && !errors.Is(err, os.ErrNotExist) {
+			return nil, err
+		}
+	}
 	return service, nil
 }
 
@@ -274,7 +293,7 @@ func (s *Service) Status(ctx context.Context) View {
 	}
 	slices.SortFunc(view.Peers, func(a, b Peer) int { return strings.Compare(a.Name, b.Name) })
 
-	if view.State == "Running" {
+	if view.State == "Running" && view.Settings.LoginServer == "" {
 		config := s.serveConfig(ctx)
 		view.Serving = config.servesManager()
 		if view.Serving && view.DNSName != "" {
@@ -342,6 +361,11 @@ func (s *Service) upArgs(settings Settings, timeout time.Duration) []string {
 		"--accept-dns=false",
 		"--timeout=" + timeout.String(),
 	}
+	// Checked against Tailscale v1.104.4 cmd/tailscale/cli/up.go on
+	// 28 October 2026. Headscale v0.29.6 supports --login-server registration.
+	if settings.LoginServer != "" {
+		args = append(args, "--login-server="+settings.LoginServer)
+	}
 	if settings.ShareSubnet {
 		args = append(args, "--advertise-routes="+settings.Subnet)
 	}
@@ -355,13 +379,25 @@ func (s *Service) upArgs(settings Settings, timeout time.Duration) []string {
 // Connect starts a login. Without an auth key, Tailscale shows a login link in
 // the status, which the page opens.
 func (s *Service) Connect(background context.Context, authKey string) error {
+	s.changes.Lock()
+	defer s.changes.Unlock()
 	return s.connect(background, authKey, false)
 }
 
 // UseTag logs the manager in again as tag:iglo, which Tailscale Services
 // need. The page shows the login link. It needs tag:iglo in tagOwners.
 func (s *Service) UseTag(background context.Context) error {
+	s.changes.Lock()
+	defer s.changes.Unlock()
 	s.mu.Lock()
+	if s.connecting {
+		s.mu.Unlock()
+		return ErrBusy
+	}
+	if s.settings.LoginServer != "" {
+		s.mu.Unlock()
+		return fmt.Errorf("%w: manage Headscale tags through its controller", ErrInvalidSettings)
+	}
 	previous := s.settings
 	s.settings.UseTag = true
 	err := s.save()
@@ -378,6 +414,10 @@ func (s *Service) UseTag(background context.Context) error {
 }
 
 func (s *Service) connect(background context.Context, authKey string, forceReauth bool) error {
+	authKey = strings.TrimSpace(authKey)
+	if len(authKey) > 2048 || strings.ContainsFunc(authKey, unicode.IsControl) || strings.ContainsAny(authKey, " \t") {
+		return fmt.Errorf("%w: give one pre-authentication key", ErrInvalidSettings)
+	}
 	s.mu.Lock()
 	if s.connecting {
 		s.mu.Unlock()
@@ -398,7 +438,13 @@ func (s *Service) connect(background context.Context, authKey string, forceReaut
 		file, err := os.CreateTemp(s.DataDir, ".tailscale-key-*")
 		if err == nil {
 			_, err = file.WriteString(authKey)
-			file.Close()
+			closeErr := file.Close()
+			if err == nil {
+				err = closeErr
+			}
+			if err != nil {
+				os.Remove(file.Name())
+			}
 		}
 		if err != nil {
 			s.finishConnect(err)
@@ -415,6 +461,9 @@ func (s *Service) connect(background context.Context, authKey string, forceReaut
 		_, err := s.run(ctx, args...)
 		if keyFile != "" {
 			os.Remove(keyFile)
+		}
+		if err != nil && authKey != "" {
+			err = errors.New("login failed; check the controller, key validity and client status")
 		}
 		s.finishConnect(err)
 	}()
@@ -434,6 +483,14 @@ func (s *Service) finishConnect(err error) {
 }
 
 func (s *Service) Logout(ctx context.Context) error {
+	s.changes.Lock()
+	defer s.changes.Unlock()
+	s.mu.Lock()
+	busy := s.connecting
+	s.mu.Unlock()
+	if busy {
+		return ErrBusy
+	}
 	ctx, cancel := context.WithTimeout(ctx, cliTimeout)
 	defer cancel()
 
@@ -444,6 +501,18 @@ func (s *Service) Logout(ctx context.Context) error {
 
 // SetService publishes an app as a Tailscale Service, or stops that.
 func (s *Service) SetService(ctx context.Context, name string, published bool) error {
+	s.changes.Lock()
+	defer s.changes.Unlock()
+	s.mu.Lock()
+	custom := s.settings.LoginServer != ""
+	busy := s.connecting
+	s.mu.Unlock()
+	if busy {
+		return ErrBusy
+	}
+	if custom {
+		return fmt.Errorf("%w: managed Tailscale Services are unavailable with Headscale", ErrInvalidSettings)
+	}
 	index := slices.IndexFunc(s.Services, func(app AppService) bool { return app.Name == name })
 	if index < 0 {
 		return fmt.Errorf("%w: unknown app %q", ErrInvalidSettings, name)
@@ -471,6 +540,18 @@ func (s *Service) SetService(ctx context.Context, name string, published bool) e
 
 // SetServe turns on or off HTTPS access to the manager at its tailnet name.
 func (s *Service) SetServe(ctx context.Context, enabled bool) error {
+	s.changes.Lock()
+	defer s.changes.Unlock()
+	s.mu.Lock()
+	custom := s.settings.LoginServer != ""
+	busy := s.connecting
+	s.mu.Unlock()
+	if busy {
+		return ErrBusy
+	}
+	if custom {
+		return fmt.Errorf("%w: managed Tailscale Serve is unavailable with Headscale; use private IPs or your own DNS and TLS", ErrInvalidSettings)
+	}
 	ctx, cancel := context.WithTimeout(ctx, cliTimeout)
 	defer cancel()
 
@@ -493,38 +574,63 @@ func (s *Service) SetServe(ctx context.Context, enabled bool) error {
 
 // SaveSettings saves the settings and applies them when Tailscale runs.
 func (s *Service) SaveSettings(ctx context.Context, settings Settings) error {
+	s.changes.Lock()
+	defer s.changes.Unlock()
 	settings.Subnet = strings.TrimSpace(settings.Subnet)
+	settings.LoginServer = strings.TrimSuffix(strings.TrimSpace(settings.LoginServer), "/")
 	if err := settings.Validate(); err != nil {
 		return err
 	}
-
 	s.mu.Lock()
-	previous := s.settings
-	// Only UseTag changes the tag, so this form can't drop it by accident.
+	previous, busy := s.settings, s.connecting
+	s.mu.Unlock()
+	if busy {
+		return ErrBusy
+	}
 	settings.UseTag = previous.UseTag
+	ctx, cancel := context.WithTimeout(ctx, cliTimeout)
+	defer cancel()
+	output, statusErr := s.run(ctx, "status", "--json")
+	var parsed status
+	parseErr := json.Unmarshal(output, &parsed)
+	if settings.LoginServer != previous.LoginServer {
+		if !errors.Is(statusErr, ErrNotInstalled) && (parseErr != nil || (parsed.BackendState != "NeedsLogin" && parsed.BackendState != "NoState")) {
+			return fmt.Errorf("%w: disconnect before changing the control server", ErrInvalidSettings)
+		}
+		// Tags belong to the old controller's policy and must not carry across.
+		settings.UseTag = false
+	}
+	s.mu.Lock()
 	s.settings = settings
-	err := s.save()
-	if err != nil {
+	saveErr := s.save()
+	if saveErr != nil {
 		s.settings = previous
 	}
 	s.mu.Unlock()
-	if err != nil {
-		return err
+	if saveErr != nil {
+		return saveErr
 	}
-
-	if s.Status(ctx).State != "Running" {
+	if parsed.BackendState != "Running" {
 		return nil
 	}
-
-	ctx, cancel := context.WithTimeout(ctx, cliTimeout)
-	defer cancel()
-
-	_, err = s.run(ctx, s.upArgs(settings, 20*time.Second)...)
-
+	_, err := s.run(ctx, s.upArgs(settings, 20*time.Second)...)
 	return err
 }
 
 func (s Settings) Validate() error {
+	if s.LoginServer != "" {
+		u, err := url.Parse(s.LoginServer)
+		if err != nil || len(s.LoginServer) > 512 || u.Scheme != "https" || u.Hostname() == "" || u.User != nil || u.RawQuery != "" || u.ForceQuery || u.Fragment != "" || u.RawFragment != "" || u.Opaque != "" || (u.Path != "" && u.Path != "/") || strings.ContainsAny(s.LoginServer, "?#") || strings.ContainsFunc(s.LoginServer, unicode.IsSpace) {
+			return fmt.Errorf("%w: use an HTTPS control server URL without credentials, path, query or fragment", ErrInvalidSettings)
+		}
+		if u.Port() != "" {
+			port, err := strconv.Atoi(u.Port())
+			if err != nil || port < 1 || port > 65535 {
+				return fmt.Errorf("%w: invalid control server port", ErrInvalidSettings)
+			}
+		}
+	}
+
 	if !s.ShareSubnet {
 		return nil
 	}

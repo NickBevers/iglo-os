@@ -39,7 +39,7 @@ export const navigation: { label: string; items: NavItem[] }[] = [
             { to: '/inbox', label: 'Inbox work', icon: FilmIcon },
             { to: '/gaming', label: 'Gaming', icon: Gamepad2Icon },
             { to: '/jellyfin', label: 'Jellyfin', icon: FilmIcon },
-            { to: '/tailscale', label: 'Tailscale', icon: NetworkIcon },
+            { to: '/tailscale', label: 'Remote access', icon: NetworkIcon },
         ],
     },
 ]

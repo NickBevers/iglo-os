@@ -14,6 +14,8 @@ import { tailscaleQuery } from '@/lib/queries'
 export function ConnectCard({ tailscale }: { tailscale: Tailscale }) {
     const queryClient = useQueryClient()
     const [authKey, setAuthKey] = useState('')
+    const custom = Boolean(tailscale.settings.loginServer)
+    const provider = custom ? 'Headscale' : 'Tailscale'
 
     const connect = useMutation({
         mutationFn: api.connectTailscale,
@@ -34,9 +36,10 @@ export function ConnectCard({ tailscale }: { tailscale: Tailscale }) {
     return (
         <Card>
             <CardHeader>
-                <CardTitle>Connect to Tailscale</CardTitle>
+                <CardTitle>Connect to {provider}</CardTitle>
                 <CardDescription>
-                    Iglo-OS joins your tailnet as a device. Then all your devices with Tailscale can reach it.
+                    Iglo-OS joins your private network as a device. Other devices on the same control server can reach
+                    it.
                 </CardDescription>
             </CardHeader>
             <CardContent className="flex flex-col gap-6">
@@ -51,10 +54,10 @@ export function ConnectCard({ tailscale }: { tailscale: Tailscale }) {
                 {waiting && tailscale.authUrl ? (
                     <div className="flex flex-col items-start gap-3">
                         <p className="text-sm">
-                            Log in to Tailscale and approve this device. This page updates by itself.
+                            Approve this device through your controller. This page updates by itself.
                         </p>
                         <a href={tailscale.authUrl} target="_blank" rel="noreferrer" className={buttonVariants()}>
-                            Open the Tailscale login
+                            Open the {provider} login
                             <ExternalLinkIcon />
                         </a>
                     </div>
@@ -65,7 +68,7 @@ export function ConnectCard({ tailscale }: { tailscale: Tailscale }) {
                     </p>
                 ) : (
                     <Button className="self-start" onClick={() => connect.mutate('')}>
-                        Connect with your account
+                        {custom ? 'Register with Headscale' : 'Connect with your account'}
                     </Button>
                 )}
 
@@ -76,7 +79,7 @@ export function ConnectCard({ tailscale }: { tailscale: Tailscale }) {
                             id="auth-key"
                             type="password"
                             autoComplete="off"
-                            placeholder="tskey-auth-…"
+                            placeholder={custom ? 'Headscale pre-authentication key' : 'tskey-auth-…'}
                             value={authKey}
                             onChange={(event) => setAuthKey(event.target.value)}
                         />
@@ -85,7 +88,9 @@ export function ConnectCard({ tailscale }: { tailscale: Tailscale }) {
                         </Button>
                     </div>
                     <p className="text-xs text-muted-foreground">
-                        Create one in the Tailscale admin console under Settings, then Keys.
+                        {custom
+                            ? 'Create a one-time pre-authentication key on your Headscale controller. It is used for this login and then discarded.'
+                            : 'Create one in the Tailscale admin console under Settings, then Keys.'}
                     </p>
                 </form>
             </CardContent>

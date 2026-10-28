@@ -87,7 +87,7 @@ for tests, a real Proxmox and releases.
 - [Gaming: experimental Wolf / ES-DE app](docs/gaming.md)
 - [Logs and console](docs/logs-and-console.md)
 - [Jellyfin: install and the Jellyfin page](docs/jellyfin.md)
-- [Tailscale](docs/tailscale.md)
+- [Tailscale and self-hosted Headscale](docs/tailscale.md)
 - [App names (seerr.iglo.local)](docs/app-names.md)
 - [Media stack](docs/media-stack.md)
 - [Movies and series on the Videos share](docs/media-folder.md)

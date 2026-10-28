@@ -455,7 +455,7 @@ export type SelfUpdate = {
 
 export type SelfUpdateSettings = { repo: string; token: string; clearToken: boolean; autoInstall: boolean }
 
-export type TailscaleSettings = { shareSubnet: boolean; subnet: string; useTag?: boolean }
+export type TailscaleSettings = { shareSubnet: boolean; subnet: string; useTag?: boolean; loginServer?: string }
 
 export type TailscaleService = { name: string; title: string; published: boolean; url?: string }
 
