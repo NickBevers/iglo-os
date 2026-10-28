@@ -108,6 +108,11 @@ func Setup(ctx context.Context, cfg Config) (string, error) {
 		}
 	}
 
+	cfg.Logf("Making scrub previews and chapter images at night")
+	if err := jf.nightTasks(ctx, cfg.GPU, gpuSupport(cfg.VAInfo)); err != nil {
+		return "", err
+	}
+
 	apiKey, err := jf.apiKey(ctx)
 	if err != nil {
 		return "", err
@@ -201,7 +206,17 @@ func (s *server) ensureLibrary(ctx context.Context, name, kind, path string) err
 	}
 
 	query := url.Values{"name": {name}, "collectionType": {kind}, "refreshLibrary": {"true"}}
-	body := map[string]any{"LibraryOptions": map[string]any{"PathInfos": []map[string]string{{"Path": path}}}}
+	// Scrub previews (trickplay) and chapter images, made by their night tasks
+	// only: during a scan they would start whenever Sonarr imports, maybe
+	// while someone watches. Jellyfin v12.4 has all four off by default
+	// (LibraryOptions.cs).
+	body := map[string]any{"LibraryOptions": map[string]any{
+		"PathInfos":                               []map[string]string{{"Path": path}},
+		"EnableTrickplayImageExtraction":          true,
+		"ExtractTrickplayImagesDuringLibraryScan": false,
+		"EnableChapterImageExtraction":            true,
+		"ExtractChapterImagesDuringLibraryScan":   false,
+	}}
 
 	return s.do(ctx, http.MethodPost, "/Library/VirtualFolders?"+query.Encode(), body, nil)
 }
@@ -213,6 +228,8 @@ type gpu struct {
 	hevc10, vp910 bool
 	// intel GPUs tone map HDR to SDR in their video engine (VPP).
 	intel bool
+	// jpegEncode is a JPEG encoder, for scrub previews on the GPU.
+	jpegEncode bool
 }
 
 // vaapiCodecs maps the decode profiles of vainfo to the codec names of Jellyfin.
@@ -232,9 +249,10 @@ func gpuSupport(vainfo string) gpu {
 	support := gpu{intel: strings.Contains(vainfo, "Intel iHD driver")}
 	for line := range strings.Lines(vainfo) {
 		profile, entrypoint, ok := strings.Cut(line, ":")
-		profile = strings.TrimSpace(profile)
+		profile, entrypoint = strings.TrimSpace(profile), strings.TrimSpace(entrypoint)
+		support.jpegEncode = support.jpegEncode || (profile == "VAProfileJPEGBaseline" && entrypoint == "VAEntrypointEncPicture")
 		// VLD is the decode entrypoint. The others encode or process.
-		if !ok || strings.TrimSpace(entrypoint) != "VAEntrypointVLD" {
+		if !ok || entrypoint != "VAEntrypointVLD" {
 			continue
 		}
 		for _, known := range vaapiCodecs {
@@ -267,6 +285,65 @@ func (s *server) enableVAAPI(ctx context.Context, support gpu) error {
 	encoding["EnableVppTonemapping"] = support.intel
 
 	return s.do(ctx, http.MethodPost, "/System/Configuration/encoding", encoding, nil)
+}
+
+// The night tasks of Jellyfin v12.4 that make images for every video. By
+// default trickplay runs at 03:00 without a limit (TrickplayImagesTask.cs),
+// the minute of the Iglo-OS backups, and chapter images at 02:00 for up to
+// four hours (ChapterImagesTask.cs). They move to 01:00 and stop at 03:00. A
+// large library takes a few nights; each night goes on where the last stopped.
+var nightTasks = []string{"RefreshTrickplayImages", "RefreshChapterImages"}
+
+const (
+	nightStart   = time.Hour
+	nightRuntime = 2 * time.Hour
+)
+
+type scheduledTask struct {
+	ID  string `json:"Id"`
+	Key string `json:"Key"`
+}
+
+// nightTasks schedules the image tasks in the night window, and makes the
+// scrub previews cheap: keyframes only, on the GPU when there is one.
+func (s *server) nightTasks(ctx context.Context, useGPU bool, support gpu) error {
+	var tasks []scheduledTask
+	if err := s.do(ctx, http.MethodGet, "/ScheduledTasks", nil, &tasks); err != nil {
+		return err
+	}
+	// Ticks of .NET are 100 nanoseconds.
+	trigger := []map[string]any{{
+		"Type":            "DailyTrigger",
+		"TimeOfDayTicks":  int64(nightStart / 100),
+		"MaxRuntimeTicks": int64(nightRuntime / 100),
+	}}
+	for _, key := range nightTasks {
+		index := slices.IndexFunc(tasks, func(task scheduledTask) bool { return task.Key == key })
+		if index < 0 {
+			return fmt.Errorf("jellyfin has no task %s", key)
+		}
+		if err := s.do(ctx, http.MethodPost, "/ScheduledTasks/"+url.PathEscape(tasks[index].ID)+"/Triggers", trigger, nil); err != nil {
+			return err
+		}
+	}
+
+	// TrickplayOptions in the server configuration (TrickplayOptions.cs).
+	// Keyframes only is much faster, with previews a little off their second.
+	// VA-API decodes keyframes only on the GPU (MediaEncoder.cs).
+	var config map[string]any
+	if err := s.do(ctx, http.MethodGet, "/System/Configuration", nil, &config); err != nil {
+		return err
+	}
+	trickplay, _ := config["TrickplayOptions"].(map[string]any)
+	if trickplay == nil {
+		trickplay = map[string]any{}
+	}
+	trickplay["EnableKeyFrameOnlyExtraction"] = true
+	trickplay["EnableHwAcceleration"] = useGPU
+	trickplay["EnableHwEncoding"] = useGPU && support.jpegEncode
+	config["TrickplayOptions"] = trickplay
+
+	return s.do(ctx, http.MethodPost, "/System/Configuration", config, nil)
 }
 
 // apiKey makes an API key for Iglo-OS, or returns the one it made before.

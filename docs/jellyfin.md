@@ -20,8 +20,9 @@ If the media stack already uses a Videos share, the form chooses that one.
 5. Passes the GPU of the host to the container, when the host has one (see below).
 6. Finishes the setup wizard with your admin account.
 7. Adds the libraries **Movies** (`/data/media/<movies folder>`) and **Series** (`/data/media/<series folder>`), and **Anime** and **Anime Movies** for the anime folders, when they are set.
-8. Turns on the Netflix theme, if you chose it.
-9. Makes an API key for Iglo-OS and connects the Jellyfin page of Iglo-OS with it. The key never goes to the browser.
+8. Makes scrub previews and chapter images at night (see below).
+9. Turns on the Netflix theme, if you chose it.
+10. Makes an API key for Iglo-OS and connects the Jellyfin page of Iglo-OS with it. The key never goes to the browser.
 
 The installer takes about 5 minutes. If it fails, it removes the container and the mount it made. Then click **Try again**, or **Change answers** to fix an answer. Your answers stay on the host for 24 hours. The admin password and the SMB password never go back to the browser.
 
@@ -39,6 +40,16 @@ When the host has a GPU (`/dev/dri/renderD128`, Intel or AMD), the installer:
 If the check fails, Jellyfin transcodes on the CPU, and the log says so. For Intel, the `jellyfin-ffmpeg` package brings its own drivers, so you install nothing on the host. For AMD, the check shows whether the drivers in the container are enough.
 
 Check or change the result in Jellyfin: **Dashboard > Playback > Transcoding**. On Intel, you can also switch to **Intel QuickSync (QSV)** there, which is a bit faster. The cores and memory are limits, not reservations, so an idle Jellyfin uses no more than before. The headroom helps when the CPU has to step in, like for burned-in subtitles.
+
+### Scrub previews at night
+
+Scrub previews (trickplay) are the small pictures you see while you drag through a video in the Jellyfin apps. Chapter images show the chapters. Jellyfin makes them by reading every video, so they take hours for a new library. Jellyfin has both off for a library made through its API.
+
+The installer turns both on for its libraries, but never during a library scan: a scan starts whenever Sonarr or Radarr imports something, maybe while you watch. Two night tasks make them instead, daily from 01:00 for at most two hours. They stop before the backups at 03:00, and the next night goes on where the last one stopped. Jellyfin's own times, 02:00 and 03:00 without a limit, would run into the backups.
+
+The previews read keyframes only, which is much faster, with previews a little off their second. With a GPU, the GPU decodes them, and encodes the pictures when `vainfo` lists a JPEG encoder.
+
+Change the times in Jellyfin under **Dashboard > Scheduled Tasks**: **Generate Trickplay Images** and **Extract Chapter Images**. The library settings are under **Dashboard > Libraries**, and the preview settings under **Dashboard > Playback > Trickplay**. Checked against Jellyfin v12.4 on 28 October 2026.
 
 ### A Jellyfin that is already installed
 
