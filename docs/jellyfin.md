@@ -35,9 +35,24 @@ When the host has a GPU (`/dev/dri/renderD128`, Intel or AMD), the installer:
 1. gives the container that device, with the `render` group of the container;
 2. checks with `vainfo` of Jellyfin that Jellyfin can use it;
 3. turns on VA-API for every codec that `vainfo` says the GPU decodes. On an Intel UHD 770 that is H.264, HEVC (also 10-bit), VP8, VP9 (also 10-bit), AV1, MPEG-2 and VC-1. Without that list it keeps to H.264 and HEVC;
-4. on an Intel GPU, turns on VPP tone mapping, so HDR films play on an SDR screen without the CPU.
+4. on an Intel GPU, turns on VPP tone mapping, so HDR films play on an SDR screen without the CPU;
+5. on an Intel GPU, turns on the low-power encoders for H.264 and HEVC, when `vainfo` lists them and the host loaded the HuC firmware (see below).
 
 If the check fails, Jellyfin transcodes on the CPU, and the log says so. For Intel, the `jellyfin-ffmpeg` package brings its own drivers, so you install nothing on the host. For AMD, the check shows whether the drivers in the container are enough.
+
+#### Low-power encoding
+
+Intel GPUs from about 2020 have two encoders. The low-power one runs in the fixed-function video engine, so it is faster and leaves the GPU's shader cores free, for example for tone mapping. Its bitrate control needs the HuC firmware.
+
+You set nothing on the host. Linux loads HuC by default on Alder Lake and newer: the UHD 770 of the i7-12700T gets `enable_guc=2`, which loads HuC but keeps the older GuC submission off. Linux v6.14 and v7.0, the kernel of Proxmox (`intel_uc.c`), and the [Jellyfin guide](https://jellyfin.org/docs/general/post-install/transcoding/hardware-acceleration/intel/) say so, checked on 28 October 2026. Don't force `enable_guc=3` on it: the kernel leaves GuC submission off on Alder Lake-S on purpose.
+
+The installer reads `/sys/kernel/debug/dri/*/gt*/uc/huc_info` on the host. It turns the low-power encoders on only when HuC says `RUNNING`, and the summary at the end says "HuC loaded". To check by hand, as root on the host:
+
+```sh
+cat /sys/kernel/debug/dri/0/gt*/uc/huc_info   # status: RUNNING
+```
+
+On an older Intel GPU, like Tiger Lake, HuC is off by default, and Jellyfin uses the normal encoder.
 
 Check or change the result in Jellyfin: **Dashboard > Playback > Transcoding**. On Intel, you can also switch to **Intel QuickSync (QSV)** there, which is a bit faster. The cores and memory are limits, not reservations, so an idle Jellyfin uses no more than before. The headroom helps when the CPU has to step in, like for burned-in subtitles.
 
