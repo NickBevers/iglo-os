@@ -141,3 +141,38 @@ func TestDockerLogsWithoutDocker(t *testing.T) {
 		t.Fatalf("docker failed: %v", err)
 	}
 }
+
+func TestDockerLogsAfterATimeout(t *testing.T) {
+	partial := "\x1dlist\nradarr\trunning\tx\nsonarr\trunning\ty\n\x1dlog radarr\n2026-09-30T10:00:01Z [Info] in time\n\x1dlog sonarr\n"
+	var calls []string
+	logs := &Logs{run: func(ctx context.Context, name string, args ...string) ([]byte, error) {
+		calls = append(calls, strings.Join(append([]string{name}, args...), " "))
+		if args[0] == "status" {
+			return []byte("status: running\n"), nil
+		}
+		<-ctx.Done()
+		if strings.Contains(calls[0], "sh 1000") {
+			return []byte(partial), errors.New("signal: killed")
+		}
+		return nil, errors.New("signal: killed")
+	}}
+
+	// The logs that came in time still show.
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Millisecond)
+	defer cancel()
+	result, err := logs.Docker(ctx, 102, 1000)
+	if err != nil || len(result.Containers) != 2 || len(result.Entries) != 1 || result.Entries[0].Message != "[Info] in time" {
+		t.Fatalf("result = %+v, err = %v", result, err)
+	}
+
+	// A timeout without output is not a missing container, and asks no pct status.
+	calls = nil
+	ctx2, cancel2 := context.WithTimeout(context.Background(), 10*time.Millisecond)
+	defer cancel2()
+	if _, err := logs.Docker(ctx2, 102, 50); err == nil || !strings.Contains(err.Error(), "could not list Docker containers") {
+		t.Fatalf("timeout: %v", err)
+	}
+	if len(calls) != 1 {
+		t.Fatalf("calls = %q", calls)
+	}
+}

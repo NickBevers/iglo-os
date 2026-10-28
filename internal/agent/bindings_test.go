@@ -112,6 +112,8 @@ func TestBindingsListReadsMountsOnce(t *testing.T) {
 	}
 	os.WriteFile(filepath.Join(s.Containers, "120.conf"), []byte("mp0: "+videos+"/movies,mp=/data/media/movies\nmp1: "+videos+"x,mp=/x\n"), 0600)
 	os.WriteFile(filepath.Join(s.Containers, "110.conf"), []byte("arch: amd64\nmp0: "+videos+",mp=/data\n"), 0600)
+	// A container that is being destroyed leaves a dangling config.
+	os.Symlink(filepath.Join(s.Containers, "gone"), filepath.Join(s.Containers, "130.conf"))
 
 	list, err := s.List(context.Background())
 	if err != nil {

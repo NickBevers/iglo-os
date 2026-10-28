@@ -75,7 +75,9 @@ func (l *installLog) add(line string) {
 	line = ansiPattern.ReplaceAllString(line, "")
 	// The browser never sees the key, so its line is not shown.
 	if match := jellyfinKeyPattern.FindStringSubmatch(line); match != nil {
-		l.apiKey = match[1]
+		if l.apiKey == "" {
+			l.apiKey = match[1]
+		}
 		return
 	}
 	if l.result == nil {

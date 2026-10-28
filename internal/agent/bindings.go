@@ -88,6 +88,10 @@ func (s *Bindings) containerMounts() (map[string][]string, error) {
 	result := map[string][]string{}
 	for _, file := range files {
 		data, err := os.ReadFile(file)
+		// A container that is being destroyed mounts nothing.
+		if errors.Is(err, os.ErrNotExist) {
+			continue
+		}
 		if err != nil {
 			return nil, err
 		}
@@ -148,13 +152,16 @@ func (s *Bindings) List(ctx context.Context) ([]Binding, error) {
 		return nil, err
 	}
 	result := []Binding{}
+	if len(files) == 0 {
+		return result, nil
+	}
 	storages := s.proxmoxStorages()
 	mounts, err := s.containerMounts()
 	if err != nil {
 		return nil, err
 	}
 	var mounted map[string]string
-	if !s.Simulation && len(files) > 0 {
+	if !s.Simulation {
 		mounted = s.mountedShares(ctx)
 	}
 	for _, file := range files {

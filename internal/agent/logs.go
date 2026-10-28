@@ -103,7 +103,9 @@ func (l *Logs) inGuest(ctx context.Context, vmid int, args ...string) ([]byte, e
 
 	id := strconv.Itoa(vmid)
 	output, err := l.run(ctx, "pct", append([]string{"exec", id, "--"}, args...)...)
-	if err == nil || len(output) > 0 {
+	// A timeout says nothing about the container, and pct status would fail on
+	// the same expired context.
+	if err == nil || len(output) > 0 || ctx.Err() != nil {
 		return output, err
 	}
 
@@ -227,14 +229,17 @@ func (l *Logs) Docker(ctx context.Context, vmid, lines int) (DockerLogs, error) 
 	defer cancel()
 
 	output, err := l.inGuest(ctx, vmid, "sh", "-c", dockerScript, "sh", strconv.Itoa(lines))
-	if err != nil {
-		if _, ok := errors.AsType[guestError](err); ok {
-			return DockerLogs{}, err
-		}
+	if _, ok := errors.AsType[guestError](err); ok {
+		return DockerLogs{}, err
+	}
+	// After a timeout, show the logs that came in time, like the containers
+	// that answered before.
+	result := parseDockerOutput(output)
+	if err != nil && !result.Installed {
 		return DockerLogs{}, fmt.Errorf("could not list Docker containers: %w", err)
 	}
 
-	return parseDockerOutput(output), nil
+	return result, nil
 }
 
 // parseDockerOutput reads the sections of dockerScript. It keeps only the logs

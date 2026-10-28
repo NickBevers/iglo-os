@@ -28,8 +28,8 @@ func TestInstallLogReadsOnlyNewLines(t *testing.T) {
 		t.Fatalf("first read: %q %q %v", log, key, result)
 	}
 
-	// The key line is whole now. It counts, and still never shows.
-	appendLog("cd12\nIGLO app media 130 192.168.1.50\nIGLO app media 131 192.168.1.51\n")
+	// The key line is whole now. The first key counts, and no key line shows.
+	appendLog("cd12\nIGLO jellyfin-key later99\nIGLO app media 130 192.168.1.50\nIGLO app media 131 192.168.1.51\n")
 	log, key, result, _ = l.read(path, run)
 	if strings.Contains(log, "jellyfin-key") || key != "abcd12" || result == nil || result[2] != "130" {
 		t.Fatalf("second read: %q %q %v", log, key, result)
