@@ -259,12 +259,12 @@ install_scripts() {
     if [[ -d "$BUNDLE_DIR/stacks/inbox" ]]; then
         install -d -m 0755 "$SCRIPTS_DIR/stacks/inbox"
         install -m 0755 "$BUNDLE_DIR/stacks/inbox/install.sh" "$SCRIPTS_DIR/stacks/inbox/"
-        install -m 0644 "$BUNDLE_DIR/stacks/inbox/compose.yaml" "$BUNDLE_DIR/stacks/inbox/pre-execute.cs" "$SCRIPTS_DIR/stacks/inbox/"
+        install -m 0644 "$BUNDLE_DIR/stacks/inbox/compose.yaml" "$BUNDLE_DIR/stacks/inbox/compose.gpu.yaml" "$BUNDLE_DIR/stacks/inbox/pre-execute.cs" "$SCRIPTS_DIR/stacks/inbox/"
     fi
     if [[ -d "$BUNDLE_DIR/stacks/photos" ]]; then
         install -d -m 0755 "$SCRIPTS_DIR/stacks/photos"
         install -m 0755 "$BUNDLE_DIR/stacks/photos/install.sh" "$BUNDLE_DIR/stacks/photos/recovery.sh" "$SCRIPTS_DIR/stacks/photos/"
-        install -m 0644 "$BUNDLE_DIR/stacks/photos/compose.yaml" "$BUNDLE_DIR/stacks/photos/compose.override.yaml" "$SCRIPTS_DIR/stacks/photos/"
+        install -m 0644 "$BUNDLE_DIR/stacks/photos/compose.yaml" "$BUNDLE_DIR/stacks/photos/compose.override.yaml" "$BUNDLE_DIR/stacks/photos/compose.gpu.yaml" "$SCRIPTS_DIR/stacks/photos/"
     fi
     mv -f "$SCRIPTS_DIR/install.sh.new" "$SCRIPTS_DIR/install.sh"
     # The Apps page installs stacks from here.

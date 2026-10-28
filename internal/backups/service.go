@@ -97,9 +97,11 @@ type state struct {
 	History []Run `json:"history"`
 	// LastTask is the end time of the newest Proxmox backup task we checked for failures.
 	LastTask int64 `json:"lastTask"`
-	// LastCheck is when the monthly restore check last ran, and on which container.
-	LastCheck     time.Time `json:"lastCheck,omitzero"`
-	LastCheckVMID int       `json:"lastCheckVmid,omitempty"`
+	// LastCheck spaces attempts across nights. Checked tracks successful
+	// checks per guest, independently of the bounded operation history.
+	LastCheck     time.Time         `json:"lastCheck,omitzero"`
+	LastCheckVMID int               `json:"lastCheckVmid,omitempty"`
+	Checked       map[int]time.Time `json:"checked,omitempty"`
 }
 
 type Service struct {
@@ -145,6 +147,14 @@ func New(options Options) (*Service, error) {
 	}
 	if service.state.History == nil {
 		service.state.History = []Run{}
+	}
+	if service.state.Checked == nil {
+		service.state.Checked = map[int]time.Time{}
+		for _, run := range service.state.History {
+			if run.Kind == RunCheck && run.Succeeded && run.FinishedAt.After(service.state.Checked[run.VMID]) {
+				service.state.Checked[run.VMID] = run.FinishedAt
+			}
+		}
 	}
 
 	return service, nil

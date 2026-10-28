@@ -16,11 +16,11 @@ The host agent creates the job with checked settings, so the API token needs no 
 A backup only proves that it was written. A restore check proves that it restores:
 
 1. The host agent restores the backup to a new container, with an ID from 9900 to 9999 and a new MAC address.
-2. Before it starts, the copy loses its network and every mount point, also its NAS shares and its secrets folder. It can't reach the original's data, and it gets the tag `iglo-check`, so the Apps page doesn't take it for an app.
+2. Before it starts, the copy loses its network, every mount point, device passthrough and any hook script, also its NAS shares and its secrets folder. Privileged containers and custom raw LXC settings are refused, so Gaming cannot be checked this way. It can't reach the original's data, and it gets the tag `iglo-check`, so the Apps page doesn't take it for an app.
 3. It starts once. Its apps fail without their shares, so a "degraded" system counts as booted.
 4. The copy is removed, also when a step failed.
 
-Once a month, at 05:00, Iglo-OS checks the newest backup of the next container, going round all containers. It waits while a game runs or another backup operation runs. **Test** next to a backup on the Backups page runs one now. The result shows on the Backups page and goes to Telegram.
+At 05:00, Iglo-OS checks the newest backup of one overdue container. Each container is due 30 days after its last successful check, with at most one attempt per night. A failed check stays overdue; rotation gives other containers their turn before retrying. It waits while a game runs or another backup operation runs. **Test** next to a backup on the Backups page runs one now. The result shows on the Backups page and goes to Telegram.
 
 The copy needs room on the storage of the container: about three times the size of the backup, plus 2 GiB. With less, the check fails and says so. A restore check is not tested on Proxmox yet.
 

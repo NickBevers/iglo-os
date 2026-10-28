@@ -75,10 +75,10 @@ export function BackupsPage() {
     )
 }
 
-// The next check is up to a month away, so it gets a date, not a weekday.
+// Include the date so a postponed check window is clear.
 const checkDate = new Intl.DateTimeFormat(undefined, { dateStyle: 'medium', timeStyle: 'short' })
 
-// RestoreCheck says whether the backups restore: once a month at 05:00, the
+// RestoreCheck shows the last result and the next nightly window. The
 // newest backup of the next container goes to a copy that starts once.
 function RestoreCheck({ check }: { check: Backups['check'] }) {
     const last = check.last
@@ -99,9 +99,9 @@ function RestoreCheck({ check }: { check: Backups['check'] }) {
                 </span>
                 <span className="text-muted-foreground">
                     {last && !last.succeeded ? `${last.message}. ` : ''}
-                    Once a month, the newest backup of the next container is restored to a copy without network or NAS
-                    shares, started and removed again. Next: {checkDate.format(new Date(check.next))}. Test a backup any
-                    time with Test.
+                    Each container is due every 30 days. At most one overdue container is checked each night in a copy
+                    without network, NAS shares or devices. Privileged containers are refused. Next window:{' '}
+                    {checkDate.format(new Date(check.next))}. Test a backup any time with Test.
                 </span>
             </div>
         </Card>

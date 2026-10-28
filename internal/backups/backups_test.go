@@ -359,7 +359,7 @@ func TestCheckRestoresACopy(t *testing.T) {
 		t.Fatalf("run = %+v, calls = %v", run, h.pve.calls)
 	}
 	view, _ := h.service.Status(context.Background())
-	if view.Check.Last == nil || view.Check.Last.ID != run.ID || !view.Check.Next.After(time.Now().Add(29*24*time.Hour)) {
+	if view.Check.Last == nil || view.Check.Last.ID != run.ID || !view.Check.Next.After(time.Now()) || view.Check.Next.After(time.Now().Add(48*time.Hour)) {
 		t.Fatalf("check view = %+v", view.Check)
 	}
 
@@ -391,11 +391,11 @@ func TestNextCheckGoesRound(t *testing.T) {
 		{VMID: 140, Type: "lxc"},
 	}
 	for after, want := range map[int]string{0: "b101", 101: "b130-new", 130: "b101", 999: "b101"} {
-		if got := nextCheck(guests, after); got != want {
+		if got := nextCheck(guests, after, nil, time.Now()); got != want {
 			t.Errorf("after %d: %q, want %q", after, got, want)
 		}
 	}
-	if nextCheck(nil, 0) != "" {
+	if nextCheck(nil, 0, nil, time.Now()) != "" {
 		t.Error("a check without backups")
 	}
 }
@@ -426,10 +426,29 @@ func TestMonthlyCheckWaits(t *testing.T) {
 	if !slices.Equal(h.pve.calls, []string{"host check 101 local:backup/vzdump-lxc-101-2026_09_30-03_00_01.tar.zst local-lvm"}) {
 		t.Fatalf("calls = %v", h.pve.calls)
 	}
-	// The next one waits a month.
+	// This guest is not due again tomorrow.
 	now = now.Add(24 * time.Hour)
 	h.service.monthlyCheck(context.Background())
 	if len(h.pve.calls) != 1 {
 		t.Fatalf("checked again after a day: %v", h.pve.calls)
+	}
+}
+
+func TestCheckCoverageIsPerGuest(t *testing.T) {
+	now := time.Now()
+	guests := []GuestView{
+		{VMID: 101, Type: "lxc", Backups: []BackupView{{VolID: "one"}}},
+		{VMID: 102, Type: "lxc", Backups: []BackupView{{VolID: "two"}}},
+	}
+	checked := map[int]time.Time{101: now}
+	if got := nextCheck(guests, 101, checked, now.Add(24*time.Hour)); got != "two" {
+		t.Fatal(got)
+	}
+	checked[102] = now.Add(24 * time.Hour)
+	if got := nextCheck(guests, 102, checked, now.Add(2*24*time.Hour)); got != "" {
+		t.Fatal(got)
+	}
+	if got := nextCheck(guests, 102, checked, now.Add(checkEvery)); got != "one" {
+		t.Fatal(got)
 	}
 }

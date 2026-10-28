@@ -3,6 +3,7 @@ package updates
 import (
 	"context"
 	"errors"
+	"fmt"
 	"io"
 	"log/slog"
 	"slices"
@@ -408,6 +409,29 @@ func TestStatusNeverReturnsNullLists(t *testing.T) {
 	for _, guest := range view.Guests {
 		if guest.Packages == nil || guest.Images == nil {
 			t.Fatalf("guest %d lists are nil", guest.VMID)
+		}
+	}
+}
+
+func TestScopedUpdatesNeverRewindNASMetadata(t *testing.T) {
+	for _, app := range []string{agent.PhotosApp, agent.MusicApp, agent.InboxApp, agent.GamingApp} {
+		for _, fail := range []bool{false, true} {
+			t.Run(fmt.Sprintf("%s/fail=%t", app, fail), func(t *testing.T) {
+				service, pve, runner, _ := newTestService(t)
+				pve.resources[2].Tags = "iglo;" + app
+				runner.failVMID[101] = fail
+				run := service.updateGuest(context.Background(), 101, false)
+				want := RunSucceeded
+				if fail {
+					want = RunFailed
+				}
+				if run.Status != want || run.Snapshot != "" || len(pve.called("snapshot")) != 0 || len(pve.called("rollback")) != 0 {
+					t.Fatalf("unsafe scoped update: %+v, calls %v", run, pve.calls)
+				}
+				if fail && !strings.Contains(run.Message, "NAS data") {
+					t.Fatal(run.Message)
+				}
+			})
 		}
 	}
 }
