@@ -8,6 +8,8 @@ import (
 
 // streamChanges fakes an event stream of the agent: it sends topic each time
 // fingerprint changes. The real agent relays the events of Wolf or the worker.
+// Health, Updates and Backups publish from the real manager services while
+// those services use this mock, so they need no separate agent stream.
 func streamChanges(w http.ResponseWriter, r *http.Request, topic string, fingerprint func() string) {
 	w.Header().Set("Content-Type", "text/event-stream")
 	controller := http.NewResponseController(w)

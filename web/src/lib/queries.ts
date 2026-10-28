@@ -38,7 +38,7 @@ export const updatesQuery = queryOptions({
     queryKey: ['updates'],
     queryFn: api.updates,
     // Poll fast while an update runs, so progress shows up quickly.
-    refetchInterval: (query) => (query.state.data?.busy ? 2000 : 15000),
+    refetchInterval: (query) => (query.state.data?.busy ? 2000 : isLive() ? 60000 : 15000),
 })
 
 export function updateRunQuery(id: string) {
@@ -58,7 +58,7 @@ export const jellyfinQuery = queryOptions({
 export const healthQuery = queryOptions({
     queryKey: ['health'],
     queryFn: api.health,
-    refetchInterval: 15000,
+    refetchInterval: () => (isLive() ? 60000 : 15000),
 })
 
 export const selfUpdateQuery = queryOptions({
@@ -80,7 +80,7 @@ export const tailscaleQuery = queryOptions({
 export const backupsQuery = queryOptions({
     queryKey: ['backups'],
     queryFn: api.backups,
-    refetchInterval: (query) => (query.state.data?.busy ? 3000 : 30000),
+    refetchInterval: (query) => (query.state.data?.busy ? 3000 : isLive() ? 60000 : 30000),
 })
 
 export const appsQuery = queryOptions({

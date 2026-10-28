@@ -7,6 +7,9 @@ import "sync"
 
 // Topics that the pages know.
 const (
+	Health    = "health"
+	Updates   = "updates"
+	Backups   = "backups"
 	Apps      = "apps"
 	Gaming    = "gaming"
 	Workloads = "workloads"

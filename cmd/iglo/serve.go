@@ -91,6 +91,7 @@ func serve() error {
 	}
 	go workloadService.Run(ctx)
 	updateService, err := updates.New(updates.Options{
+		Changed:  hub.Publish,
 		DataDir:  cfg.DataDir,
 		Proxmox:  pve,
 		Agent:    agentClient,
@@ -100,6 +101,7 @@ func serve() error {
 	if err != nil {
 		return err
 	}
+	go updateService.RunNotifications(ctx)
 	go updateService.RunScheduler(ctx)
 
 	jellyfinService, err := jellyfin.NewService(cfg.DataDir)
@@ -108,6 +110,7 @@ func serve() error {
 	}
 
 	healthService, err := health.New(health.Options{
+		Changed: hub.Publish,
 		DataDir: cfg.DataDir,
 		Proxmox: pve,
 		Agent:   agentClient,
@@ -133,6 +136,7 @@ func serve() error {
 	go selfUpdateService.Run(ctx)
 
 	backupService, err := backups.New(backups.Options{
+		Changed:  hub.Publish,
 		DataDir:  cfg.DataDir,
 		Proxmox:  pve,
 		Agent:    agentClient,

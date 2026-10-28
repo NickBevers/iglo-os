@@ -452,3 +452,21 @@ func TestCheckCoverageIsPerGuest(t *testing.T) {
 		t.Fatal(got)
 	}
 }
+
+func TestLiveBackupsOnlyPublishChanges(t *testing.T) {
+	h := newHarness(t)
+	topics := []string{}
+	h.service.Changed = func(topic string) { topics = append(topics, topic) }
+	h.service.publishChanged()
+	h.service.publishChanged()
+	if len(topics) != 1 || topics[0] != "backups" {
+		t.Fatal(topics)
+	}
+	h.service.mu.Lock()
+	h.service.busy = "Checking"
+	h.service.mu.Unlock()
+	h.service.publishChanged()
+	if len(topics) != 2 {
+		t.Fatal("busy state did not publish")
+	}
+}

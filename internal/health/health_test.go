@@ -339,3 +339,29 @@ func TestSetChecksKeepsUnchangedChecks(t *testing.T) {
 		t.Fatal("an invalid list changed the checks")
 	}
 }
+
+func TestLiveHealthOnlyPublishesMeaningfulChanges(t *testing.T) {
+	h := newHarness(t)
+	var topics []string
+	h.service.Changed = func(topic string) {
+		topics = append(topics, topic)
+		h.service.Status() // State locks must be released before callbacks.
+	}
+	h.service.AddCheck(CheckInput{Name: "Jellyfin", Kind: HTTPCheck, Target: "http://10.0.0.5:8096"})
+	h.service.CheckServices(context.Background())
+	count := len(topics)
+	h.service.CheckServices(context.Background())
+	if len(topics) != count {
+		t.Fatal("unchanged probe published")
+	}
+	h.failing["Jellyfin"] = true
+	h.service.CheckServices(context.Background())
+	if len(topics) != count+1 {
+		t.Fatal("probe failure did not publish")
+	}
+	for _, topic := range topics {
+		if topic != "health" {
+			t.Fatal(topic)
+		}
+	}
+}

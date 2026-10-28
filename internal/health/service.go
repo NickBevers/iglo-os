@@ -18,6 +18,7 @@ import (
 	"time"
 
 	"iglo/internal/agent"
+	"iglo/internal/events"
 	"iglo/internal/proxmox"
 )
 
@@ -43,6 +44,7 @@ type Agent interface {
 }
 
 type Options struct {
+	Changed func(string)
 	DataDir string
 	Proxmox Proxmox
 	Agent   Agent
@@ -92,6 +94,7 @@ type Service struct {
 	services map[string]*ServiceView
 	system   system
 	systemAt time.Time
+	shown    string
 	// alerts holds the problems we already sent, by key.
 	alerts map[string]string
 
@@ -167,6 +170,7 @@ func (s *Service) Run(ctx context.Context) {
 }
 
 func (s *Service) CheckServices(ctx context.Context) {
+	defer s.publishChanged()
 	s.servicesRun.Lock()
 	defer s.servicesRun.Unlock()
 
@@ -239,6 +243,7 @@ func (s *Service) recordService(check Check, err error, latency time.Duration) s
 }
 
 func (s *Service) CheckSystem(ctx context.Context) {
+	defer s.publishChanged()
 	s.systemRun.Lock()
 	defer s.systemRun.Unlock()
 
@@ -338,6 +343,7 @@ func (s *Service) Status() View {
 }
 
 func (s *Service) AddCheck(input CheckInput) (Check, error) {
+	defer s.publishChanged()
 	input.Name = strings.TrimSpace(input.Name)
 	input.Target = strings.TrimSpace(input.Target)
 	if err := input.Validate(); err != nil {
@@ -364,6 +370,7 @@ func (s *Service) AddCheck(input CheckInput) (Check, error) {
 }
 
 func (s *Service) UpdateCheck(id string, input CheckInput) error {
+	defer s.publishChanged()
 	input.Name = strings.TrimSpace(input.Name)
 	input.Target = strings.TrimSpace(input.Target)
 	if err := input.Validate(); err != nil {
@@ -402,6 +409,7 @@ func (s *Service) Checks() []Check {
 
 // SetChecks replaces all checks. A check that stays the same keeps its ID and status.
 func (s *Service) SetChecks(inputs []CheckInput) error {
+	defer s.publishChanged()
 	if len(inputs) > MaxChecks {
 		return fmt.Errorf("%w: you can add up to %d checks", ErrInvalidCheck, MaxChecks)
 	}
@@ -450,6 +458,7 @@ func (s *Service) SetChecks(inputs []CheckInput) error {
 }
 
 func (s *Service) DeleteCheck(id string) error {
+	defer s.publishChanged()
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
@@ -488,4 +497,22 @@ func newID() string {
 	rand.Read(bytes)
 
 	return hex.EncodeToString(bytes)
+}
+
+// publishChanged ignores check times and probe latency, so unchanged checks
+// do not wake every open page. It runs after state locks are released.
+func (s *Service) publishChanged() {
+	s.mu.Lock()
+	var services []any
+	for _, check := range s.checks {
+		view := s.services[check.ID]
+		services = append(services, check, view.Status, view.Error)
+	}
+	shown := fmt.Sprint(services, s.system)
+	changed := shown != s.shown
+	s.shown = shown
+	s.mu.Unlock()
+	if changed && s.Changed != nil {
+		s.Changed(events.Health)
+	}
 }
