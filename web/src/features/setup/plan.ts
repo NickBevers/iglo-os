@@ -38,6 +38,7 @@ export function newDraft(setup: Setup): Draft {
         flareSolverr: true,
         animeIndexers: true,
         proxmoxBackups: true,
+        allowRestrictedFaceModels: false,
         confirmPrivileged: false,
         timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
         storage: setup.storage,
@@ -93,6 +94,7 @@ export function draftFromPlan(setup: Setup, plan: SetupPlan): Draft {
         flareSolverr: plan.flareSolverr ?? base.flareSolverr,
         animeIndexers: plan.animeIndexers ?? base.animeIndexers,
         proxmoxBackups: plan.proxmoxBackups ?? base.proxmoxBackups,
+        allowRestrictedFaceModels: plan.allowRestrictedFaceModels ?? false,
         timezone: plan.timezone || base.timezone,
         storage: setup.storages.includes(plan.storage) ? plan.storage : base.storage,
     }

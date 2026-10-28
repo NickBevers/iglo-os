@@ -106,3 +106,32 @@ The recovery shell also passed a Linux fixture test for failed-dump cleanup,
 matched export and corrupt-file rejection (`bash dev/check-photos-recovery.sh`).
 That fixture simulates Docker/SMB operations and is separate from the real
 PostgreSQL dump/restore check.
+
+## Guided setup defaults and model licences
+
+Checked against Immich v3.3.5 on 28 October 2026. Guided setup uses the new
+admin's temporary session to read and update `/api/admin/config`. It limits
+video conversion, face detection, smart search and OCR to one job per queue,
+sets video conversion to `required` with two CPU threads, and leaves other
+configuration intact. The long-lived key still has only `queue.read` and
+`queue.update`. Existing initialized libraries are never reconfigured.
+
+Face grouping is off by default for new guided setups. Its `buffalo_l` weights
+come from InsightFace, whose model terms restrict use to non-commercial
+research. This is separate from Immich's application licence. The setup has
+an explicit opt-in for those weights; it is saved in the secret-free plan.
+This does not change the model terms or establish unrestricted use. Manual
+admin creation inside Immich retains upstream defaults: disable facial
+recognition there if you want the same policy. Existing people and photos
+are never deleted by this setup change.
+
+The ML compose override uses one worker, two request threads and bounded CPU
+inference pools. Immich still unloads non-preloaded models after its normal
+idle timeout. These are conservative concurrency limits, not measured RAM
+savings or a promise of faster backlog processing.
+
+Sources: [configuration controller](https://github.com/immich-app/immich/blob/v3.3.5/server/src/controllers/config-admin.controller.ts),
+[configuration schema](https://github.com/immich-app/immich/blob/v3.3.5/server/src/dtos/config.dto.ts),
+[ML settings](https://github.com/immich-app/immich/blob/v3.3.5/machine-learning/immich_ml/config.py),
+[model card](https://huggingface.co/immich-app/buffalo_l),
+[InsightFace model terms](https://github.com/deepinsight/insightface#license).

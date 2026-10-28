@@ -51,6 +51,9 @@ type Plan struct {
 	// FlareSolverr and AnimeIndexers are the switches of the media stack.
 	FlareSolverr  bool `json:"flareSolverr" yaml:"flareSolverr"`
 	AnimeIndexers bool `json:"animeIndexers" yaml:"animeIndexers"`
+	// AllowRestrictedFaceModels explicitly opts into InsightFace model weights
+	// whose terms are more restrictive than the application source license.
+	AllowRestrictedFaceModels bool `json:"allowRestrictedFaceModels" yaml:"allowRestrictedFaceModels"`
 	// ProxmoxBackups keeps the backups of Proxmox on the Backups share.
 	ProxmoxBackups bool `json:"proxmoxBackups" yaml:"proxmoxBackups"`
 	// ConfirmPrivileged allows the privileged container of Gaming. A plan
