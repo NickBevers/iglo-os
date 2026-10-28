@@ -7,7 +7,7 @@ The Backups page makes a normal Proxmox backup job (`iglo-backup`), so it also r
 - Back up one guest now, restore a backup or delete it. A restore shuts the guest down, restores it to the storage of its current disk, and starts it again. The host agent restores containers, as root: Proxmox lets only `root@pam` restore a bind mount, and every app container has one, for a NAS share or its secrets (pve-container `7d99e49`).
 - **Test** a container backup without touching the container: see below.
 - Iglo-OS can't restore its own container. Use `iglo-restore` on the host (see below).
-- Failed scheduled backups are sent to Telegram.
+- Failed scheduled backups are sent to Telegram and ntfy.
 
 The host agent creates the job with checked settings, so the API token needs no `Sys.Modify`. The token only has `VM.Backup` and `Datastore.AllocateSpace` for backups.
 

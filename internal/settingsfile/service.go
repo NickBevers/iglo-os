@@ -106,6 +106,9 @@ func (s *Service) current(ctx context.Context) (File, []string) {
 
 	settings := s.Updates.Settings()
 	file.Notifications = &Notifications{Telegram: Telegram{ChatID: settings.Telegram.ChatID}}
+	if settings.Ntfy.Topic != "" {
+		file.Notifications.Ntfy = &Ntfy{Server: settings.Ntfy.Server, Topic: settings.Ntfy.Topic}
+	}
 	file.Updates = &Updates{
 		Enabled: settings.Schedule.Enabled,
 		Day:     weekdays[settings.Schedule.Weekday],
@@ -254,18 +257,35 @@ type (
 // saved as the update settings.
 func (s *Service) importUpdates(file, current File, add addFunc, finish finishFunc, run runFunc) {
 	settings := s.Updates.Settings()
-	input := updates.SettingsInput{Schedule: settings.Schedule, Excluded: settings.Excluded, Telegram: settings.Telegram}
+	// The saved ntfy token stays while the server stays the same.
+	input := updates.SettingsInput{Schedule: settings.Schedule, Excluded: settings.Excluded, Telegram: settings.Telegram,
+		Ntfy: updates.NtfySettings{Server: settings.Ntfy.Server, Topic: settings.Ntfy.Topic}}
 	changed := []string{}
 
 	if file.Notifications != nil {
-		chatID := file.Notifications.Telegram.ChatID
+		// No ntfy key keeps it, an empty topic turns it off, and no server is ntfy.sh.
+		wanted := *file.Notifications
 		switch {
-		case reflect.DeepEqual(file.Notifications, current.Notifications):
+		case wanted.Ntfy == nil:
+			wanted.Ntfy = current.Notifications.Ntfy
+		case wanted.Ntfy.Topic == "":
+			wanted.Ntfy = nil
+		default:
+			server, _ := updates.NormalizeNtfyServer(wanted.Ntfy.Server)
+			wanted.Ntfy = &Ntfy{Server: server, Topic: wanted.Ntfy.Topic}
+		}
+		chatID := wanted.Telegram.ChatID
+		switch {
+		case reflect.DeepEqual(&wanted, current.Notifications):
 			add("notifications", StatusUnchanged, "")
 		case chatID != "" && settings.Telegram.BotToken == "":
 			add("notifications", StatusSkipped, "Add the Telegram bot token on the Updates page first.")
 		default:
 			input.Telegram = updates.TelegramSettings{ChatID: chatID}
+			input.Ntfy = updates.NtfySettings{}
+			if wanted.Ntfy != nil {
+				input.Ntfy = updates.NtfySettings{Server: wanted.Ntfy.Server, Topic: wanted.Ntfy.Topic}
+			}
 			changed = append(changed, "notifications")
 		}
 	}

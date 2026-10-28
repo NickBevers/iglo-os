@@ -9,9 +9,27 @@ The Updates page checks the Proxmox host and all running containers for updates.
 - **The manager itself** is never updated by the schedule, and a failed update of it is not rolled back automatically.
 - **Apps of Iglo-OS** run images pinned to a digest, so the weekly run finds no new images for them. Their new versions come with an Iglo-OS release, through **Update** on the Apps page, with its snapshot and rollback.
 
-## Telegram
+## Notifications
 
-Optional. Create a bot with @BotFather, send it a message, and get your chat ID from @userinfobot. Then enter both on the Updates page. Health alerts, backup failures and console logins use the same bot.
+Iglo-OS tells you when an update ran, a backup failed, a health check failed or a console opened. It sends each message to Telegram and to ntfy, as far as you set them up on the Updates page. Both are optional.
+
+### Telegram
+
+Create a bot with @BotFather, send it a message, and get your chat ID from @userinfobot. Then enter both on the Updates page.
+
+### ntfy
+
+[ntfy](https://ntfy.sh) sends push notifications to your phone without Google or Apple. The server and the Android app are open source (Apache-2.0), and free. The F-Droid version of the app never uses Firebase: it keeps its own connection to the server. Checked on 28 October 2026, with ntfy v2.34.0 and the app 1.25.2.
+
+1. Install ntfy from F-Droid.
+2. On the Updates page, keep the server `https://ntfy.sh`, press **New topic**, and save.
+3. In the app, subscribe to that topic, and press **Send test** on the Updates page.
+
+On ntfy.sh, anyone who knows a topic can read it and send to it. **New topic** makes a random name of 25 characters, so treat it like a password. The messages are short lines like "✅ jellyfin (101): updated", without passwords or keys.
+
+To keep the messages off ntfy.sh, run your own ntfy server and enter its address. With logins on, make an access token with `ntfy token add <user>` and enter it too. The manager keeps the token like the Telegram bot token: it never goes to the browser or to the settings file, and it only goes to the server it was entered for. Your phone has to reach that server, at home or through Tailscale.
+
+Seerr can send its own messages to ntfy, for requests and new media: set it up in Seerr under **Settings > Notifications**.
 
 ## Updating Iglo-OS
 
