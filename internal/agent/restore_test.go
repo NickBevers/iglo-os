@@ -24,6 +24,7 @@ type fakeHost struct {
 	failOn   string
 	state    string
 	statusCT string
+	config   string
 }
 
 func (f *fakeHost) run(_ context.Context, name string, args ...string) ([]byte, error) {
@@ -47,7 +48,10 @@ func (f *fakeHost) run(_ context.Context, name string, args ...string) ([]byte, 
 		os.MkdirAll(dir, 0o755)
 		os.WriteFile(filepath.Join(dir, args[1]+".conf"), nil, 0o644)
 	case strings.HasPrefix(call, "pct config"):
-		return []byte("arch: amd64\nhostname: media\nmp0: /mnt/iglo/shares/videos,mp=/data/media,backup=0\nmp1: local-lvm:vm-9900-disk-1,mp=/data/downloads,size=200G\nmp2: /run/iglo/secrets/130,mp=/mnt/iglo-secrets,ro=1\nnet0: name=eth0,bridge=vmbr0,hwaddr=BC:24:11:00:00:01,ip=dhcp\nonboot: 1\ntags: iglo;media\n"), nil
+		if f.config != "" {
+			return []byte(f.config), nil
+		}
+		return []byte("arch: amd64\nunprivileged: 1\nhostname: media\nmp0: /mnt/iglo/shares/videos,mp=/data/media,backup=0\nmp1: local-lvm:vm-9900-disk-1,mp=/data/downloads,size=200G\nmp2: /run/iglo/secrets/130,mp=/mnt/iglo-secrets,ro=1\nnet0: name=eth0,bridge=vmbr0,hwaddr=BC:24:11:00:00:01,ip=dhcp\nonboot: 1\ntags: iglo;media\n"), nil
 	case strings.HasPrefix(call, "pct exec"):
 		return []byte(f.state + "\n"), nil
 	case strings.HasPrefix(call, "pct status"):
@@ -181,4 +185,39 @@ func TestRestoreRefuses(t *testing.T) {
 		t.Fatalf("second restore: %v", err)
 	}
 	waitRestore(t, restorer)
+}
+
+func TestRestoreCheckIsolation(t *testing.T) {
+	for _, config := range []string{
+		"unprivileged: 0\n",
+		"hostname: privileged-by-default\n",
+		"unprivileged: 1\nlxc.mount.entry: /dev mnt/dev none bind,create=dir\n",
+		"unprivileged: 1\nlxc.apparmor.profile: unconfined\n",
+	} {
+		t.Run(config, func(t *testing.T) {
+			restorer, host := newTestRestorer(t)
+			host.config = config
+			restorer.Start(RestoreRequest{VMID: 130, Volid: testVolid, Storage: "local-lvm", Check: true})
+			if status := waitRestore(t, restorer); status.Succeeded {
+				t.Fatal("unsafe copy started")
+			}
+			for _, call := range host.calls {
+				if strings.HasPrefix(call, "pct start") {
+					t.Fatal(call)
+				}
+			}
+			if !slices.Contains(host.calls, "pct destroy 9901 --purge 1 --destroy-unreferenced-disks 1") {
+				t.Fatal("copy was not removed")
+			}
+		})
+	}
+	restorer, host := newTestRestorer(t)
+	host.config = "unprivileged: 1\ndev0: /dev/dri/renderD128\nhookscript: local:snippets/hook.pl\nnet0: name=eth0\n"
+	restorer.Start(RestoreRequest{VMID: 130, Volid: testVolid, Storage: "local-lvm", Check: true})
+	if status := waitRestore(t, restorer); !status.Succeeded {
+		t.Fatal(status)
+	}
+	if !slices.Contains(host.calls, "pct set 9901 --onboot 0 --tags iglo-check --hostname restore-check --delete dev0,hookscript,net0") {
+		t.Fatal(host.calls)
+	}
 }

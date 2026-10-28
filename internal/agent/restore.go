@@ -24,7 +24,8 @@ var (
 	ErrInvalidRestore = errors.New("invalid restore")
 
 	// containerBackup is the volume ID of a vzdump archive of a container.
-	containerBackup = regexp.MustCompile(`^[A-Za-z][A-Za-z0-9_.-]{0,63}:backup/vzdump-lxc-([0-9]{3,9})-[0-9_-]+\.tar(\.(zst|gz|lzo))?$`)
+	containerBackup  = regexp.MustCompile(`^[A-Za-z][A-Za-z0-9_.-]{0,63}:backup/vzdump-lxc-([0-9]{3,9})-[0-9_-]+\.tar(\.(zst|gz|lzo))?$`)
+	checkPassthrough = regexp.MustCompile(`^(mp|net|dev)[0-9]+$`)
 )
 
 // The containers of a restore check get an ID from this range, which Iglo-OS
@@ -198,11 +199,26 @@ func (r *Restorer) check(ctx context.Context, request RestoreRequest) (message s
 		return "", err
 	}
 	var remove []string
+	unprivileged := false
 	for line := range strings.Lines(config) {
-		key, _, _ := strings.Cut(line, ":")
-		if regexp.MustCompile(`^(mp|net)[0-9]+$`).MatchString(key) {
+		key, value, _ := strings.Cut(line, ":")
+		key, value = strings.TrimSpace(key), strings.TrimSpace(value)
+		if key == "unprivileged" && value == "1" {
+			unprivileged = true
+		}
+		// Raw LXC options can mount host paths or weaken isolation. Refuse
+		// them instead of trying to interpret an unrestricted LXC config.
+		if strings.HasPrefix(key, "lxc.") {
+			return "", fmt.Errorf("restore checks do not start containers with custom LXC settings (%s)", key)
+		}
+		// devN and hookscript are deletable options in pve-container
+		// 7d99e49, LXC/Config.pm, checked on 28 October 2026.
+		if checkPassthrough.MatchString(key) || key == "hookscript" {
 			remove = append(remove, key)
 		}
+	}
+	if !unprivileged {
+		return "", fmt.Errorf("restore checks do not start privileged containers")
 	}
 	args := []string{"set", id, "--onboot", "0", "--tags", "iglo-check", "--hostname", "restore-check"}
 	if len(remove) > 0 {

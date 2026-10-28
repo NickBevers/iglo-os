@@ -12,7 +12,7 @@ import (
 )
 
 const (
-	// checkEvery is how often a restore check runs, on the next container each time.
+	// checkEvery is the maximum age of each guest's successful restore check.
 	checkEvery = 30 * 24 * time.Hour
 	// checkHour is when, after the nightly backups at 03:00 and the weekly
 	// updates at 04:00.
@@ -78,19 +78,26 @@ func (s *Service) Check(ctx context.Context, volid string) error {
 
 		s.mu.Lock()
 		s.state.LastCheck, s.state.LastCheckVMID = s.Now(), guest.VMID
+		if err == nil {
+			s.state.Checked[guest.VMID] = s.Now()
+		}
 		s.mu.Unlock()
 
 		return s.finish(run, err, "the backup of "+formatBackupTime(backup.CTime)+" restores and starts")
 	})
 }
 
-// monthlyCheck checks the newest backup of the next container, once a month
-// at night, unless something else runs or a game is on.
+// monthlyCheck checks one overdue container per night. Each container is
+// due monthly, so more containers do not make the interval grow by months.
 func (s *Service) monthlyCheck(ctx context.Context) {
 	now := s.Now()
 	s.mu.Lock()
-	due := now.Hour() == checkHour && now.Sub(s.state.LastCheck) >= checkEvery && s.busy == ""
+	due := now.Hour() == checkHour && now.Sub(s.state.LastCheck) >= 24*time.Hour && s.busy == ""
 	after := s.state.LastCheckVMID
+	checked := make(map[int]time.Time, len(s.state.Checked))
+	for id, at := range s.state.Checked {
+		checked[id] = at
+	}
 	s.mu.Unlock()
 	if !due || (s.Hold != nil && s.Hold()) {
 		return
@@ -101,7 +108,7 @@ func (s *Service) monthlyCheck(ctx context.Context) {
 		s.Logger.Warn("could not choose a backup to check", "error", err)
 		return
 	}
-	volid := nextCheck(view.Guests, after)
+	volid := nextCheck(view.Guests, after, checked, now)
 	if volid == "" {
 		return
 	}
@@ -112,10 +119,10 @@ func (s *Service) monthlyCheck(ctx context.Context) {
 
 // nextCheck is the newest backup of the first container after the one that
 // was checked last, round the list.
-func nextCheck(guests []GuestView, after int) string {
+func nextCheck(guests []GuestView, after int, checked map[int]time.Time, now time.Time) string {
 	var candidates []GuestView
 	for _, guest := range guests {
-		if guest.Type == "lxc" && len(guest.Backups) > 0 {
+		if guest.Type == "lxc" && len(guest.Backups) > 0 && now.Sub(checked[guest.VMID]) >= checkEvery {
 			candidates = append(candidates, guest)
 		}
 	}
@@ -149,7 +156,7 @@ func (s *Service) checkView() CheckView {
 			break
 		}
 	}
-	next := s.state.LastCheck.Add(checkEvery)
+	next := s.state.LastCheck.Add(24 * time.Hour)
 	if next.Before(s.Now()) {
 		next = s.Now()
 	}

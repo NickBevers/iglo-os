@@ -36,6 +36,9 @@ jobs:
       - name: Test
         run: make test
 
+      - name: Race checks
+        run: go test -race ./internal/... ./cmd/...
+
       # The installers only run on a Proxmox host, so this is where their
       # mistakes show up before then.
       - name: ShellCheck

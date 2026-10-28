@@ -216,14 +216,20 @@ func (s *Service) updateGuest(ctx context.Context, vmid int, scheduled bool) Run
 		return s.finishRun(run, RunFailed, "The container is not running.", "")
 	}
 
-	supported, err := s.Proxmox.SnapshotSupported(ctx, resource.Node, vmid)
-	if err != nil {
-		return s.finishRun(run, RunFailed, "Could not check snapshot support: "+err.Error(), "")
-	}
-	if supported {
-		run.Snapshot = snapshotPrefix + s.Now().Format("20060102_150405")
-		if err := s.Proxmox.CreateSnapshot(ctx, resource.Node, vmid, run.Snapshot, "Before update by iglo"); err != nil {
-			return s.finishRun(run, RunFailed, "Could not create a snapshot, so nothing was updated: "+err.Error(), "")
+	// Scoped apps publish to the NAS. Their database or queue must never be
+	// rewound without those files, including through the general Updates page.
+	tags := strings.Split(resource.Tags, ";")
+	scoped := slices.Contains(tags, "iglo") && slices.ContainsFunc(tags, agent.ScopedApp)
+	if !scoped {
+		supported, err := s.Proxmox.SnapshotSupported(ctx, resource.Node, vmid)
+		if err != nil {
+			return s.finishRun(run, RunFailed, "Could not check snapshot support: "+err.Error(), "")
+		}
+		if supported {
+			run.Snapshot = snapshotPrefix + s.Now().Format("20060102_150405")
+			if err := s.Proxmox.CreateSnapshot(ctx, resource.Node, vmid, run.Snapshot, "Before update by iglo"); err != nil {
+				return s.finishRun(run, RunFailed, "Could not create a snapshot, so nothing was updated: "+err.Error(), "")
+			}
 		}
 	}
 
@@ -238,6 +244,8 @@ func (s *Service) updateGuest(ctx context.Context, vmid int, scheduled bool) Run
 
 	if failure != "" {
 		switch {
+		case scoped:
+			return s.finishRun(run, RunFailed, "The update failed. Automatic disk rollback is disabled because NAS data is outside the guest. Inspect the operation and application backup before recovering.", logOrError(job, failure))
 		case run.Snapshot == "":
 			return s.finishRun(run, RunFailed, "The update failed. There is no snapshot, because the storage does not support it.", logOrError(job, failure))
 		case vmid == s.SelfVMID:
