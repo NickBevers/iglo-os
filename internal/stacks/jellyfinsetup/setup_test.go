@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"os"
+	"reflect"
 	"slices"
 	"strings"
 	"sync"
@@ -24,6 +25,8 @@ type fakeJellyfin struct {
 	calls     []string
 	libraries []map[string]any
 	encoding  map[string]any
+	config    map[string]any
+	triggers  map[string][]map[string]any
 	keys      []string
 	css       string
 }
@@ -38,8 +41,9 @@ func (f *fakeJellyfin) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		call = r.Method + " /System/Configuration/branding"
 	}
 	f.calls = append(f.calls, call)
+	raw, _ := io.ReadAll(r.Body)
 	var body map[string]any
-	json.NewDecoder(r.Body).Decode(&body)
+	json.Unmarshal(raw, &body)
 
 	authorized := strings.Contains(r.Header.Get("Authorization"), `Token="user-token"`) ||
 		strings.Contains(r.Header.Get("Authorization"), `Token="api-key"`)
@@ -66,8 +70,27 @@ func (f *fakeJellyfin) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	case "GET /Library/VirtualFolders":
 		json.NewEncoder(w).Encode(f.libraries)
 	case "POST /Library/VirtualFolders":
-		path := body["LibraryOptions"].(map[string]any)["PathInfos"].([]any)[0].(map[string]any)["Path"]
-		f.libraries = append(f.libraries, map[string]any{"Name": r.URL.Query().Get("name"), "CollectionType": r.URL.Query().Get("collectionType"), "Locations": []any{path}})
+		options := body["LibraryOptions"].(map[string]any)
+		path := options["PathInfos"].([]any)[0].(map[string]any)["Path"]
+		f.libraries = append(f.libraries, map[string]any{"Name": r.URL.Query().Get("name"), "CollectionType": r.URL.Query().Get("collectionType"), "Locations": []any{path}, "LibraryOptions": options})
+	case "GET /ScheduledTasks":
+		// Some of the tasks of Jellyfin v12.4, with made-up IDs.
+		w.Write([]byte(`[{"Id":"a1","Key":"RefreshChapterImages"},{"Id":"b2","Key":"RefreshLibrary"},{"Id":"c3","Key":"RefreshTrickplayImages"}]`))
+	case "POST /ScheduledTasks/a1/Triggers", "POST /ScheduledTasks/c3/Triggers":
+		var triggers []map[string]any
+		json.Unmarshal(raw, &triggers)
+		if f.triggers == nil {
+			f.triggers = map[string][]map[string]any{}
+		}
+		f.triggers[strings.Split(r.URL.Path, "/")[2]] = triggers
+		w.WriteHeader(http.StatusNoContent)
+	case "GET /System/Configuration":
+		if f.config == nil {
+			f.config = map[string]any{"ServerName": "media", "TrickplayOptions": map[string]any{"Interval": 10000, "ProcessThreads": 1}}
+		}
+		json.NewEncoder(w).Encode(f.config)
+	case "POST /System/Configuration":
+		f.config = body
 	case "GET /System/Configuration/encoding":
 		json.NewEncoder(w).Encode(f.encoding)
 	case "POST /System/Configuration/encoding":
@@ -219,6 +242,36 @@ func TestSetupWaitsWhileJellyfinRestarts(t *testing.T) {
 	_, err := Setup(context.Background(), config)
 	if !errors.Is(err, syscall.ECONNREFUSED) {
 		t.Fatalf("got %v, want connection refused", err)
+	}
+}
+
+func TestImagesAreMadeAtNight(t *testing.T) {
+	for _, useGPU := range []bool{true, false} {
+		fake := &fakeJellyfin{encoding: map[string]any{"HardwareAccelerationType": "none"}}
+		server := httptest.NewServer(fake)
+		cfg := testConfig(server.URL)
+		cfg.GPU = useGPU
+		cfg.VAInfo = "vainfo: Driver version: Intel iHD driver\n      VAProfileJPEGBaseline : VAEntrypointEncPicture\n"
+		if _, err := Setup(context.Background(), cfg); err != nil {
+			t.Fatal(err)
+		}
+		server.Close()
+
+		// 01:00 for two hours, in ticks of 100 nanoseconds.
+		want := []map[string]any{{"Type": "DailyTrigger", "TimeOfDayTicks": float64(36_000_000_000), "MaxRuntimeTicks": float64(72_000_000_000)}}
+		if len(fake.triggers) != 2 || !reflect.DeepEqual(fake.triggers["a1"], want) || !reflect.DeepEqual(fake.triggers["c3"], want) {
+			t.Fatalf("triggers = %v", fake.triggers)
+		}
+		trickplay := fake.config["TrickplayOptions"].(map[string]any)
+		if trickplay["EnableKeyFrameOnlyExtraction"] != true || trickplay["EnableHwAcceleration"] != useGPU ||
+			trickplay["EnableHwEncoding"] != useGPU || trickplay["Interval"] != float64(10000) || fake.config["ServerName"] != "media" {
+			t.Fatalf("gpu %v: config = %v", useGPU, fake.config)
+		}
+		options := fake.libraries[0]["LibraryOptions"].(map[string]any)
+		if options["EnableTrickplayImageExtraction"] != true || options["ExtractTrickplayImagesDuringLibraryScan"] != false ||
+			options["EnableChapterImageExtraction"] != true || options["ExtractChapterImagesDuringLibraryScan"] != false {
+			t.Fatalf("library options = %v", options)
+		}
 	}
 }
 
