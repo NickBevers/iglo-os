@@ -202,6 +202,12 @@
       "configured": false,
       "chatId": ""
     },
+    "ntfy": {
+      "configured": true,
+      "server": "https://ntfy.sh",
+      "topic": "iglo-q8m2xv7kd0p4w1n9tz3c",
+      "hasToken": false
+    },
     "host": {
       "name": "",
       "packages": [],

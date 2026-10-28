@@ -299,6 +299,7 @@ export type Updates = {
     schedule: Schedule
     nextRun: string | null
     telegram: { configured: boolean; chatId: string }
+    ntfy: { configured: boolean; server: string; topic: string; hasToken: boolean }
     host: UpdateTarget
     guests: GuestUpdates[]
     history: UpdateRun[]
@@ -338,6 +339,8 @@ export type UpdateSettings = {
     schedule: Schedule
     excluded: number[]
     telegram: { botToken: string; chatId: string }
+    // An empty token keeps the saved one while the server stays the same.
+    ntfy: { server: string; topic: string; token: string }
 }
 
 export type CheckKind = 'http' | 'tcp'

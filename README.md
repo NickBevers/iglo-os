@@ -77,7 +77,7 @@ for tests, a real Proxmox and releases.
 - [Guided setup](docs/setup.md)
 - [How it works](docs/architecture.md)
 - [How Iglo-OS stays light: CPU, memory, GPU and live updates](docs/performance.md)
-- [Updates and Telegram](docs/updates.md)
+- [Updates and notifications](docs/updates.md)
 - [Health and alerts](docs/health.md)
 - [Backups and restoring the manager](docs/backups.md)
 - [Background work and resource protection](docs/background-work.md)

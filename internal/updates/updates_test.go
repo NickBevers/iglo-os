@@ -178,7 +178,7 @@ func newTestService(t *testing.T) (*Service, *fakeProxmox, *fakeAgent, *recordin
 		Agent:       fakeAgent,
 		SelfVMID:    100,
 		Logger:      slog.New(slog.NewTextHandler(io.Discard, nil)),
-		NewNotifier: func(TelegramSettings) Notifier { return notifier },
+		NewNotifier: func(Settings) Notifier { return notifier },
 		Now:         func() time.Time { return time.Date(2026, 10, 4, 4, 0, 30, 0, time.UTC) },
 	})
 	if err != nil {
@@ -276,6 +276,57 @@ func TestScheduledRunUpdatesContainersButOnlyChecksHost(t *testing.T) {
 		if !strings.Contains(message, want) {
 			t.Errorf("summary misses %q:\n%s", want, message)
 		}
+	}
+}
+
+func TestNtfySettings(t *testing.T) {
+	service, _, _, _ := newTestService(t)
+	token := "tk_AgQdq7mVBoFD37zQVN29RhuMzNIz2"
+	save := func(ntfy NtfySettings) error {
+		return service.SaveSettings(SettingsInput{Schedule: defaultSettings.Schedule, Ntfy: ntfy})
+	}
+
+	// No server is ntfy.sh, and the token stays while the server does.
+	if err := save(NtfySettings{Topic: "iglo-k3v9", Token: token}); err != nil {
+		t.Fatal(err)
+	}
+	if err := save(NtfySettings{Server: "https://ntfy.sh/", Topic: "iglo-other"}); err != nil {
+		t.Fatal(err)
+	}
+	if got := service.state.Settings.Ntfy; got != (NtfySettings{Server: "https://ntfy.sh", Topic: "iglo-other", Token: token}) {
+		t.Fatalf("ntfy = %+v", got)
+	}
+	// Another server doesn't get the token.
+	if err := save(NtfySettings{Server: "http://192.168.1.2:8090", Topic: "iglo-other"}); err != nil {
+		t.Fatal(err)
+	}
+	if service.state.Settings.Ntfy.Token != "" {
+		t.Fatal("the token went to another server")
+	}
+	view, err := service.Status(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if view.Ntfy != (NtfyView{Configured: true, Server: "http://192.168.1.2:8090", Topic: "iglo-other"}) {
+		t.Fatalf("view = %+v", view.Ntfy)
+	}
+
+	for name, ntfy := range map[string]NtfySettings{
+		"a slash in the topic": {Topic: "a/b"},
+		"a long topic":         {Topic: strings.Repeat("a", 65)},
+		"a bad token":          {Topic: "iglo", Token: "secret"},
+		"no scheme":            {Server: "ntfy.sh", Topic: "iglo"},
+		"a login in the URL":   {Server: "https://user:pass@ntfy.sh", Topic: "iglo"},
+		"a query":              {Server: "https://ntfy.sh/?x=1", Topic: "iglo"},
+	} {
+		if err := save(ntfy); !errors.Is(err, ErrInvalidSettings) {
+			t.Errorf("%s: %v", name, err)
+		}
+	}
+
+	// No topic turns it off.
+	if err := save(NtfySettings{Server: "https://ntfy.sh"}); err != nil || service.state.Settings.Ntfy != (NtfySettings{}) {
+		t.Fatalf("err = %v, ntfy = %+v", err, service.state.Settings.Ntfy)
 	}
 }
 

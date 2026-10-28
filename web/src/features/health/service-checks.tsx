@@ -175,7 +175,7 @@ function CheckForm({ check, onDone }: { check: ServiceCheck | null; onDone: () =
             <DialogHeader>
                 <DialogTitle>{check ? `Edit ${check.name}` : 'Add service'}</DialogTitle>
                 <DialogDescription>
-                    Iglo-OS checks it every minute, and sends a Telegram alert after two failed checks in a row.
+                    Iglo-OS checks it every minute, and sends an alert after two failed checks in a row.
                 </DialogDescription>
             </DialogHeader>
 

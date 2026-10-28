@@ -11,6 +11,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"net/url"
 	"path/filepath"
 	"regexp"
 	"slices"
@@ -59,8 +60,8 @@ type Options struct {
 	// failed manual update does not roll it back, because that would stop us mid-run.
 	SelfVMID int
 	Logger   *slog.Logger
-	// NewNotifier builds the notifier from the saved Telegram settings. Tests replace it.
-	NewNotifier func(TelegramSettings) Notifier
+	// NewNotifier builds the notifier from the saved Telegram and ntfy settings. Tests replace it.
+	NewNotifier func(Settings) Notifier
 	Now         func() time.Time
 }
 
@@ -75,8 +76,11 @@ type Service struct {
 
 func New(options Options) (*Service, error) {
 	if options.NewNotifier == nil {
-		options.NewNotifier = func(settings TelegramSettings) Notifier {
-			return notify.Telegram{BotToken: settings.BotToken, ChatID: settings.ChatID}
+		options.NewNotifier = func(settings Settings) Notifier {
+			return notify.All{
+				notify.Telegram{BotToken: settings.Telegram.BotToken, ChatID: settings.Telegram.ChatID},
+				notify.Ntfy{Server: settings.Ntfy.Server, Topic: settings.Ntfy.Topic, Token: settings.Ntfy.Token},
+			}
 		}
 	}
 	if options.Now == nil {
@@ -377,10 +381,11 @@ func (s *Service) finishRun(run Run, status RunStatus, message, log string) Run 
 	return run
 }
 
-// Notify sends a message with the saved Telegram settings. Other services use it for alerts.
+// Notify sends a message to Telegram and ntfy, as far as they are set up.
+// Other services use it for alerts.
 func (s *Service) Notify(ctx context.Context, text string) {
 	s.mu.Lock()
-	notifier := s.NewNotifier(s.state.Settings.Telegram)
+	notifier := s.NewNotifier(s.state.Settings)
 	s.mu.Unlock()
 
 	if err := notifier.Send(ctx, text); err != nil {
@@ -397,13 +402,21 @@ func runMessage(run Run) string {
 var (
 	botTokenPattern = regexp.MustCompile(`^\d+:[A-Za-z0-9_-]{20,}$`)
 	chatIDPattern   = regexp.MustCompile(`^(-?\d+|@[A-Za-z0-9_]{5,})$`)
+	// The topic and token rules of ntfy v2.34.0 (server/server.go, user/manager.go).
+	ntfyTopicPattern = regexp.MustCompile(`^[-_A-Za-z0-9]{1,64}$`)
+	ntfyTokenPattern = regexp.MustCompile(`^tk_[A-Za-z0-9]{29}$`)
 )
 
-// SettingsInput is what the dashboard sends. An empty bot token keeps the saved one.
+// DefaultNtfyServer is the public server of the ntfy project.
+const DefaultNtfyServer = "https://ntfy.sh"
+
+// SettingsInput is what the dashboard sends. An empty bot token keeps the
+// saved one, and so does an empty ntfy token while the server stays the same.
 type SettingsInput struct {
 	Schedule Schedule         `json:"schedule"`
 	Excluded []int            `json:"excluded"`
 	Telegram TelegramSettings `json:"telegram"`
+	Ntfy     NtfySettings     `json:"ntfy"`
 }
 
 func (s *Service) SaveSettings(input SettingsInput) error {
@@ -427,14 +440,61 @@ func (s *Service) SaveSettings(input SettingsInput) error {
 		return fmt.Errorf("%w: the Telegram bot token or chat ID has the wrong format", ErrInvalidSettings)
 	}
 
+	ntfy, err := s.ntfySettings(input.Ntfy)
+	if err != nil {
+		return err
+	}
+
 	excluded := input.Excluded
 	if excluded == nil {
 		excluded = []int{}
 	}
 
-	s.state.Settings = Settings{Schedule: schedule, Excluded: excluded, Telegram: telegram}
+	s.state.Settings = Settings{Schedule: schedule, Excluded: excluded, Telegram: telegram, Ntfy: ntfy}
 
 	return s.state.save(s.path)
+}
+
+// ntfySettings checks the ntfy part of the input. It needs s.mu.
+func (s *Service) ntfySettings(ntfy NtfySettings) (NtfySettings, error) {
+	// No topic turns ntfy off.
+	if ntfy.Topic == "" {
+		return NtfySettings{}, nil
+	}
+	server, err := NormalizeNtfyServer(ntfy.Server)
+	if err != nil {
+		return NtfySettings{}, err
+	}
+	ntfy.Server = server
+	// A token belongs to one server.
+	if saved := s.state.Settings.Ntfy; ntfy.Token == "" && saved.Server == ntfy.Server {
+		ntfy.Token = saved.Token
+	}
+	if !ntfyTopicPattern.MatchString(ntfy.Topic) {
+		return NtfySettings{}, fmt.Errorf("%w: an ntfy topic has 1 to 64 letters, digits, - and _", ErrInvalidSettings)
+	}
+	if ntfy.Token != "" && !ntfyTokenPattern.MatchString(ntfy.Token) {
+		return NtfySettings{}, fmt.Errorf("%w: an ntfy access token starts with tk_ and has 32 characters", ErrInvalidSettings)
+	}
+	return ntfy, nil
+}
+
+// NormalizeNtfyServer checks an ntfy server address and drops the slash at
+// the end. Empty is ntfy.sh.
+func NormalizeNtfyServer(server string) (string, error) {
+	if server == "" {
+		return DefaultNtfyServer, nil
+	}
+	parsed, err := url.Parse(server)
+	if err != nil || (parsed.Scheme != "https" && parsed.Scheme != "http") || parsed.Host == "" ||
+		parsed.User != nil || parsed.RawQuery != "" || parsed.Fragment != "" || len(server) > 200 {
+		return "", fmt.Errorf("%w: the ntfy server must be an address like https://ntfy.sh", ErrInvalidSettings)
+	}
+	return strings.TrimRight(parsed.String(), "/"), nil
+}
+
+func ValidNtfyTopic(topic string) bool {
+	return ntfyTopicPattern.MatchString(topic)
 }
 
 func (s Schedule) Validate() error {
@@ -462,11 +522,11 @@ func (s *Service) Settings() Settings {
 
 func (s *Service) SendTestNotification(ctx context.Context) error {
 	s.mu.Lock()
-	settings := s.state.Settings.Telegram
+	settings := s.state.Settings
 	s.mu.Unlock()
 
-	if settings.ChatID == "" {
-		return fmt.Errorf("%w: Telegram is not set up", ErrInvalidSettings)
+	if settings.Telegram.ChatID == "" && settings.Ntfy.Topic == "" {
+		return fmt.Errorf("%w: Telegram and ntfy are not set up", ErrInvalidSettings)
 	}
 
 	return s.NewNotifier(settings).Send(ctx, "👋 Test message from your iglo.")

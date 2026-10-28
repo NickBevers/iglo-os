@@ -20,7 +20,7 @@ import { DataBackupCard } from './data-backup-card'
 
 const sectionTitles: Record<SettingsChange['section'], string> = {
     selfUpdate: 'Iglo-OS updates',
-    notifications: 'Telegram',
+    notifications: 'Telegram and ntfy',
     updates: 'Update schedule',
     health: 'Health checks',
     backups: 'Backup job',

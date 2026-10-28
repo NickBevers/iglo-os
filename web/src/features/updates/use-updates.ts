@@ -40,6 +40,7 @@ export function settingsFrom(updates: Updates, changes: Partial<UpdateSettings> 
         schedule: updates.schedule,
         excluded: updates.guests.filter((guest) => !guest.autoUpdate && !guest.self).map((guest) => guest.vmid),
         telegram: { botToken: '', chatId: updates.telegram.chatId },
+        ntfy: { server: updates.ntfy.server, topic: updates.ntfy.topic, token: '' },
         ...changes,
     }
 }

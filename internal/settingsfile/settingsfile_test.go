@@ -257,7 +257,7 @@ func TestImportApplies(t *testing.T) {
 
 	result, err := service.Import(context.Background(), []byte(`
 version: 1
-notifications: {telegram: {chatId: "-1001"}}
+notifications: {telegram: {chatId: "-1001"}, ntfy: {topic: iglo-k3v9}}
 updates: {enabled: false, day: mon, time: "5:30", exclude: [110, 105, 110]}
 backups:
   enabled: true
@@ -294,6 +294,9 @@ selfUpdate: {repo: someone/fork, autoInstall: true}
 	// An empty token keeps the saved one.
 	if saved.Telegram != (updates.TelegramSettings{ChatID: "-1001"}) {
 		t.Fatalf("telegram = %+v", saved.Telegram)
+	}
+	if saved.Ntfy != (updates.NtfySettings{Server: "https://ntfy.sh", Topic: "iglo-k3v9"}) {
+		t.Fatalf("ntfy = %+v", saved.Ntfy)
 	}
 
 	job := f.backups.saved[0]
@@ -441,5 +444,41 @@ backgroundWork:
 	result, _ = service.Import(context.Background(), file(false, "http://192.168.1.30:2283"), true)
 	if statuses(result)["backgroundWork"] != StatusApplied || len(f.workloads.saved) != 1 {
 		t.Fatalf("result = %+v", result)
+	}
+}
+
+func TestImportKeepsNtfy(t *testing.T) {
+	service, f := newService()
+	f.updates.settings.Ntfy = updates.NtfySettings{Server: "https://ntfy.example.org", Topic: "alerts", Token: "tk_AgQdq7mVBoFD37zQVN29RhuMzNIz2"}
+
+	// The token is never in the file.
+	exported, err := service.Export(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(exported), "topic: alerts") || strings.Contains(string(exported), "tk_") {
+		t.Fatalf("exported:\n%s", exported)
+	}
+
+	// A file without ntfy keeps it, and so does a file with the same ntfy.
+	for _, notifications := range []string{
+		`{telegram: {chatId: "42"}}`,
+		`{telegram: {chatId: "42"}, ntfy: {server: "https://ntfy.example.org/", topic: alerts}}`,
+	} {
+		result, err := service.Import(context.Background(), []byte("version: 1\nnotifications: "+notifications), true)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if status := statuses(result)["notifications"]; status != StatusUnchanged {
+			t.Fatalf("%s: %s", notifications, status)
+		}
+	}
+
+	// An empty topic turns it off.
+	if _, err := service.Import(context.Background(), []byte("version: 1\nnotifications: {telegram: {chatId: \"42\"}, ntfy: {topic: \"\"}}"), true); err != nil {
+		t.Fatal(err)
+	}
+	if len(f.updates.saved) != 1 || f.updates.saved[0].Ntfy != (updates.NtfySettings{}) {
+		t.Fatalf("saved = %+v", f.updates.saved)
 	}
 }

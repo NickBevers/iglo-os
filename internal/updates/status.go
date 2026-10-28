@@ -21,12 +21,21 @@ type TelegramView struct {
 	ChatID     string `json:"chatId"`
 }
 
+// NtfyView never has the token, only whether there is one.
+type NtfyView struct {
+	Configured bool   `json:"configured"`
+	Server     string `json:"server"`
+	Topic      string `json:"topic"`
+	HasToken   bool   `json:"hasToken"`
+}
+
 type View struct {
 	// Busy describes the running operation. Empty means idle.
 	Busy     string       `json:"busy"`
 	Schedule Schedule     `json:"schedule"`
 	NextRun  *time.Time   `json:"nextRun"`
 	Telegram TelegramView `json:"telegram"`
+	Ntfy     NtfyView     `json:"ntfy"`
 	Host     Target       `json:"host"`
 	Guests   []GuestView  `json:"guests"`
 	// History has no logs, to keep polling light. Use Run for the log.
@@ -47,6 +56,7 @@ func (s *Service) Status(ctx context.Context) (View, error) {
 		Busy:     s.busy,
 		Schedule: settings.Schedule,
 		Telegram: TelegramView{Configured: settings.Telegram.ChatID != "", ChatID: settings.Telegram.ChatID},
+		Ntfy:     NtfyView{Configured: settings.Ntfy.Topic != "", Server: settings.Ntfy.Server, Topic: settings.Ntfy.Topic, HasToken: settings.Ntfy.Token != ""},
 		Host:     s.state.Host.withLists(),
 		Guests:   []GuestView{},
 		History:  make([]Run, 0, len(s.state.History)),
