@@ -1,6 +1,6 @@
 # Background work
 
-The Background work page controls optional Immich queues through its queue API and admission leases for the Music/Inbox workers. It keeps the API server and database running while deferring new analysis and video-conversion jobs. Connect an existing compatible Immich server or install [Photos](photos.md) from Apps. The independent Music/Inbox setting needs no Immich key; see [worker setup](workers.md) for FileFlows' required native pre-execute script.
+The Background work page controls optional Immich queues through its queue API and admission leases for the Music/Inbox workers. It keeps the API server and database running while deferring new analysis and video-conversion jobs. Connect an existing compatible Immich server or install [Photos](photos.md) from Apps. The independent Music/Inbox setting needs no Immich key; see [worker setup](workers.md) for native controls and the legacy FileFlows pre-execute script.
 
 ## Connect and enable
 
@@ -42,7 +42,7 @@ The encrypted manager data backup includes this file. The `iglo.yaml` [settings 
 | --- | --- | --- |
 | Immich analysis and video conversion | Selected queue admission, low concurrency, processing windows; test Intel OpenVINO/Quick Sync where supported | Queue admission implemented here. With a host GPU, machine learning uses OpenVINO; Quick Sync for video is one switch in Immich. |
 | Jellyfin playback | Prefer direct play; Intel Quick Sync for required transcodes | Existing Jellyfin integration; this controller does not change playback settings. |
-| FileFlows | One conversion runner initially, native processing schedules and a short admission lease | Install Inbox, configure the supplied native pre-execute script. With a host GPU, the container gets its render node; choose the hardware encoder in the flow. Licensed API automation is not configured. |
+| Inbox | One native FFmpeg worker, manual pause and a short admission lease | Review the profile and resume in Inbox work. Legacy FileFlows needs its pre-execute script until explicitly migrated. |
 | Emulation and streaming | Test native graphics backend, resolution and hardware stream encoding; defer background work | Timed protection from Play, and a hold while Wolf reports a Moonlight session; no GPU reservation. |
 | Music imports | One native worker, local staging, short admission lease and manual pause | Music installer and Music work page; independent worker control follows gaming/window/headroom policy. |
 | Backups | Separate ordinary backups from expensive verification/pruning and conversion windows | Existing backup scheduler; this controller does not pause backups. |

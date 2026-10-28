@@ -13,7 +13,7 @@ var ErrNoStats = errors.New("this app can't report its stats yet")
 
 // AppStats is what an app holds and does right now, for the dashboard. Each
 // app fills it in its own way: the music app from its downloads, the photo
-// app from Immich, the inbox from FileFlows.
+// app from Immich, the Inbox from its native queue.
 type AppStats struct {
 	// Sample marks synthetic statistics from the local mock and recorded demo.
 	Sample   bool       `json:"sample,omitempty"`

@@ -707,15 +707,9 @@
       {
         "id": "inbox",
         "name": "Inbox",
-        "description": "FileFlows processes your own videos into the Home videos output library. Configure its flow and schedule after installation; sources stay read only.",
+        "description": "FFmpeg processes your own videos into Home videos. Originals stay read only.",
         "planned": false,
-        "links": [
-          {
-            "name": "FileFlows",
-            "description": "Converter",
-            "url": "http://192.168.1.200:19200"
-          }
-        ],
+        "links": [],
         "installed": true,
         "managed": true,
         "version": "v0.7.1",
@@ -890,7 +884,7 @@
       {
         "id": "inbox",
         "name": "Inbox",
-        "description": "FileFlows processes your own videos into the Home videos output library. Configure its flow and schedule after installation; sources stay read only.",
+        "description": "FFmpeg processes your own videos into Home videos. Originals stay read only.",
         "installed": true,
         "shares": [
           "inbox",
@@ -8871,6 +8865,25 @@
       "INFO: Starting Backup of VM 101 (lxc)",
       "ERROR: Backup of VM 101 failed - no space left on device",
       "INFO: Backup job finished with errors"
+    ]
+  },
+  "/inbox": {
+    "backend": "native",
+    "storageReady": true,
+    "paused": true,
+    "admitted": true,
+    "profile": "preserve",
+    "gpu": true,
+    "sample": true,
+    "jobs": [
+      {
+        "id": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "path": "family/holiday.mov",
+        "profile": "preserve",
+        "state": "succeeded",
+        "file": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.mov",
+        "createdAt": "2026-10-28T10:00:00Z"
+      }
     ]
   }
 }

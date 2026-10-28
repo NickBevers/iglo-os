@@ -197,6 +197,7 @@ func serve() error {
 	// A Moonlight session holds heavy background work, also without Play.
 	go appsService.WatchGaming(ctx, workloadService.HoldWhilePlaying)
 	go appsService.WatchMusic(ctx)
+	go appsService.WatchInbox(ctx)
 	go jellyfinService.Watch(ctx, func() { hub.Publish(events.Jellyfin) })
 	go followAgent(ctx, agentClient, hub, appsService)
 	setupService := setup.New(setup.Options{

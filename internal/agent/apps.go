@@ -42,6 +42,7 @@ const (
 	ActionVPN     AppAction = "vpn"
 	ActionBackup  AppAction = "backup"
 	ActionVerify  AppAction = "verify"
+	ActionMigrate AppAction = "migrate"
 )
 
 // name is the action in a message, like "the removal stopped".
@@ -362,7 +363,8 @@ type AppInstaller struct {
 	// (deploy/secrets.sh). Empty is /etc/iglo/credentials.
 	CredentialsDir string
 
-	mu sync.Mutex
+	mu            sync.Mutex
+	configCleared time.Time
 }
 
 func NewAppInstaller() *AppInstaller {
@@ -509,7 +511,7 @@ func (i *AppInstaller) Remove(app string, vmid int) error {
 }
 
 func (i *AppInstaller) Recover(app string, vmid int, action AppAction) error {
-	if app != PhotosApp || (action != ActionBackup && action != ActionVerify) {
+	if !(app == PhotosApp && (action == ActionBackup || action == ActionVerify)) && !(app == InboxApp && action == ActionMigrate) {
 		return ErrUnknownApp
 	}
 	return i.runOnContainer(app, action, vmid)
@@ -611,6 +613,14 @@ func (i *AppInstaller) Status() AppInstallStatus {
 	defer i.mu.Unlock()
 
 	var status AppInstallStatus
+	defer func() {
+		if (status.State == UpgradeSucceeded || status.State == UpgradeFailed) && !status.StartedAt.Equal(i.configCleared) {
+			configs.Lock()
+			configs.entries = nil
+			configs.Unlock()
+			i.configCleared = status.StartedAt
+		}
+	}()
 	data, err := os.ReadFile(i.statusPath())
 	if err != nil || json.Unmarshal(data, &status) != nil {
 		return AppInstallStatus{State: UpgradeIdle}
