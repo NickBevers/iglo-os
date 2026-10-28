@@ -221,3 +221,28 @@ func TestRestoreCheckIsolation(t *testing.T) {
 		t.Fatal(host.calls)
 	}
 }
+
+func TestRestoreCheckNeverDeletesConcurrentGuest(t *testing.T) {
+	restorer, host := newTestRestorer(t)
+	restorer.run = func(ctx context.Context, name string, args ...string) ([]byte, error) {
+		if name == "pct" && args[0] == "restore" {
+			path := filepath.Join(host.pveDir, "nodes", "pve", "lxc", args[1]+".conf")
+			os.MkdirAll(filepath.Dir(path), 0755)
+			os.WriteFile(path, []byte("hostname: unrelated\n"), 0600)
+			return nil, errors.New("ID already exists")
+		}
+		return host.run(ctx, name, args...)
+	}
+	restorer.Start(RestoreRequest{VMID: 130, Volid: testVolid, Storage: "local-lvm", Check: true})
+	if status := waitRestore(t, restorer); status.Succeeded {
+		t.Fatal(status)
+	}
+	if !restorer.exists(9901) {
+		t.Fatal("deleted another creator's guest")
+	}
+	for _, call := range host.calls {
+		if strings.HasPrefix(call, "pct stop") || strings.HasPrefix(call, "pct destroy") {
+			t.Fatal(call)
+		}
+	}
+}

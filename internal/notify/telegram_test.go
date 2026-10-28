@@ -97,3 +97,19 @@ func TestAllSendsToEverySender(t *testing.T) {
 		t.Fatal("nothing is set up")
 	}
 }
+
+func TestNtfyNeverFollowsCredentialRedirects(t *testing.T) {
+	redirected := false
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/topic" {
+			http.Redirect(w, r, "/elsewhere", http.StatusTemporaryRedirect)
+			return
+		}
+		redirected = true
+	}))
+	defer server.Close()
+	err := (Ntfy{Server: server.URL, Topic: "topic", Token: "secret"}).Send(context.Background(), "hello")
+	if err == nil || redirected {
+		t.Fatalf("redirect followed: %t, %v", redirected, err)
+	}
+}

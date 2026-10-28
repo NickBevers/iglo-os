@@ -21,6 +21,7 @@ import (
 	"time"
 
 	"iglo/internal/agent"
+	"iglo/internal/events"
 	"iglo/internal/notify"
 	"iglo/internal/proxmox"
 )
@@ -53,6 +54,7 @@ type Notifier interface {
 }
 
 type Options struct {
+	Changed func(string)
 	DataDir string
 	Proxmox Proxmox
 	Agent   Agent
@@ -69,12 +71,20 @@ type Service struct {
 	Options
 	path string
 
-	mu    sync.Mutex
-	state state
-	busy  string
+	mu             sync.Mutex
+	state          state
+	busy           string
+	outbox         *notify.Outbox
+	customNotifier bool
+	shown          string
+	notifyWake     chan struct{}
 }
 
 func New(options Options) (*Service, error) {
+	if options.Logger == nil {
+		options.Logger = slog.Default()
+	}
+	customNotifier := options.NewNotifier != nil
 	if options.NewNotifier == nil {
 		options.NewNotifier = func(settings Settings) Notifier {
 			return notify.All{
@@ -93,11 +103,16 @@ func New(options Options) (*Service, error) {
 		return nil, err
 	}
 
-	return &Service{Options: options, path: path, state: loaded}, nil
+	outbox, err := notify.NewOutbox(filepath.Join(options.DataDir, "notifications.json"))
+	if err != nil {
+		return nil, err
+	}
+	return &Service{Options: options, path: path, state: loaded, outbox: outbox, customNotifier: customNotifier, notifyWake: make(chan struct{}, 1)}, nil
 }
 
 // start runs an operation in the background, one at a time.
 func (s *Service) start(ctx context.Context, name string, operation func(context.Context)) error {
+	defer s.publishChanged()
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
@@ -107,6 +122,7 @@ func (s *Service) start(ctx context.Context, name string, operation func(context
 	s.busy = name
 
 	go func() {
+		defer s.publishChanged()
 		defer func() {
 			s.mu.Lock()
 			s.busy = ""
@@ -365,6 +381,7 @@ func (s *Service) newRun(kind RunKind, target string, vmid int, scheduled bool) 
 }
 
 func (s *Service) finishRun(run Run, status RunStatus, message, log string) Run {
+	defer s.publishChanged()
 	run.Status = status
 	run.Message = message
 	run.FinishedAt = s.Now()
@@ -389,15 +406,62 @@ func (s *Service) finishRun(run Run, status RunStatus, message, log string) Run 
 	return run
 }
 
-// Notify sends a message to Telegram and ntfy, as far as they are set up.
-// Other services use it for alerts.
+// Notify persists a short alert before delivery. Failed destinations retry
+// independently, including after a manager restart.
 func (s *Service) Notify(ctx context.Context, text string) {
-	s.mu.Lock()
-	notifier := s.NewNotifier(s.state.Settings)
-	s.mu.Unlock()
+	destinations := s.notificationDestinations()
+	if err := s.outbox.Enqueue(text, destinations, s.Now()); err != nil {
+		s.Logger.Error("could not queue notification", "error", err)
+		return
+	}
+	select {
+	case s.notifyWake <- struct{}{}:
+	default:
+	}
+}
 
-	if err := notifier.Send(ctx, text); err != nil {
-		s.Logger.Warn("could not send notification", "error", err)
+func (s *Service) notificationDestinations() []notify.Destination {
+	s.mu.Lock()
+	settings := s.state.Settings
+	s.mu.Unlock()
+	if s.customNotifier {
+		return []notify.Destination{{ID: "custom", Send: s.NewNotifier(settings).Send}}
+	}
+	var targets []notify.Destination
+	telegram := notify.Telegram{BotToken: settings.Telegram.BotToken, ChatID: settings.Telegram.ChatID}
+	if telegram.Configured() {
+		targets = append(targets, notify.Destination{ID: notify.DestinationID("telegram", telegram.ChatID), Send: telegram.Send})
+	}
+	ntfy := notify.Ntfy{Server: settings.Ntfy.Server, Topic: settings.Ntfy.Topic, Token: settings.Ntfy.Token}
+	if ntfy.Configured() {
+		targets = append(targets, notify.Destination{ID: notify.DestinationID("ntfy", ntfy.Server, ntfy.Topic), Send: ntfy.Send})
+	}
+	return targets
+}
+
+func (s *Service) flushNotifications(ctx context.Context) {
+	ctx, cancel := context.WithTimeout(ctx, 20*time.Second)
+	defer cancel()
+	if err := s.outbox.Flush(ctx, s.notificationDestinations(), s.Now()); err != nil {
+		s.Logger.Warn("notification delivery pending", "error", err)
+	}
+}
+
+// RunNotifications checks retries twice a minute. An empty queue makes no
+// network calls or file writes, and each destination has exponential backoff.
+func (s *Service) RunNotifications(ctx context.Context) {
+	s.flushNotifications(ctx)
+	ticker := time.NewTicker(30 * time.Second)
+	defer ticker.Stop()
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-s.notifyWake:
+			s.flushNotifications(ctx)
+		case <-ticker.C:
+			s.flushNotifications(ctx)
+		}
 	}
 }
 
@@ -428,6 +492,7 @@ type SettingsInput struct {
 }
 
 func (s *Service) SaveSettings(input SettingsInput) error {
+	defer s.publishChanged()
 	schedule := input.Schedule
 	if err := schedule.Validate(); err != nil {
 		return err
@@ -538,4 +603,24 @@ func (s *Service) SendTestNotification(ctx context.Context) error {
 	}
 
 	return s.NewNotifier(settings).Send(ctx, "👋 Test message from your iglo.")
+}
+
+func (s *Service) publishChanged() {
+	s.mu.Lock()
+	host := s.state.Host
+	host.CheckedAt = time.Time{}
+	guests := make(map[int]Target, len(s.state.Guests))
+	for id, target := range s.state.Guests {
+		target.CheckedAt = time.Time{}
+		guests[id] = target
+	}
+	settings := s.state.Settings
+	shown := fmt.Sprint(s.busy, host, guests, settings.Schedule, settings.Excluded,
+		settings.Telegram.ChatID, settings.Ntfy.Server, settings.Ntfy.Topic, settings.Ntfy.Token != "", s.state.History)
+	changed := shown != s.shown
+	s.shown = shown
+	s.mu.Unlock()
+	if changed && s.Changed != nil {
+		s.Changed(events.Updates)
+	}
 }

@@ -129,3 +129,20 @@ Primary references:
 [FileFlows Docker](https://fileflows.com/docs/installation/docker),
 [Agent controls](https://fileflows.com/docs/webconsole/agents/),
 [Pre-Execute Script](https://fileflows.com/docs/webconsole/agents/pre-execute-script).
+
+## FOSS replacement assessment
+
+FFmpeg is the preferred candidate for replacing FileFlows in a later change.
+The current Inbox installer still uses FileFlows. Checked on 28 October 2026
+against [FFmpeg 7.1.5 licensing](https://github.com/FFmpeg/FFmpeg/blob/n7.1.5/LICENSE.md)
+and the [Debian 13 package](https://packages.debian.org/trixie/ffmpeg). FFmpeg
+is LGPL or GPL depending on its build options. Use a distribution build
+without incompatible additions enabled through `--enable-nonfree`.
+
+A native Inbox worker could reuse Music's durable queue, admission leases,
+SSD staging and checked NAS publication. FFprobe would inspect sources,
+compatible files would be remuxed without re-encoding, and conversion would
+use a detected hardware encoder with a CPU fallback. It would retain the
+read-only source mount and validate duration and streams before publishing.
+This needs a worker and migration path; replacing a container image alone
+does not replace FileFlows scheduling, flow state or admission behavior.

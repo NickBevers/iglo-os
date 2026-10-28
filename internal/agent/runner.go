@@ -1,7 +1,6 @@
 package agent
 
 import (
-	"bytes"
 	"context"
 	"crypto/rand"
 	_ "embed"
@@ -111,8 +110,7 @@ func (r *Runner) run(job *Job, request JobRequest, target string) {
 	ctx, cancel := context.WithTimeout(context.Background(), timeout)
 	defer cancel()
 
-	output, err := r.execute(ctx, request)
-	result := parseOutput(output)
+	output, result, err := r.execute(ctx, request)
 	rebootRequired := isHostJob(request.Kind) && err == nil && r.rebootRequired()
 
 	r.mu.Lock()
@@ -133,18 +131,19 @@ func (r *Runner) run(job *Job, request JobRequest, target string) {
 	delete(r.busy, target)
 }
 
-func (r *Runner) execute(ctx context.Context, request JobRequest) (string, error) {
+func (r *Runner) execute(ctx context.Context, request JobRequest) (string, scriptResult, error) {
 	cmd, err := r.command(ctx, request)
 	if err != nil {
-		return "", err
+		return "", scriptResult{}, err
 	}
 
-	var output bytes.Buffer
+	var output boundedCommandOutput
 	cmd.Stdout = &output
 	cmd.Stderr = &output
 	err = cmd.Run()
 
-	return output.String(), err
+	log, result, outputErr := output.finish()
+	return log, result, errors.Join(err, outputErr)
 }
 
 // jobCommand builds the real command. The script is a constant, and the VMID

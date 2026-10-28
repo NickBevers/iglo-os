@@ -12,7 +12,7 @@ The Updates page checks the Proxmox host and all running containers for updates.
 
 ## Notifications
 
-Iglo-OS tells you when an update ran, a backup failed, a health check failed or a console opened. It sends each message to Telegram and to ntfy, as far as you set them up on the Updates page. Both are optional.
+Iglo-OS tells you when an update ran, a backup failed, a health check failed or a console opened. It sends each message to Telegram and to ntfy, as far as you set them up on the Updates page. Both are optional. Alerts are saved locally before delivery. Failed destinations retry from 30 seconds up to 30 minutes apart, including after a restart. A successful destination is not retried because another failed. The queue holds up to 128 message parts of 3000 bytes, with no provider credentials. An empty queue makes no network requests or file writes. Changing or disabling a destination discards its pending deliveries rather than forwarding old alerts elsewhere. A full queue or a disk error is logged for attention.
 
 ### Telegram
 

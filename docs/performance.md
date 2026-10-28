@@ -330,3 +330,33 @@ Not measured yet on the target hardware.
   against.
 - **Test on a stand-in, and say what it isn't.** The development mock found
   most real bugs, but its timings are only an upper bound.
+
+## Status and command output follow-up
+
+Checked on 28 October 2026. Health, Updates and Backups now publish their
+own live topics from the manager, also when running against the dev mock.
+With the stream connected, an idle Health or Updates page makes one fallback
+request per minute instead of four. Backups makes one instead of two. Active
+updates still poll every 2 seconds and backups every 3 seconds for progress.
+These are counted requests per open page, not hardware measurements.
+
+Storage and backup archive lists are shared for one minute. Ten concurrent
+Backups reads on a node with two backup storages make one storage-list call
+and two archive-list calls, rather than ten and twenty (tested). Independent
+nodes and storages are read in parallel. Incomplete results are not cached.
+An operation, a changed backup job or a newly observed scheduled backup task
+invalidates the inventory. In-flight old reads cannot repopulate it after
+invalidation. Destructive actions still look up their archive afresh. The
+existing resource cache remains in the Proxmox client.
+
+Update jobs and host restores retain only the last 256 KiB of command output
+while the command runs. Update result lines are parsed before old log text
+is discarded, with bounded line length and result count. A verbose command
+cannot grow the complete output in memory before truncation. Tests exercise
+a 1 MiB command and retain a package result from before the visible log tail.
+
+Notification delivery runs outside request and operation handlers. A slow
+provider does not hold the queue's state lock or delay another alert being
+saved. Each delivery pass has a 20-second deadline; an idle worker checks its
+queue twice a minute without network calls or writes. New alerts wake it at
+once.

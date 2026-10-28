@@ -78,49 +78,11 @@ func (s *Service) Status(ctx context.Context) (View, error) {
 		return View{}, err
 	}
 
-	backupsByGuest := map[int][]BackupView{}
-	seenShared := map[string]bool{}
-	for _, resource := range resources {
-		if resource.Type != "node" || resource.Status != "online" {
-			continue
-		}
-
-		storages, err := s.Proxmox.BackupStorages(ctx, resource.Node)
-		if err != nil {
-			return View{}, err
-		}
-
-		for _, storage := range storages {
-			// Shared storage shows up on every node, but holds the same backups.
-			if storage.Shared {
-				if seenShared[storage.Storage] {
-					continue
-				}
-				seenShared[storage.Storage] = true
-			}
-
-			view.Storages = append(view.Storages, StorageView{
-				Node: resource.Node, Name: storage.Storage, Type: storage.Type,
-				Total: storage.Total, Used: storage.Used,
-			})
-
-			backups, err := s.Proxmox.Backups(ctx, resource.Node, storage.Storage)
-			if err != nil {
-				s.Logger.Warn("could not list backups", "storage", storage.Storage, "error", err)
-				continue
-			}
-			for _, backup := range backups {
-				backupsByGuest[backup.VMID] = append(backupsByGuest[backup.VMID], BackupView{
-					VolID:     backup.VolID,
-					Storage:   storage.Storage,
-					CreatedAt: time.Unix(backup.CTime, 0),
-					Size:      backup.Size,
-					Notes:     backup.Notes,
-					Protected: bool(backup.Protected),
-				})
-			}
-		}
+	inventory, err := s.backupInventory(ctx, resources)
+	if err != nil {
+		return View{}, err
 	}
+	view.Storages = slices.Clone(inventory.storages)
 
 	job, err := s.igloJob(ctx)
 	if err != nil {
@@ -133,7 +95,7 @@ func (s *Service) Status(ctx context.Context) (View, error) {
 			continue
 		}
 
-		backups := backupsByGuest[resource.VMID]
+		backups := slices.Clone(inventory.backups[resource.VMID])
 		if backups == nil {
 			backups = []BackupView{}
 		}

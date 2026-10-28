@@ -86,7 +86,12 @@ type Restorer struct {
 func NewRestorer() *Restorer {
 	return &Restorer{
 		run: func(ctx context.Context, name string, args ...string) ([]byte, error) {
-			return exec.CommandContext(ctx, name, args...).CombinedOutput()
+			var output boundedCommandOutput
+			cmd := exec.CommandContext(ctx, name, args...)
+			cmd.Stdout, cmd.Stderr = &output, &output
+			err := cmd.Run()
+			log, _, outputErr := output.finish()
+			return []byte(log), errors.Join(err, outputErr)
 		},
 		PVEDir: "/etc/pve",
 		now:    time.Now,
@@ -172,10 +177,12 @@ func (r *Restorer) check(ctx context.Context, request RestoreRequest) (message s
 	}
 	id := strconv.Itoa(copyID)
 
-	// Whatever happens, the copy goes again. Only a config in the check range
-	// is ever removed here.
+	// Clean up only after our restore succeeded. A different creator can
+	// claim this ID between the free-ID check and pct restore. A failed
+	// restore must never destroy that unrelated guest.
+	restored := false
 	defer func() {
-		if !r.exists(copyID) {
+		if !restored || !r.exists(copyID) {
 			return
 		}
 		cleanup, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
@@ -190,6 +197,7 @@ func (r *Restorer) check(ctx context.Context, request RestoreRequest) (message s
 	if _, err := r.pct(ctx, "restore", id, request.Volid, "--storage", request.Storage, "--unique", "1"); err != nil {
 		return "", err
 	}
+	restored = true
 
 	// No network and no mount points: the copy can't reach the original's
 	// NAS shares or secrets. It doesn't start at boot, and its tag keeps it

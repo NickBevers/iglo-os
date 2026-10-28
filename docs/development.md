@@ -68,7 +68,7 @@ Without a host agent, the pages that need it show "the host agent did not answer
 make test       # Go vet and tests, ESLint and the TypeScript check
 ```
 
-GitHub runs the same checks on every pull request and on main, plus `gofmt` and Prettier. Build the web app first with `make web`, because the Go tests embed it.
+GitHub runs the same checks on every pull request and on main, plus race checks, `gofmt` and Prettier. Build the web app first with `make web`, because the Go tests embed it.
 
 ## Test the real install
 
@@ -95,3 +95,13 @@ The installers only run on a Proxmox host. Test them in a nested Proxmox VM on y
    ```
 
 A build without the key in `signing.pub` can't install updates. If you lose the private key, make a new one and install the next version by hand once.
+
+The manager publishes Health, Updates and Backups topics while using the dev
+mock too. Add or refresh a health check, run an update check, or start a backup
+restore check to exercise them through `/api/events`. These topics come from
+the real manager services; the mock supplies their normal API dependencies.
+
+The shared shadcn stylesheet is kept in `web/src/styles/shadcn.css`, from
+shadcn 4.21.0, with its MIT license alongside it. The app needs this CSS,
+not the shadcn CLI and its dependency tree. Refresh the stylesheet deliberately
+when updating the shared component styles.
