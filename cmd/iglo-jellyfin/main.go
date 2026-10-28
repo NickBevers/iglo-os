@@ -2,7 +2,7 @@
 // installer runs it on the Proxmox host.
 //
 //	iglo-jellyfin setup --url http://192.168.1.20:8096 --admin dries \
-//	    --movies /data/media/movies --series /data/media/series [--gpu [--vainfo FILE]] [--theme] < password
+//	    --movies /data/media/movies --series /data/media/series [--gpu [--vainfo FILE] [--huc]] [--theme] < password
 //
 // The last line it prints is the API key for Iglo-OS:
 //
@@ -25,7 +25,7 @@ import (
 
 func main() {
 	if len(os.Args) < 2 || os.Args[1] != "setup" {
-		fmt.Fprintln(os.Stderr, "usage: iglo-jellyfin setup --url URL --admin NAME --movies PATH --series PATH [--gpu [--vainfo FILE]] [--theme] < password")
+		fmt.Fprintln(os.Stderr, "usage: iglo-jellyfin setup --url URL --admin NAME --movies PATH --series PATH [--gpu [--vainfo FILE] [--huc]] [--theme] < password")
 		os.Exit(2)
 	}
 
@@ -45,6 +45,7 @@ func setup(args []string) error {
 	animeMovies := flags.String("anime-movies", "", "folder of the Anime Movies library, as Jellyfin sees it (optional)")
 	gpu := flags.Bool("gpu", false, "turn on VA-API hardware transcoding")
 	vainfo := flags.String("vainfo", "", "file with the output of vainfo, for the codecs that the GPU decodes")
+	huc := flags.Bool("huc", false, "the host loaded the HuC firmware, for the Intel low-power encoders")
 	theme := flags.Bool("theme", false, "turn on the Netflix theme")
 	flags.Parse(args)
 
@@ -80,6 +81,7 @@ func setup(args []string) error {
 		AnimeMoviesPath: *animeMovies,
 		GPU:             *gpu,
 		VAInfo:          gpuInfo,
+		HuC:             *huc,
 		Theme:           *theme,
 		Logf: func(format string, args ...any) {
 			fmt.Printf("==> "+format+"\n", args...)

@@ -40,8 +40,11 @@ type Config struct {
 	// VAInfo is the output of vainfo in the container. It says which codecs
 	// the GPU decodes. Without it, only H.264 and HEVC are turned on.
 	VAInfo string
-	Theme  bool
-	Logf   func(format string, args ...any)
+	// HuC says the host loaded the HuC firmware of the GPU, which the Intel
+	// low-power encoders need for their bitrate control.
+	HuC   bool
+	Theme bool
+	Logf  func(format string, args ...any)
 	// HTTP is replaced in tests.
 	HTTP *http.Client
 	// Wait is how long to wait for Jellyfin to start, also when it restarts during the setup.
@@ -103,7 +106,7 @@ func Setup(ctx context.Context, cfg Config) (string, error) {
 
 	if cfg.GPU {
 		cfg.Logf("Turning on hardware transcoding (VA-API)")
-		if err := jf.enableVAAPI(ctx, gpuSupport(cfg.VAInfo)); err != nil {
+		if err := jf.enableVAAPI(ctx, gpuSupport(cfg.VAInfo), cfg.HuC); err != nil {
 			return "", err
 		}
 	}
@@ -213,6 +216,9 @@ type gpu struct {
 	hevc10, vp910 bool
 	// intel GPUs tone map HDR to SDR in their video engine (VPP).
 	intel bool
+	// lowPowerH264 and lowPowerHEVC are the encoders in the fixed-function
+	// video engine (VDEnc) of Intel GPUs: faster and lighter on the CPU.
+	lowPowerH264, lowPowerHEVC bool
 }
 
 // vaapiCodecs maps the decode profiles of vainfo to the codec names of Jellyfin.
@@ -232,9 +238,13 @@ func gpuSupport(vainfo string) gpu {
 	support := gpu{intel: strings.Contains(vainfo, "Intel iHD driver")}
 	for line := range strings.Lines(vainfo) {
 		profile, entrypoint, ok := strings.Cut(line, ":")
-		profile = strings.TrimSpace(profile)
+		profile, entrypoint = strings.TrimSpace(profile), strings.TrimSpace(entrypoint)
+		if ok && entrypoint == "VAEntrypointEncSliceLP" {
+			support.lowPowerH264 = support.lowPowerH264 || strings.HasPrefix(profile, "VAProfileH264")
+			support.lowPowerHEVC = support.lowPowerHEVC || profile == "VAProfileHEVCMain"
+		}
 		// VLD is the decode entrypoint. The others encode or process.
-		if !ok || strings.TrimSpace(entrypoint) != "VAEntrypointVLD" {
+		if !ok || entrypoint != "VAEntrypointVLD" {
 			continue
 		}
 		for _, known := range vaapiCodecs {
@@ -252,8 +262,10 @@ func gpuSupport(vainfo string) gpu {
 }
 
 // enableVAAPI turns on VA-API for the codecs that the GPU decodes, with HDR
-// tone mapping on an Intel GPU.
-func (s *server) enableVAAPI(ctx context.Context, support gpu) error {
+// tone mapping on an Intel GPU. The Intel low-power encoders are on when
+// vainfo lists them and the host loaded HuC: Jellyfin v12.4 then adds
+// "-low_power 1" to h264_vaapi and hevc_vaapi (EncodingHelper.cs).
+func (s *server) enableVAAPI(ctx context.Context, support gpu, huc bool) error {
 	var encoding map[string]any
 	if err := s.do(ctx, http.MethodGet, "/System/Configuration/encoding", nil, &encoding); err != nil {
 		return err
@@ -265,6 +277,8 @@ func (s *server) enableVAAPI(ctx context.Context, support gpu) error {
 	encoding["EnableDecodingColorDepth10Hevc"] = support.hevc10
 	encoding["EnableDecodingColorDepth10Vp9"] = support.vp910
 	encoding["EnableVppTonemapping"] = support.intel
+	encoding["EnableIntelLowPowerH264HwEncoder"] = support.intel && huc && support.lowPowerH264
+	encoding["EnableIntelLowPowerHevcHwEncoder"] = support.intel && huc && support.lowPowerHEVC
 
 	return s.do(ctx, http.MethodPost, "/System/Configuration/encoding", encoding, nil)
 }

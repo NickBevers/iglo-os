@@ -234,6 +234,7 @@ vainfo: Supported profile and entrypoints
       VAProfileVC1Advanced            :	VAEntrypointVLD
       VAProfileVP8Version0_3          :	VAEntrypointVLD
       VAProfileHEVCMain               :	VAEntrypointVLD
+      VAProfileHEVCMain               :	VAEntrypointEncSliceLP
       VAProfileHEVCMain10             :	VAEntrypointVLD
       VAProfileVP9Profile0            :	VAEntrypointVLD
       VAProfileVP9Profile2            :	VAEntrypointVLD
@@ -241,19 +242,38 @@ vainfo: Supported profile and entrypoints
 `
 	got := gpuSupport(uhd770)
 	want := []string{"mpeg2video", "h264", "vc1", "vp8", "hevc", "vp9", "av1"}
-	if !slices.Equal(got.codecs, want) || !got.hevc10 || !got.vp910 || !got.intel {
+	if !slices.Equal(got.codecs, want) || !got.hevc10 || !got.vp910 || !got.intel || !got.lowPowerH264 || !got.lowPowerHEVC {
 		t.Fatalf("uhd 770 = %+v", got)
 	}
 
 	// An older GPU only encodes HEVC, so it decodes H.264 alone.
 	older := "vainfo: Driver version: Mesa Gallium driver\n      VAProfileH264High : VAEntrypointVLD\n      VAProfileHEVCMain : VAEntrypointEncSlice\n"
-	if got := gpuSupport(older); !slices.Equal(got.codecs, []string{"h264"}) || got.hevc10 || got.intel {
+	if got := gpuSupport(older); !slices.Equal(got.codecs, []string{"h264"}) || got.hevc10 || got.intel || got.lowPowerHEVC {
 		t.Fatalf("older = %+v", got)
 	}
 
 	// Without vainfo, the safe pair.
 	if got := gpuSupport(""); !slices.Equal(got.codecs, []string{"h264", "hevc"}) || got.intel {
 		t.Fatalf("empty = %+v", got)
+	}
+}
+
+func TestLowPowerEncodersNeedHuC(t *testing.T) {
+	vainfo := "vainfo: Driver version: Intel iHD driver for Intel(R) Gen Graphics\n" +
+		"      VAProfileH264Main : VAEntrypointVLD\n      VAProfileH264Main : VAEntrypointEncSliceLP\n" +
+		"      VAProfileHEVCMain : VAEntrypointVLD\n      VAProfileHEVCMain : VAEntrypointEncSliceLP\n"
+	for _, huc := range []bool{true, false} {
+		fake := &fakeJellyfin{encoding: map[string]any{"HardwareAccelerationType": "none"}}
+		server := httptest.NewServer(fake)
+		cfg := testConfig(server.URL)
+		cfg.VAInfo, cfg.HuC = vainfo, huc
+		if _, err := Setup(context.Background(), cfg); err != nil {
+			t.Fatal(err)
+		}
+		server.Close()
+		if fake.encoding["EnableIntelLowPowerH264HwEncoder"] != huc || fake.encoding["EnableIntelLowPowerHevcHwEncoder"] != huc {
+			t.Fatalf("huc %v: encoding = %v", huc, fake.encoding)
+		}
 	}
 }
 
