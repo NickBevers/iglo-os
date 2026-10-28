@@ -1,0 +1,13 @@
+# Lets the CPU clock down when idle. See power.sh for why.
+[Unit]
+Description=Iglo-OS CPU power saving
+ConditionPathExists=/sys/devices/system/cpu/cpufreq/policy0/scaling_driver
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+Environment=IGLO_EPP=balance_performance
+ExecStart=/usr/local/lib/iglo/power.sh
+
+[Install]
+WantedBy=multi-user.target

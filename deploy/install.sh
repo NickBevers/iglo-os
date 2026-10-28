@@ -213,6 +213,23 @@ EOF
     pct push "$CT_ID" "$env_file" /etc/iglo/iglo.env --perms 0640 --group "$SERVICE_ID"
 }
 
+# install_power lets the CPU clock down when idle (see power.sh). The first
+# install turns it on. Later ones keep it off when you turned it off.
+install_power() {
+    # A bundle from before it has no power.sh.
+    [[ -f "$BUNDLE_DIR/power.sh" ]] || return 0
+    local first=""
+    [[ -f /etc/systemd/system/iglo-power.service ]] || first=1
+    install -m 0755 "$BUNDLE_DIR/power.sh" "$SCRIPTS_DIR/"
+    install -m 0644 "$BUNDLE_DIR/iglo-power.service" /etc/systemd/system/
+    systemctl daemon-reload
+    if [[ -n "$first" ]]; then
+        systemctl enable --now iglo-power || log "Could not turn on CPU power saving, continuing without it"
+    else
+        systemctl try-restart iglo-power || true
+    fi
+}
+
 # install_scripts keeps the installer on the host and adds the iglo-restore command.
 install_scripts() {
     install -d -m 0755 "$SCRIPTS_DIR"
@@ -226,6 +243,7 @@ install_scripts() {
         systemctl daemon-reload
     fi
     install -m 0644 "$BUNDLE_DIR/scoped-stack.sh" "$SCRIPTS_DIR/"
+    install_power
     # The gaming proof of concept became the Gaming app in stacks/gaming.
     rm -rf "$SCRIPTS_DIR/gaming-poc"
     if [[ -d "$BUNDLE_DIR/stacks/gaming" ]]; then
@@ -616,6 +634,9 @@ uninstall() {
     log "Removing the host agent"
     systemctl disable --now iglo-agent 2>/dev/null || true
     rm -f /etc/systemd/system/iglo-agent.service /usr/local/bin/iglo-agent
+    # The CPU keeps its power saving until the next boot.
+    systemctl disable iglo-power 2>/dev/null || true
+    rm -f /etc/systemd/system/iglo-power.service
     systemctl daemon-reload
     rm -rf /var/lib/iglo-agent
 
