@@ -1,4 +1,4 @@
-import { useState, type FormEvent } from 'react'
+import { useState, type SubmitEvent } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
@@ -40,7 +40,7 @@ export function MusicPage() {
         onSuccess: refresh,
         onError: (e) => toast.error(e.message),
     })
-    function send(e: FormEvent) {
+    function send(e: SubmitEvent) {
         e.preventDefault()
         submit.mutate()
     }

@@ -1,4 +1,4 @@
-import { useState, type FormEvent } from 'react'
+import { useState, type SubmitEvent } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Loader2Icon, PlusIcon, XIcon } from 'lucide-react'
 import { toast } from 'sonner'
@@ -75,7 +75,7 @@ function PlayersForm({ current, onDone }: { current: MinecraftPlayers; onDone: (
         onError: (error) => toast.error('Could not change the players', { description: error.message }),
     })
 
-    function add(event: FormEvent) {
+    function add(event: SubmitEvent) {
         event.preventDefault()
         const known = new Set(players.map((player) => player.name.toLowerCase()))
         const added = names(newNames).filter((name) => !known.has(name.toLowerCase()))

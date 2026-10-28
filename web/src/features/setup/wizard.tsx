@@ -1,4 +1,4 @@
-import { useState, type FormEvent, type ReactNode } from 'react'
+import { useState, type SubmitEvent, type ReactNode } from 'react'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
 
@@ -31,7 +31,7 @@ export function Wizard({ setup }: { setup: Setup }) {
     const roles = rolesOf(draft, setup)
     const wants = (app: string) => draft.apps.includes(app)
 
-    function next(event: FormEvent) {
+    function next(event: SubmitEvent) {
         event.preventDefault()
         if (page === 'Accounts' && draft.admin.password !== draft.confirm) {
             toast.error('The two admin passwords differ')

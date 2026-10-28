@@ -1,4 +1,4 @@
-import { useState, type FormEvent } from 'react'
+import { useState, type SubmitEvent } from 'react'
 import { TriangleAlertIcon } from 'lucide-react'
 import { toast } from 'sonner'
 
@@ -50,7 +50,7 @@ export function JobCard({ backups }: { backups: Backups }) {
         setDays(days.includes(day) ? days.filter((item) => item !== day) : [...days, day])
     }
 
-    function handleSubmit(event: FormEvent) {
+    function handleSubmit(event: SubmitEvent) {
         event.preventDefault()
         const [hour, minute] = time.split(':').map(Number)
 

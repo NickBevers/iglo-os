@@ -1,4 +1,4 @@
-import { useState, type FormEvent } from 'react'
+import { useState, type SubmitEvent } from 'react'
 import { useMutation } from '@tanstack/react-query'
 import { toast } from 'sonner'
 
@@ -31,7 +31,7 @@ export function ScheduleCard({ updates }: { updates: Updates }) {
     const [weekday, setWeekday] = useState(String(updates.schedule.weekday))
     const [time, setTime] = useState(`${pad(updates.schedule.hour)}:${pad(updates.schedule.minute)}`)
 
-    function handleSubmit(event: FormEvent) {
+    function handleSubmit(event: SubmitEvent) {
         event.preventDefault()
         const [hour, minute] = time.split(':').map(Number)
 
@@ -109,7 +109,7 @@ export function TelegramCard({ updates }: { updates: Updates }) {
         onError: (error) => toast.error(error.message),
     })
 
-    function handleSubmit(event: FormEvent) {
+    function handleSubmit(event: SubmitEvent) {
         event.preventDefault()
 
         save.mutate(settingsFrom(updates, { telegram: { botToken, chatId } }), {
@@ -195,7 +195,7 @@ export function NtfyCard({ updates }: { updates: Updates }) {
     // A saved token only works on its own server.
     const keepsToken = updates.ntfy.hasToken && server.replace(/\/+$/, '') === updates.ntfy.server
 
-    function handleSubmit(event: FormEvent) {
+    function handleSubmit(event: SubmitEvent) {
         event.preventDefault()
 
         save.mutate(settingsFrom(updates, { ntfy: { server, topic, token } }), {

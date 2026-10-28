@@ -1,4 +1,4 @@
-import { useState, type FormEvent } from 'react'
+import { useState, type SubmitEvent } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
@@ -28,7 +28,7 @@ export function InboxPage() {
         onError: (e) => toast.error(e.message),
     })
     const view = query.data
-    function submit(e: FormEvent) {
+    function submit(e: SubmitEvent) {
         e.preventDefault()
         if (view)
             change.mutate(async () => {

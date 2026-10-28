@@ -1,4 +1,4 @@
-import { useState, type FormEvent } from 'react'
+import { useState, type SubmitEvent } from 'react'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { getRouteApi, useRouter } from '@tanstack/react-router'
 import { REGEXP_ONLY_DIGITS } from 'input-otp'
@@ -50,7 +50,7 @@ export function LoginPage() {
         },
     })
 
-    function continueToCode(event: FormEvent) {
+    function continueToCode(event: SubmitEvent) {
         event.preventDefault()
         login.reset()
         setStep('code')
