@@ -193,8 +193,9 @@ export function StoragePage() {
                             Read only
                         </label>
                         <p className="text-xs text-muted-foreground sm:col-span-2">
-                            Use a NAS account restricted to this share. Credentials stay on the host. Existing shared
-                            media mounts are left in place; apps must explicitly select a new binding.
+                            Use a NAS account restricted to this share where the NAS allows it. An Umbrel has one SMB
+                            login for all its shared folders. Credentials stay on the host. Existing shared media mounts
+                            are left in place; apps must explicitly select a new binding.
                         </p>
                         <Button className="justify-self-start" disabled={create.isPending}>
                             {create.isPending ? 'Connecting…' : 'Connect share'}

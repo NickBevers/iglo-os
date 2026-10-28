@@ -1,7 +1,8 @@
 # Scoped SMB bindings
 
 Use **Server → Storage** to connect a dedicated SMB share with a folder role.
-Use a separate NAS account restricted to that share. Binding IDs are immutable.
+Use a separate NAS account restricted to that share where the NAS allows it.
+An Umbrel doesn't; see [On an Umbrel](#on-an-umbrel). Binding IDs are immutable.
 The API never returns credentials; they live in root-only files under
 `/etc/iglo/storage/` on the Proxmox host, outside manager exports.
 After rebuilding a host, reconnect shares with their original IDs before starting
@@ -28,3 +29,21 @@ The local dev fixture labels its mounts as simulated and does not contact a NAS.
 Unit tests exercise validation, secret redaction, consumer protection and mount
 failure. Real mount and guest boot behavior must be verified on Proxmox before
 entrusting production data to it.
+
+## On an Umbrel
+
+An Umbrel has one SMB login for every folder its owner shares. The username is
+`umbrel`, and the password is in **Settings > File sharing**. It is not your
+Umbrel login. So use **One account for all shares** in the setup, and the same login
+for each share on the Storage page. Each container still mounts only its own
+folder, but the host holds a login that opens every shared folder.
+
+In **Settings > File sharing**, choose **Specific folders** and add only the
+folders that Iglo-OS needs. Don't share the whole Home folder, or that one
+login opens all of it.
+
+Member accounts have their own SMB login, but a member can only share folders
+in its own Home over SMB, not the owner's Videos or Photos. Iglo-OS doesn't make
+these accounts for you, because umbrelOS has no public API for it. Checked
+against umbrelOS 2.0.0 (`packages/umbreld/source/modules/files/samba.ts` and
+`files.ts`) on 28 October 2026.

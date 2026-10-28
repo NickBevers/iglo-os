@@ -3,7 +3,7 @@
 Jellyfin and the media stack keep your movies and series on a **Videos** share of your NAS, like the other apps use their own shares. Connect it on the Storage page first. See [scoped-storage.md](scoped-storage.md).
 
 1. On the NAS, share one folder for the videos, like `Videos`. Share that folder, not your whole home folder. Then the Proxmox host can't touch your other files.
-   - On an Umbrel: open **Settings > File sharing**, or right-click the folder in Files and choose **Share over network**. That page also shows the username and password. They are not your Umbrel login.
+   - On an Umbrel: open **Settings > File sharing**, choose **Specific folders** and add `Videos`. Or right-click the folder in Files and choose **Share over network...**. The username is `umbrel`, and the page shows the password. It is not your Umbrel login. Every folder you share uses this one login (see [On an Umbrel](scoped-storage.md#on-an-umbrel)).
 2. Give the NAS a fixed IP in your router (a DHCP reservation).
 3. In Iglo-OS, open **Server > Storage** and connect the share with the role **Videos**. Use the IP address of the NAS: the Proxmox host can't look up names like `umbrel.local`. Give it write access, because the media stack writes movies and series to it.
 
