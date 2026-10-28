@@ -30,6 +30,7 @@ scoped_files(){ [[ "$failure" != copy ]]; }
 install_native(){ [[ "$failure" != start ]]; }
 pct(){
  printf '%s\n' "$*" >> "$call_log"
+ if [[ "$1" == config ]]; then printf 'tags: iglo;inbox;nightly-backup\n'; fi
  if [[ "$1" == pull ]]; then touch "$4"; fi
  if [[ "$1" == set && "$failure" == tags ]]; then return 1; fi
 }
@@ -45,6 +46,9 @@ migrate_stack
 				}
 				if strings.Contains(string(calls), "disable --now iglo-inbox") {
 					t.Fatal("rolled back successful migration")
+				}
+				if !strings.Contains(string(calls), "--tags iglo;inbox;nightly-backup;inbox-native") {
+					t.Fatalf("lost the existing backup tag: %s", calls)
 				}
 			} else {
 				if err == nil {
