@@ -1,4 +1,4 @@
-import { useState, type FormEvent } from 'react'
+import { useState, type SubmitEvent } from 'react'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
 
@@ -24,7 +24,7 @@ export function JellyfinSettings({ jellyfin }: { jellyfin: Jellyfin }) {
         onError: (error) => toast.error(error.message),
     })
 
-    function handleSubmit(event: FormEvent) {
+    function handleSubmit(event: SubmitEvent) {
         event.preventDefault()
         save.mutate({ url, apiKey })
     }

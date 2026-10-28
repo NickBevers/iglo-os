@@ -1,4 +1,4 @@
-import { useState, type FormEvent } from 'react'
+import { useState, type SubmitEvent } from 'react'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { EllipsisIcon, PencilIcon, PlusIcon, Trash2Icon } from 'lucide-react'
 import { toast } from 'sonner'
@@ -165,7 +165,7 @@ function CheckForm({ check, onDone }: { check: ServiceCheck | null; onDone: () =
         onError: (error) => toast.error(error.message),
     })
 
-    function handleSubmit(event: FormEvent) {
+    function handleSubmit(event: SubmitEvent) {
         event.preventDefault()
         save.mutate({ name, kind, target })
     }

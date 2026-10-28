@@ -1,4 +1,4 @@
-import { useState, type FormEvent } from 'react'
+import { useState, type SubmitEvent } from 'react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
@@ -12,7 +12,7 @@ export function ControlServerCard({ tailscale }: { tailscale: Tailscale }) {
     const save = useTailscaleMutation(api.saveTailscaleSettings, () => 'Control server saved. Connect below.')
     const logout = useTailscaleMutation(api.logoutTailscale, () => 'Saved remote session disconnected')
     const locked = tailscale.connecting || !['NeedsLogin', 'NoState'].includes(tailscale.state)
-    function submit(event: FormEvent) {
+    function submit(event: SubmitEvent) {
         event.preventDefault()
         save.mutate({ ...tailscale.settings, loginServer: headscale ? url : '' })
     }

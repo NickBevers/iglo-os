@@ -1,4 +1,4 @@
-import { useState, type FormEvent } from 'react'
+import { useState, type SubmitEvent } from 'react'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { ExternalLinkIcon, Loader2Icon, TriangleAlertIcon } from 'lucide-react'
 import { toast } from 'sonner'
@@ -26,7 +26,7 @@ export function ConnectCard({ tailscale }: { tailscale: Tailscale }) {
         onError: (error) => toast.error(error.message),
     })
 
-    function connectWithKey(event: FormEvent) {
+    function connectWithKey(event: SubmitEvent) {
         event.preventDefault()
         connect.mutate(authKey)
     }

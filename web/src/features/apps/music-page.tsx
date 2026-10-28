@@ -1,4 +1,4 @@
-import { useState, type FormEvent } from 'react'
+import { useState, type SubmitEvent } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
@@ -11,13 +11,16 @@ import { Field } from './form-parts'
 
 export function MusicPage() {
     // Each check asks the worker in its container, so poll fast only while jobs wait or run.
+    // The live stream says when a job changes, so then the poll is only a fallback.
     const query = useQuery({
         queryKey: ['music-jobs'],
         queryFn: api.musicJobs,
         refetchInterval: (query) =>
-            !isLive() && query.state.data?.jobs.some((job) => job.state === 'queued' || job.state === 'running')
-                ? 5000
-                : 30000,
+            isLive()
+                ? 60000
+                : query.state.data?.jobs.some((job) => job.state === 'queued' || job.state === 'running')
+                  ? 5000
+                  : 30000,
     })
     const client = useQueryClient()
     const [url, setURL] = useState('')
@@ -37,7 +40,7 @@ export function MusicPage() {
         onSuccess: refresh,
         onError: (e) => toast.error(e.message),
     })
-    function send(e: FormEvent) {
+    function send(e: SubmitEvent) {
         e.preventDefault()
         submit.mutate()
     }

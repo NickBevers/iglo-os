@@ -87,3 +87,49 @@ func TestBindingFailedMountCleansOnlyOwnFiles(t *testing.T) {
 		t.Fatal("published failed mount")
 	}
 }
+func TestBindingsListReadsMountsOnce(t *testing.T) {
+	s := testBindings(t)
+	s.Simulation = false
+	videos, photos := filepath.Join(s.Root, "videos"), filepath.Join(s.Root, "photos")
+	findmnt := 0
+	s.output = func(_ context.Context, name string, args ...string) ([]byte, error) {
+		if name != "findmnt" {
+			t.Fatalf("ran %s", name)
+		}
+		findmnt++
+		return []byte(videos + " //nas/Videos\n" + photos + " //other/Photos\n"), nil
+	}
+	if err := os.MkdirAll(s.Dir, 0700); err != nil {
+		t.Fatal(err)
+	}
+	for _, b := range []Binding{
+		{ID: "videos", Role: "videos", Source: "//nas/Videos", Path: videos},
+		{ID: "photos", Role: "photos", Source: "//nas/Photos", Path: photos},
+		{ID: "music", Role: "music", Source: "//nas/Music", Path: filepath.Join(s.Root, "music")},
+	} {
+		data, _ := json.Marshal(b)
+		os.WriteFile(filepath.Join(s.Dir, b.ID+".json"), data, 0600)
+	}
+	os.WriteFile(filepath.Join(s.Containers, "120.conf"), []byte("mp0: "+videos+"/movies,mp=/data/media/movies\nmp1: "+videos+"x,mp=/x\n"), 0600)
+	os.WriteFile(filepath.Join(s.Containers, "110.conf"), []byte("arch: amd64\nmp0: "+videos+",mp=/data\n"), 0600)
+	// A container that is being destroyed leaves a dangling config.
+	os.Symlink(filepath.Join(s.Containers, "gone"), filepath.Join(s.Containers, "130.conf"))
+
+	list, err := s.List(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if findmnt != 1 {
+		t.Errorf("findmnt ran %d times", findmnt)
+	}
+	got := map[string]Binding{}
+	for _, b := range list {
+		got[b.ID] = b
+	}
+	if !got["videos"].Mounted || got["photos"].Mounted || got["music"].Mounted {
+		t.Errorf("mounted: %+v", list)
+	}
+	if strings.Join(got["videos"].Consumers, ",") != "110,120" || len(got["photos"].Consumers) != 0 {
+		t.Errorf("consumers: %+v", list)
+	}
+}

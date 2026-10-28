@@ -1,4 +1,4 @@
-import { useEffect, useState, type FormEvent } from 'react'
+import { useEffect, useState, type SubmitEvent } from 'react'
 import { useMutation } from '@tanstack/react-query'
 import { DownloadIcon, Loader2Icon, TriangleAlertIcon } from 'lucide-react'
 import { toast } from 'sonner'
@@ -66,7 +66,7 @@ function DownloadForm() {
     const tooShort = passphrase.length > 0 && passphrase.length < minPassphrase
     const mismatch = repeat.length > 0 && repeat !== passphrase
 
-    function handleSubmit(event: FormEvent) {
+    function handleSubmit(event: SubmitEvent) {
         event.preventDefault()
         download.mutate()
     }
@@ -145,7 +145,7 @@ function RestoreForm() {
         return <Restarting />
     }
 
-    function handleSubmit(event: FormEvent) {
+    function handleSubmit(event: SubmitEvent) {
         event.preventDefault()
         setConfirmOpen(true)
     }

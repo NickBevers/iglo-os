@@ -1,4 +1,4 @@
-import { useState, type FormEvent } from 'react'
+import { useState, type SubmitEvent } from 'react'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { Loader2Icon } from 'lucide-react'
 import { toast } from 'sonner'
@@ -55,7 +55,7 @@ export function JellyfinForm({ defaults, saved, onDone }: JellyfinFormProps) {
         setAnswers((current) => ({ ...current, [key]: value }))
     }
 
-    function handleSubmit(event: FormEvent) {
+    function handleSubmit(event: SubmitEvent) {
         event.preventDefault()
         install.mutate()
     }

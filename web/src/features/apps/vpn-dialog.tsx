@@ -1,4 +1,4 @@
-import { useState, type FormEvent } from 'react'
+import { useState, type SubmitEvent } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Loader2Icon } from 'lucide-react'
 import { toast } from 'sonner'
@@ -75,7 +75,7 @@ function VpnForm({ app, current, onDone }: { app: CatalogApp; current: VpnView; 
         onError: (error) => toast.error('Could not change the VPN settings', { description: error.message }),
     })
 
-    const submit = (event: FormEvent) => {
+    const submit = (event: SubmitEvent) => {
         event.preventDefault()
         change.mutate()
     }

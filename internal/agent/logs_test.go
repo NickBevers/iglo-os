@@ -62,9 +62,9 @@ func TestJournalCommands(t *testing.T) {
 	if _, err := logs.Journal(ctx, JournalQuery{VMID: 101, Lines: 100, Priority: 7}); err != nil {
 		t.Fatal(err)
 	}
+	// A working pct exec needs no pct status first.
 	want := []string{
 		"journalctl --no-pager --output=json --lines=100 --priority=4",
-		"pct status 101",
 		"pct exec 101 -- journalctl --no-pager --output=json --lines=100 --priority=7",
 	}
 	if strings.Join(commands.calls, "\n") != strings.Join(want, "\n") {
@@ -83,17 +83,20 @@ func TestJournalCommands(t *testing.T) {
 
 func TestDockerLogs(t *testing.T) {
 	commands := &fakeCommands{outputs: map[string]string{
-		"pct status 102": "status: running\n",
-		"pct exec 102 -- sh -c command -v docker": "/usr/bin/docker\n",
-		"pct exec 102 -- docker ps":               "radarr\trunning\tlscr.io/linuxserver/radarr\nbad name;rm\trunning\tx\nqbittorrent\trunning\tlscr.io/linuxserver/qbittorrent\n",
-		"pct exec 102 -- sh -c docker logs --timestamps --tail \"$1\" \"$2\" 2>&1 sh 50 radarr":      "2026-09-30T10:00:01.5Z [Info] RssSyncService: Starting RSS Sync\n2026-09-30T10:00:03Z [Warn] Indexer is slow\n",
-		"pct exec 102 -- sh -c docker logs --timestamps --tail \"$1\" \"$2\" 2>&1 sh 50 qbittorrent": "2026-09-30T10:00:02Z (C) Connection refused\n",
+		"pct exec 102 -- sh -c ": "\x1dlist\nradarr\trunning\tlscr.io/linuxserver/radarr\nbad name;rm\trunning\tx\nqbittorrent\trunning\tlscr.io/linuxserver/qbittorrent\n" +
+			"\x1dlog radarr\n2026-09-30T10:00:01.5Z [Info] RssSyncService: Starting RSS Sync\n2026-09-30T10:00:03Z [Warn] Indexer is slow\n" +
+			"\x1dlog bad name;rm\n2026-09-30T10:00:00Z hidden\n" +
+			"\x1dlog qbittorrent\n2026-09-30T10:00:02Z (C) Connection refused\n",
 	}}
 	logs := &Logs{run: commands.run}
 
 	result, err := logs.Docker(context.Background(), 102, 50)
 	if err != nil {
 		t.Fatal(err)
+	}
+	// One pct call for the list and every log, however many containers.
+	if len(commands.calls) != 1 || !strings.HasSuffix(commands.calls[0], " sh 50") {
+		t.Fatalf("calls = %q", commands.calls)
 	}
 
 	if !result.Installed || len(result.Containers) != 2 {
@@ -113,7 +116,7 @@ func TestDockerLogs(t *testing.T) {
 }
 
 func TestDockerLogsWithoutDocker(t *testing.T) {
-	commands := &fakeCommands{outputs: map[string]string{"pct status 101": "status: running\n"}}
+	commands := &fakeCommands{outputs: map[string]string{"pct exec 101 -- sh -c ": ""}}
 	logs := &Logs{run: commands.run}
 
 	result, err := logs.Docker(context.Background(), 101, 50)
@@ -124,8 +127,52 @@ func TestDockerLogsWithoutDocker(t *testing.T) {
 		t.Fatalf("result = %+v", result)
 	}
 
-	commands.outputs["pct status 101"] = "status: stopped\n"
+	commands.outputs = map[string]string{"pct status 101": "status: stopped\n"}
 	if _, err := logs.Docker(context.Background(), 101, 50); err == nil || err.Error() != "container 101 is not running" {
 		t.Fatalf("stopped: %v", err)
+	}
+	commands.outputs = map[string]string{}
+	if _, err := logs.Docker(context.Background(), 101, 50); err == nil || err.Error() != "container 101 not found" {
+		t.Fatalf("missing: %v", err)
+	}
+	// Docker that fails in a running container is not a container problem.
+	commands.outputs = map[string]string{"pct status 101": "status: running\n"}
+	if _, err := logs.Docker(context.Background(), 101, 50); err == nil || !strings.Contains(err.Error(), "could not list Docker containers") {
+		t.Fatalf("docker failed: %v", err)
+	}
+}
+
+func TestDockerLogsAfterATimeout(t *testing.T) {
+	partial := "\x1dlist\nradarr\trunning\tx\nsonarr\trunning\ty\n\x1dlog radarr\n2026-09-30T10:00:01Z [Info] in time\n\x1dlog sonarr\n"
+	var calls []string
+	logs := &Logs{run: func(ctx context.Context, name string, args ...string) ([]byte, error) {
+		calls = append(calls, strings.Join(append([]string{name}, args...), " "))
+		if args[0] == "status" {
+			return []byte("status: running\n"), nil
+		}
+		<-ctx.Done()
+		if strings.Contains(calls[0], "sh 1000") {
+			return []byte(partial), errors.New("signal: killed")
+		}
+		return nil, errors.New("signal: killed")
+	}}
+
+	// The logs that came in time still show.
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Millisecond)
+	defer cancel()
+	result, err := logs.Docker(ctx, 102, 1000)
+	if err != nil || len(result.Containers) != 2 || len(result.Entries) != 1 || result.Entries[0].Message != "[Info] in time" {
+		t.Fatalf("result = %+v, err = %v", result, err)
+	}
+
+	// A timeout without output is not a missing container, and asks no pct status.
+	calls = nil
+	ctx2, cancel2 := context.WithTimeout(context.Background(), 10*time.Millisecond)
+	defer cancel2()
+	if _, err := logs.Docker(ctx2, 102, 50); err == nil || !strings.Contains(err.Error(), "could not list Docker containers") {
+		t.Fatalf("timeout: %v", err)
+	}
+	if len(calls) != 1 {
+		t.Fatalf("calls = %q", calls)
 	}
 }

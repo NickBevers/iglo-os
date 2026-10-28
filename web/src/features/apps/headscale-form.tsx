@@ -1,4 +1,4 @@
-import { useState, type FormEvent } from 'react'
+import { useState, type SubmitEvent } from 'react'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
@@ -30,7 +30,7 @@ export function HeadscaleForm({
         },
         onError: (e) => toast.error(e.message),
     })
-    function submit(event: FormEvent) {
+    function submit(event: SubmitEvent) {
         event.preventDefault()
         install.mutate()
     }

@@ -407,3 +407,37 @@ There is no new background watcher or per-tab controller poll. Apps uses its
 existing resource/description caches and event topic. Local health is checked
 only during explicit installation/update. Public HTTPS is not declared ready
 from a loopback check. [Deployment and recovery details](headscale.md).
+
+## Polls that multiplied
+
+Checked on 28 October 2026, by reading the code and counting per open tab.
+These are counts, not measurements on the Mini PC.
+
+- **Following Docker logs.** Each request ran `pct status` before every
+  `pct exec`: once to find Docker, once for `docker ps` and once per container.
+  For the media stack that was about 20 `pct` calls every 5 seconds, so about
+  240 Perl starts a minute from one tab. Now one script lists the containers
+  and prints all their logs in one `pct exec`, about 12 a minute. `pct status`
+  only runs after a failure, to say whether the container is missing or
+  stopped. The journal of a container went from 2 calls per request to 1.
+- **App stats during an install.** Install events rebuild the Apps view about
+  once a second, and each rebuild asked the agent for the Music and Gaming
+  stats: a `pct exec curl` and reads on the Games share. The manager now keeps
+  stats for 30 seconds and forgets them when an operation finishes.
+- **The install log.** The agent read all of `install.log` on each status
+  call, about twice a second during an install, and the file has no size cap.
+  Now it reads only what was added since and keeps the end that the page
+  shows. It starts over when a new run truncates the file.
+- **The Storage page.** Each check read every container config once per share,
+  compiled a regex per config line and ran `findmnt` per share. Now it reads
+  the configs once, runs one `findmnt` and polls once a minute.
+- **Smaller polls.** Console, Logs and Workloads no longer poll the overview
+  every 5 seconds for a guest list; the status bar already refreshes it every
+  15 seconds. Tailscale polls once a minute outside a login, because each
+  check starts two `tailscale` commands. Music polls once a minute while the
+  live stream is up, like Inbox.
+- **API answers.** JSON over 1 KiB is gzipped at the fastest level when the
+  browser accepts it, with reused writers. On the dev mock `/api/apps` went
+  from 4,201 to 1,591 bytes. During an install it carries up to 64 KiB of log
+  about once a second. The event stream and the console websocket are left
+  as they are.

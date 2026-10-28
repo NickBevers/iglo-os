@@ -1,4 +1,4 @@
-import { useState, type FormEvent } from 'react'
+import { useState, type SubmitEvent } from 'react'
 import { ExternalLinkIcon, TriangleAlertIcon } from 'lucide-react'
 
 import {
@@ -164,7 +164,7 @@ export function SubnetCard({ tailscale }: { tailscale: Tailscale }) {
         settings.shareSubnet ? 'Home network shared' : 'Home network no longer shared',
     )
 
-    function handleSubmit(event: FormEvent) {
+    function handleSubmit(event: SubmitEvent) {
         event.preventDefault()
         save.mutate({ ...tailscale.settings, shareSubnet, subnet })
     }

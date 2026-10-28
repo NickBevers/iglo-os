@@ -372,6 +372,8 @@ type AppInstaller struct {
 
 	mu            sync.Mutex
 	configCleared time.Time
+	// log is what Status read of install.log. It needs mu.
+	log installLog
 }
 
 func NewAppInstaller() *AppInstaller {
@@ -646,14 +648,9 @@ func (i *AppInstaller) Status() AppInstallStatus {
 		status.Action = ActionInstall
 	}
 
-	log := ""
-	if data, err := os.ReadFile(i.logPath()); err == nil {
-		log = ansiPattern.ReplaceAllString(string(data), "")
-		if match := jellyfinKeyPattern.FindStringSubmatch(log); match != nil {
-			status.APIKey = match[1]
-			log = jellyfinKeyPattern.ReplaceAllString(log, "")
-		}
-		status.Log = tail(log, maxAppLog)
+	var result []string
+	if log, apiKey, match, ok := i.log.read(i.logPath(), status.StartedAt); ok {
+		status.Log, status.APIKey, result = log, apiKey, match
 	}
 
 	if status.State != UpgradeRunning {
@@ -685,9 +682,9 @@ func (i *AppInstaller) Status() AppInstallStatus {
 		return status
 	}
 
-	if match := appResultPattern.FindStringSubmatch(log); match != nil && status.State == UpgradeSucceeded {
-		status.VMID, _ = strconv.Atoi(match[2])
-		status.IP = match[3]
+	if result != nil && status.State == UpgradeSucceeded {
+		status.VMID, _ = strconv.Atoi(result[2])
+		status.IP = result[3]
 	}
 	// A working install needs no retry, so its secrets can go.
 	if status.State == UpgradeSucceeded {

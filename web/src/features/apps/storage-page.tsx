@@ -1,4 +1,4 @@
-import { useState, type FormEvent } from 'react'
+import { useState, type SubmitEvent } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
@@ -17,7 +17,10 @@ const empty: BindingInput = {
     password: '',
     readOnly: false,
 }
-const bindingsQuery = { queryKey: ['storage-bindings'], queryFn: api.storageBindings, refetchInterval: 15000 }
+// Shares change when you connect or disconnect one here, which refreshes the
+// list. The poll only notices a mount that dropped, and each check reads every
+// container config on the host.
+const bindingsQuery = { queryKey: ['storage-bindings'], queryFn: api.storageBindings, refetchInterval: 60000 }
 
 export function StoragePage() {
     const query = useQuery(bindingsQuery)
@@ -53,7 +56,7 @@ export function StoragePage() {
         },
         onError: (e) => toast.error(e.message),
     })
-    function submit(e: FormEvent) {
+    function submit(e: SubmitEvent) {
         e.preventDefault()
         create.mutate()
     }

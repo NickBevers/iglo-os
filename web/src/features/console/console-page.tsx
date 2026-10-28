@@ -19,7 +19,8 @@ type Status = 'connecting' | 'open' | 'closed'
 
 export function ConsolePage() {
     const { vmid } = route.useParams()
-    const { data: overview } = useQuery(overviewQuery)
+    // Only the list of guests. The status bar refreshes the overview every 15 seconds.
+    const { data: overview } = useQuery({ ...overviewQuery, refetchInterval: false })
     const guest = overview?.guests.find((item) => String(item.vmid) === vmid)
     const [status, setStatus] = useState<Status>('connecting')
     const [attempt, setAttempt] = useState(0)

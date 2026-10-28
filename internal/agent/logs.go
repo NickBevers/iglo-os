@@ -94,20 +94,30 @@ func NewLogs() *Logs {
 }
 
 // inGuest runs the command on the host, or in the container when vmid is set.
+// pct exec fails on a container that is missing or stopped, so only a failure
+// costs a pct status, to say which. Each pct call starts a Perl program.
 func (l *Logs) inGuest(ctx context.Context, vmid int, args ...string) ([]byte, error) {
 	if vmid == 0 {
 		return l.run(ctx, args[0], args[1:]...)
 	}
 
-	status, err := l.run(ctx, "pct", "status", strconv.Itoa(vmid))
-	if err != nil {
+	id := strconv.Itoa(vmid)
+	output, err := l.run(ctx, "pct", append([]string{"exec", id, "--"}, args...)...)
+	// A timeout says nothing about the container, and pct status would fail on
+	// the same expired context.
+	if err == nil || len(output) > 0 || ctx.Err() != nil {
+		return output, err
+	}
+
+	status, statusErr := l.run(ctx, "pct", "status", id)
+	if statusErr != nil {
 		return nil, guestError(fmt.Sprintf("container %d not found", vmid))
 	}
 	if strings.TrimSpace(string(status)) != "status: running" {
 		return nil, guestError(fmt.Sprintf("container %d is not running", vmid))
 	}
 
-	return l.run(ctx, "pct", append([]string{"exec", strconv.Itoa(vmid), "--"}, args...)...)
+	return output, err
 }
 
 func (l *Logs) Journal(ctx context.Context, query JournalQuery) ([]LogEntry, error) {
@@ -191,6 +201,24 @@ func journalMessage(raw json.RawMessage) string {
 	return "(message too large to show)"
 }
 
+// dockerScript lists the Docker containers and prints their recent logs, all
+// in one pct exec. A line that starts with the group separator (\035) opens a
+// section: the list, then the log of each container. Docker starts each log
+// line with a timestamp, so a log can't open a section. Without Docker the
+// script prints nothing.
+const dockerScript = `command -v docker >/dev/null 2>&1 || exit 0
+names=$(docker ps --all --format '{{.Names}}	{{.State}}	{{.Image}}') || exit 3
+printf '\035list\n%s\n' "$names"
+printf '%s\n' "$names" | cut -f1 | while IFS= read -r name; do
+	[ -n "$name" ] || continue
+	printf '\035log %s\n' "$name"
+	# Docker writes the app's stderr to our stderr, so combine both.
+	docker logs --timestamps --tail "$1" "$name" 2>&1
+done
+exit 0`
+
+const dockerSection = "\x1d"
+
 // Docker reads the recent logs of every Docker container in a container.
 func (l *Logs) Docker(ctx context.Context, vmid, lines int) (DockerLogs, error) {
 	if vmid < 100 || lines < 1 || lines > maxDockerLines {
@@ -200,39 +228,56 @@ func (l *Logs) Docker(ctx context.Context, vmid, lines int) (DockerLogs, error) 
 	ctx, cancel := context.WithTimeout(ctx, logsTimeout)
 	defer cancel()
 
-	result := DockerLogs{Containers: []DockerContainer{}, Entries: []LogEntry{}}
-	if _, err := l.inGuest(ctx, vmid, "sh", "-c", "command -v docker"); err != nil {
-		if _, ok := errors.AsType[guestError](err); ok {
-			return DockerLogs{}, err
-		}
-		return result, nil
+	output, err := l.inGuest(ctx, vmid, "sh", "-c", dockerScript, "sh", strconv.Itoa(lines))
+	if _, ok := errors.AsType[guestError](err); ok {
+		return DockerLogs{}, err
 	}
-	result.Installed = true
-
-	output, err := l.inGuest(ctx, vmid, "docker", "ps", "--all", "--format", "{{.Names}}\t{{.State}}\t{{.Image}}")
-	if err != nil {
+	// After a timeout, show the logs that came in time, like the containers
+	// that answered before.
+	result := parseDockerOutput(output)
+	if err != nil && !result.Installed {
 		return DockerLogs{}, fmt.Errorf("could not list Docker containers: %w", err)
 	}
 
-	for line := range strings.Lines(string(output)) {
-		fields := strings.Split(strings.TrimSpace(line), "\t")
-		if len(fields) != 3 || !dockerName.MatchString(fields[0]) {
-			continue
-		}
-		result.Containers = append(result.Containers, DockerContainer{Name: fields[0], State: fields[1], Image: fields[2]})
-	}
-
-	for _, container := range result.Containers {
-		// Docker writes the app's stderr to our stderr, so combine both.
-		logs, err := l.inGuest(ctx, vmid, "sh", "-c", `docker logs --timestamps --tail "$1" "$2" 2>&1`, "sh", strconv.Itoa(lines), container.Name)
-		if err != nil && len(logs) == 0 {
-			continue
-		}
-		result.Entries = append(result.Entries, parseDockerLogs(container.Name, logs)...)
-	}
-	slices.SortStableFunc(result.Entries, func(a, b LogEntry) int { return a.Time.Compare(b.Time) })
-
 	return result, nil
+}
+
+// parseDockerOutput reads the sections of dockerScript. It keeps only the logs
+// of containers with a valid name in the list.
+func parseDockerOutput(output []byte) DockerLogs {
+	result := DockerLogs{Containers: []DockerContainer{}, Entries: []LogEntry{}}
+	accepted := map[string]bool{}
+
+	section, body := "", strings.Builder{}
+	flush := func() {
+		switch name, isLog := strings.CutPrefix(section, "log "); {
+		case section == "list":
+			result.Installed = true
+			for line := range strings.Lines(body.String()) {
+				fields := strings.Split(strings.TrimSpace(line), "\t")
+				if len(fields) != 3 || !dockerName.MatchString(fields[0]) {
+					continue
+				}
+				accepted[fields[0]] = true
+				result.Containers = append(result.Containers, DockerContainer{Name: fields[0], State: fields[1], Image: fields[2]})
+			}
+		case isLog && accepted[name]:
+			result.Entries = append(result.Entries, parseDockerLogs(name, []byte(body.String()))...)
+		}
+		body.Reset()
+	}
+	for line := range strings.Lines(string(output)) {
+		if header, ok := strings.CutPrefix(line, dockerSection); ok {
+			flush()
+			section = strings.TrimRight(header, "\r\n")
+			continue
+		}
+		body.WriteString(line)
+	}
+	flush()
+
+	slices.SortStableFunc(result.Entries, func(a, b LogEntry) int { return a.Time.Compare(b.Time) })
+	return result
 }
 
 var (
