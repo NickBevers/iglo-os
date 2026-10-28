@@ -51,6 +51,9 @@ type Proxmox interface {
 
 type Agent interface {
 	SaveBackupJob(ctx context.Context, job agent.BackupJob) error
+	// Restore and RestoreStatus restore container backups on the host, as root.
+	Restore(ctx context.Context, request agent.RestoreRequest) (agent.RestoreStatus, error)
+	RestoreStatus(ctx context.Context) (agent.RestoreStatus, error)
 }
 
 type Options struct {
@@ -62,6 +65,11 @@ type Options struct {
 	Notify   func(ctx context.Context, text string)
 	Logger   *slog.Logger
 	Now      func() time.Time
+	// Hold says whether the monthly restore check should wait, like while a
+	// game runs. Optional.
+	Hold func() bool
+	// RestorePoll is how often a restore on the host is checked. Empty is 5 seconds.
+	RestorePoll time.Duration
 }
 
 type RunKind string
@@ -70,6 +78,8 @@ const (
 	RunBackup  RunKind = "backup"
 	RunRestore RunKind = "restore"
 	RunDelete  RunKind = "delete"
+	// RunCheck restores a backup to a copy, starts it and removes it.
+	RunCheck RunKind = "check"
 )
 
 type Run struct {
@@ -87,6 +97,9 @@ type state struct {
 	History []Run `json:"history"`
 	// LastTask is the end time of the newest Proxmox backup task we checked for failures.
 	LastTask int64 `json:"lastTask"`
+	// LastCheck is when the monthly restore check last ran, and on which container.
+	LastCheck     time.Time `json:"lastCheck,omitzero"`
+	LastCheckVMID int       `json:"lastCheckVmid,omitempty"`
 }
 
 type Service struct {
@@ -109,6 +122,9 @@ func New(options Options) (*Service, error) {
 	}
 	if options.Notify == nil {
 		options.Notify = func(context.Context, string) {}
+	}
+	if options.RestorePoll == 0 {
+		options.RestorePoll = 5 * time.Second
 	}
 
 	service := &Service{
@@ -266,9 +282,15 @@ func (s *Service) restore(ctx context.Context, guest proxmox.Resource, volid str
 		}
 	}
 
-	err = s.runTask(ctx, guest.Node, func() (string, error) {
-		return s.Proxmox.RestoreGuest(ctx, guest.Node, guestType, guest.VMID, volid, storage)
-	})
+	if guestType == proxmox.LXC {
+		// Proxmox lets only root restore a bind mount, which every app of
+		// Iglo-OS has, so the host agent does it.
+		err = s.restoreOnHost(ctx, agent.RestoreRequest{VMID: guest.VMID, Volid: volid, Storage: storage})
+	} else {
+		err = s.runTask(ctx, guest.Node, func() (string, error) {
+			return s.Proxmox.RestoreGuest(ctx, guest.Node, guestType, guest.VMID, volid, storage)
+		})
+	}
 	if err != nil {
 		return err
 	}
@@ -474,6 +496,7 @@ func (s *Service) RunMonitor(ctx context.Context) {
 			return
 		case <-ticker.C:
 			s.checkTasks(ctx)
+			s.monthlyCheck(ctx)
 		}
 	}
 }

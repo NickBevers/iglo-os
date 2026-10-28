@@ -148,6 +148,20 @@ func (c *Client) Mounts(ctx context.Context) ([]Mount, error) {
 	return mounts, err
 }
 
+// Restore starts a restore of a container backup on the host, and returns it.
+func (c *Client) Restore(ctx context.Context, request RestoreRequest) (RestoreStatus, error) {
+	var status RestoreStatus
+	err := c.do(ctx, http.MethodPost, "/v1/restore", request, &status)
+	return status, err
+}
+
+// RestoreStatus is the restore that runs or ran last on the host.
+func (c *Client) RestoreStatus(ctx context.Context) (RestoreStatus, error) {
+	var status RestoreStatus
+	err := c.do(ctx, http.MethodGet, "/v1/restore", nil, &status)
+	return status, err
+}
+
 func (c *Client) SaveBackupJob(ctx context.Context, job BackupJob) error {
 	return c.do(ctx, http.MethodPut, "/v1/backup-job", job, nil)
 }

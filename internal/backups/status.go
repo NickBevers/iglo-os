@@ -64,11 +64,13 @@ type View struct {
 	Storages []StorageView `json:"storages"`
 	Guests   []GuestView   `json:"guests"`
 	History  []Run         `json:"history"`
+	// Check is the monthly restore check.
+	Check CheckView `json:"check"`
 }
 
 func (s *Service) Status(ctx context.Context) (View, error) {
 	s.mu.Lock()
-	view := View{Busy: s.busy, History: slices.Clone(s.state.History), Storages: []StorageView{}, Guests: []GuestView{}}
+	view := View{Busy: s.busy, History: slices.Clone(s.state.History), Storages: []StorageView{}, Guests: []GuestView{}, Check: s.checkView()}
 	s.mu.Unlock()
 
 	resources, err := s.Proxmox.Resources(ctx)

@@ -139,6 +139,8 @@ func serve() error {
 		SelfVMID: cfg.SelfVMID,
 		Notify:   updateService.Notify,
 		Logger:   logger,
+		// The monthly restore check waits while a game runs, like other heavy work.
+		Hold: func() bool { return workloadService.Status().GamingActive },
 	})
 	if err != nil {
 		return err

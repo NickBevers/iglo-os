@@ -74,6 +74,11 @@ func run(socketPath string, socketGID int, logger *slog.Logger) error {
 	mux.HandleFunc("GET /v1/jobs/{id}", getJob(runner))
 	mux.HandleFunc("GET /v1/mounts", listMounts(agent.NewMounts()))
 	mux.HandleFunc("PUT /v1/backup-job", saveBackupJob(logger))
+	restorer := agent.NewRestorer()
+	mux.HandleFunc("POST /v1/restore", startRestore(restorer, logger))
+	mux.HandleFunc("GET /v1/restore", func(w http.ResponseWriter, r *http.Request) {
+		writeJSON(w, http.StatusOK, restorer.Status())
+	})
 	mux.Handle("GET /v1/console/{vmid}", agent.NewConsoles(logger))
 	logs := agent.NewLogs()
 	mux.HandleFunc("GET /v1/logs/journal", journalLogs(logs))
@@ -359,6 +364,33 @@ func saveBackupJob(logger *slog.Logger) http.HandlerFunc {
 
 		logger.Info("backup job saved", "schedule", job.Schedule(), "storage", job.Storage, "enabled", job.Enabled)
 		w.WriteHeader(http.StatusNoContent)
+	}
+}
+
+// startRestore restores a container backup as root, in the background.
+func startRestore(restorer *agent.Restorer, logger *slog.Logger) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		var request agent.RestoreRequest
+		if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, 4096)).Decode(&request); err != nil {
+			http.Error(w, "invalid request body", http.StatusBadRequest)
+			return
+		}
+
+		status, err := restorer.Start(request)
+		switch {
+		case errors.Is(err, agent.ErrInvalidRestore):
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		case errors.Is(err, agent.ErrRestoreRunning):
+			http.Error(w, err.Error(), http.StatusConflict)
+			return
+		case err != nil:
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+
+		logger.Info("restore started", "vmid", request.VMID, "volid", request.Volid, "check", request.Check)
+		writeJSON(w, http.StatusAccepted, status)
 	}
 }
 

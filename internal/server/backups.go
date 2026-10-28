@@ -63,6 +63,18 @@ func (s *server) backupsRestore(w http.ResponseWriter, r *http.Request) {
 	s.writeBackupsResult(w, s.Backups.Restore(s.Background, input.VMID, input.VolID))
 }
 
+func (s *server) backupsCheck(w http.ResponseWriter, r *http.Request) {
+	var input struct {
+		VolID string `json:"volid"`
+	}
+	if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, 4096)).Decode(&input); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid request body")
+		return
+	}
+
+	s.writeBackupsResult(w, s.Backups.Check(s.Background, input.VolID))
+}
+
 func (s *server) backupsDelete(w http.ResponseWriter, r *http.Request) {
 	var input struct {
 		VolID string `json:"volid"`

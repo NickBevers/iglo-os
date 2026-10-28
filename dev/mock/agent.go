@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"os"
 	"strconv"
+	"strings"
 	"sync"
 	"time"
 
@@ -66,6 +67,11 @@ func serveAgent(socket string) error {
 		data, _ := io.ReadAll(http.MaxBytesReader(w, r.Body, 8192))
 		os.WriteFile(statePath("backup-job.json"), data, 0o600)
 		w.WriteHeader(http.StatusNoContent)
+	})
+	restorer := &fakeRestorer{}
+	mux.HandleFunc("POST /v1/restore", restorer.start)
+	mux.HandleFunc("GET /v1/restore", func(w http.ResponseWriter, r *http.Request) {
+		writeJSON(w, restorer.get())
 	})
 	mux.HandleFunc("GET /v1/upgrade", func(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, agent.UpgradeStatus{State: agent.UpgradeIdle})
@@ -193,4 +199,48 @@ func dockerLogs(w http.ResponseWriter, r *http.Request) {
 
 func init() {
 	log.SetFlags(log.Ltime)
+}
+
+// fakeRestorer plays the restores of the host agent: three seconds, and a
+// backup with "broken" in its name fails, like a backup that doesn't boot.
+type fakeRestorer struct {
+	mu     sync.Mutex
+	status agent.RestoreStatus
+}
+
+func (f *fakeRestorer) start(w http.ResponseWriter, r *http.Request) {
+	var request agent.RestoreRequest
+	if err := json.NewDecoder(r.Body).Decode(&request); err != nil {
+		http.Error(w, "invalid request body", http.StatusBadRequest)
+		return
+	}
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	if f.status.Running {
+		http.Error(w, agent.ErrRestoreRunning.Error(), http.StatusConflict)
+		return
+	}
+	f.status = agent.RestoreStatus{Running: true, Request: request, StartedAt: time.Now()}
+	status := f.status
+	go func() {
+		time.Sleep(3 * time.Second)
+		f.mu.Lock()
+		defer f.mu.Unlock()
+		f.status.Running, f.status.Succeeded, f.status.FinishedAt = false, true, time.Now()
+		f.status.Message = "restored"
+		if request.Check {
+			f.status.Message = "restored as container 9901, booted (degraded) and removed, in 3s"
+		}
+		if strings.Contains(request.Volid, "broken") {
+			f.status.Succeeded, f.status.Message = false, `the copy started, but its system is "starting"`
+		}
+	}()
+	w.WriteHeader(http.StatusAccepted)
+	json.NewEncoder(w).Encode(status)
+}
+
+func (f *fakeRestorer) get() agent.RestoreStatus {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return f.status
 }
