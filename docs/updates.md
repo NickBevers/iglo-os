@@ -7,6 +7,7 @@ The Updates page checks the Proxmox host and all running containers for updates.
 - **Containers**: once a week (Sunday 04:00 by default), each container with auto-update on gets a snapshot and then its updates. If the update fails, or the container stops, the manager rolls it back to the snapshot. The last 3 snapshots are kept.
 - **Proxmox host**: the schedule only checks it, because the host has no snapshots. Install host updates from the dashboard. The page tells you when a new kernel needs a reboot.
 - **The manager itself** is never updated by the schedule, and a failed update of it is not rolled back automatically.
+- **Apps of Iglo-OS** run images pinned to a digest, so the weekly run finds no new images for them. Their new versions come with an Iglo-OS release, through **Update** on the Apps page, with its snapshot and rollback.
 
 ## Telegram
 
