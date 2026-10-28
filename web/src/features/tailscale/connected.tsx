@@ -28,7 +28,7 @@ const adminConsole = 'https://login.tailscale.com/admin/machines'
 
 export function ConnectedCard({ tailscale }: { tailscale: Tailscale }) {
     const [confirmOpen, setConfirmOpen] = useState(false)
-    const logout = useTailscaleMutation(api.logoutTailscale, () => 'Disconnected from Tailscale')
+    const logout = useTailscaleMutation(api.logoutTailscale, () => 'Disconnected from the private network')
 
     return (
         <Card>
@@ -38,7 +38,11 @@ export function ConnectedCard({ tailscale }: { tailscale: Tailscale }) {
                     Connected as {tailscale.name}
                 </CardTitle>
                 <CardDescription>
-                    {tailscale.tailnet ? `Tailnet ${tailscale.tailnet}` : 'Connected to your tailnet'}
+                    {tailscale.settings.loginServer
+                        ? `Headscale: ${tailscale.settings.loginServer}`
+                        : tailscale.tailnet
+                          ? `Tailnet ${tailscale.tailnet}`
+                          : 'Connected to your tailnet'}
                 </CardDescription>
                 <CardAction>
                     <AlertDialog open={confirmOpen} onOpenChange={setConfirmOpen}>
@@ -47,7 +51,7 @@ export function ConnectedCard({ tailscale }: { tailscale: Tailscale }) {
                         </AlertDialogTrigger>
                         <AlertDialogContent>
                             <AlertDialogHeader>
-                                <AlertDialogTitle>Disconnect from Tailscale?</AlertDialogTitle>
+                                <AlertDialogTitle>Disconnect remote access?</AlertDialogTitle>
                                 <AlertDialogDescription>
                                     Iglo-OS leaves your tailnet. You can then only reach it from your home network.
                                     Connecting again needs a new login.
@@ -162,7 +166,7 @@ export function SubnetCard({ tailscale }: { tailscale: Tailscale }) {
 
     function handleSubmit(event: FormEvent) {
         event.preventDefault()
-        save.mutate({ shareSubnet, subnet })
+        save.mutate({ ...tailscale.settings, shareSubnet, subnet })
     }
 
     const shared = tailscale.settings.shareSubnet
@@ -198,7 +202,12 @@ export function SubnetCard({ tailscale }: { tailscale: Tailscale }) {
                     </div>
                     {shared &&
                         (tailscale.subnetApproved ? (
-                            <Badge variant="success">Approved in Tailscale</Badge>
+                            <Badge variant="success">Route approved</Badge>
+                        ) : tailscale.settings.loginServer ? (
+                            <p className="text-sm text-muted-foreground">
+                                Approve the advertised route on your Headscale controller, or configure an auto-approver
+                                in its policy.
+                            </p>
                         ) : (
                             <p className="text-sm text-muted-foreground">
                                 Approve the route in the{' '}
@@ -223,7 +232,8 @@ export function DeviceList({ peers }: { peers: Tailscale['peers'] }) {
     if (peers.length === 0) {
         return (
             <Card className="p-6 text-center text-sm text-muted-foreground">
-                No other devices yet. Install Tailscale on your phone or laptop and log in with the same account.
+                No other devices yet. Install a compatible client on your phone or laptop and join the same private
+                network.
             </Card>
         )
     }

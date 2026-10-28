@@ -2,9 +2,13 @@
 # Fake tailscale CLI for `make dev`. It keeps its state in .dev/tailscale.
 # A login "succeeds" 5 seconds after `tailscale up`, and a new login with
 # --force-reauth after 30 seconds.
-dir="$(cd "$(dirname "$0")/../.." && pwd)/.dev/tailscale"
+dir="$(dirname "${IGLO_DATA_DIR:-.dev/data}")/tailscale"
 mkdir -p "$dir"
 state="$(cat "$dir/state" 2>/dev/null || echo NeedsLogin)"
+controller="$(cat "$dir/controller" 2>/dev/null || true)"
+login_url="${controller:-https://login.tailscale.com}/a/dev"
+domain=tail1234.ts.net
+[[ -z "$controller" ]] || domain=iglo.internal
 
 case "$1 $2" in
 "status --json")
@@ -16,37 +20,40 @@ case "$1 $2" in
         # A new login keeps the old key working, like the real tailscaled.
         url="" health="[]"
         if [[ -f "$dir/pending" ]]; then
-            url="https://login.tailscale.com/a/dev"
+            url="$login_url"
             health='["You are logged out. The last login error was: fetch control key: Get \"https://controlplane.tailscale.com/key?v=142\": context canceled"]'
         fi
         cat <<JSON
 {"BackendState":"Running","AuthURL":"$url","Health":$health,
- "Self":{"HostName":"iglo","DNSName":"iglo.tail1234.ts.net.","TailscaleIPs":["100.101.102.103"],"PrimaryRoutes":$routes,"Tags":$tags},
+ "Self":{"HostName":"iglo","DNSName":"iglo.$domain.","TailscaleIPs":["100.101.102.103"],"PrimaryRoutes":$routes,"Tags":$tags},
  "CurrentTailnet":{"Name":"you@example.com"},
- "Peer":{"1":{"HostName":"iphone","DNSName":"iphone.tail1234.ts.net.","OS":"iOS","TailscaleIPs":["100.90.1.2"],"Online":true},
-         "2":{"HostName":"macbook","DNSName":"macbook.tail1234.ts.net.","OS":"macOS","TailscaleIPs":["100.90.1.3"],"Online":false,"LastSeen":"2026-09-29T20:00:00Z"}}}
+ "Peer":{"1":{"HostName":"iphone","DNSName":"iphone.$domain.","OS":"iOS","TailscaleIPs":["100.90.1.2"],"Online":true},
+         "2":{"HostName":"macbook","DNSName":"macbook.$domain.","OS":"macOS","TailscaleIPs":["100.90.1.3"],"Online":false,"LastSeen":"2026-09-29T20:00:00Z"}}}
 JSON
     else
         url=""
-        [[ -f "$dir/pending" ]] && url="https://login.tailscale.com/a/dev"
+        [[ -f "$dir/pending" ]] && url="$login_url"
         echo "{\"BackendState\":\"NeedsLogin\",\"AuthURL\":\"$url\",\"Health\":[\"You are logged out.\"]}"
         exit 1
     fi
     ;;
 "up --reset")
-    rm -f "$dir/routes"
+    rm -f "$dir/routes" "$dir/controller"
     tag="" reauth=""
     for arg in "$@"; do
+        [[ "$arg" == --login-server=* ]] && printf '%s\n' "${arg#*=}" >"$dir/controller"
         [[ "$arg" == --advertise-routes=* ]] && echo "${arg#*=}" >"$dir/routes"
         [[ "$arg" == --advertise-tags=* ]] && tag=1
         [[ "$arg" == --force-reauth ]] && reauth=1
     done
+    controller="$(cat "$dir/controller" 2>/dev/null || true)"
+    login_url="${controller:-https://login.tailscale.com}/a/dev"
     if [[ "$state" == Running && -z "$reauth" ]]; then
         exit 0
     fi
     if [[ "$state" == Running ]]; then
         touch "$dir/pending"
-        printf '\nTo authenticate, visit:\n\n\thttps://login.tailscale.com/a/dev\n'
+        printf '\nTo authenticate, visit:\n\n\t%s\n' "$login_url"
         sleep 30
         if [[ -n "$tag" ]]; then touch "$dir/tagged"; else rm -f "$dir/tagged"; fi
         rm -f "$dir/pending"
@@ -57,7 +64,7 @@ JSON
     if [[ -n "$tag" ]]; then touch "$dir/tagged"; else rm -f "$dir/tagged"; fi
     echo NeedsLogin >"$dir/state"
     touch "$dir/pending"
-    printf '\nTo authenticate, visit:\n\n\thttps://login.tailscale.com/a/dev\n'
+    printf '\nTo authenticate, visit:\n\n\t%s\n' "$login_url"
     sleep 5
     rm -f "$dir/pending"
     echo Running >"$dir/state"
