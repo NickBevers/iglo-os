@@ -447,20 +447,31 @@ func (s *Service) flushNotifications(ctx context.Context) {
 	}
 }
 
-// RunNotifications checks retries twice a minute. An empty queue makes no
-// network calls or file writes, and each destination has exponential backoff.
+// RunNotifications wakes on a new alert or the next persisted retry deadline.
+// Empty queues have no timer. Startup retries due alerts after a restart.
 func (s *Service) RunNotifications(ctx context.Context) {
-	s.flushNotifications(ctx)
-	ticker := time.NewTicker(30 * time.Second)
-	defer ticker.Stop()
 	for {
+		if ctx.Err() != nil {
+			return
+		}
+		s.flushNotifications(ctx)
+		var retry <-chan time.Time
+		var timer *time.Timer
+		if next, ok := s.outbox.NextAttempt(); ok {
+			timer = time.NewTimer(max(next.Sub(s.Now()), time.Millisecond))
+			retry = timer.C
+		}
 		select {
 		case <-ctx.Done():
+			if timer != nil {
+				timer.Stop()
+			}
 			return
 		case <-s.notifyWake:
-			s.flushNotifications(ctx)
-		case <-ticker.C:
-			s.flushNotifications(ctx)
+		case <-retry:
+		}
+		if timer != nil {
+			timer.Stop()
 		}
 	}
 }

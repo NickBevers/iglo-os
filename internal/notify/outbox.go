@@ -180,3 +180,20 @@ func (q *Outbox) Flush(ctx context.Context, destinations []Destination, now time
 	}
 	return errors.Join(errs...)
 }
+
+// NextAttempt returns the earliest delivery deadline. Empty queues have no
+// timer and cost no wakeups, filesystem reads or network calls.
+func (q *Outbox) NextAttempt() (time.Time, bool) {
+	q.mu.Lock()
+	defer q.mu.Unlock()
+	if len(q.pending) == 0 {
+		return time.Time{}, false
+	}
+	next := q.pending[0].Next
+	for _, item := range q.pending[1:] {
+		if item.Next.Before(next) {
+			next = item.Next
+		}
+	}
+	return next, true
+}
