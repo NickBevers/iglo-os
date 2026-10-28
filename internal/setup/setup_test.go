@@ -191,6 +191,20 @@ func fakeImmich(t *testing.T) (*httptest.Server, *[]string) {
 			}
 		case "POST /api/auth/login":
 			w.Write([]byte(`{"accessToken":"token"}`))
+		case "GET /api/admin/config":
+			if r.Header.Get("Authorization") != "Bearer token" {
+				t.Error("configuration requires the ephemeral admin session")
+			}
+			w.Write([]byte(`{"job":{"videoConversion":{"concurrency":2},"faceDetection":{"concurrency":2},"smartSearch":{"concurrency":2},"ocr":{"concurrency":1}},"ffmpeg":{"threads":0,"transcode":"optimal"},"machineLearning":{"facialRecognition":{"enabled":true,"modelName":"buffalo_l"}},"unrelated":{"keep":true}}`))
+		case "PUT /api/admin/config":
+			var config map[string]any
+			json.NewDecoder(r.Body).Decode(&config)
+			if r.Header.Get("Authorization") != "Bearer token" {
+				t.Error("missing ephemeral admin token")
+			}
+			if config["unrelated"].(map[string]any)["keep"] != true {
+				t.Error("unrelated settings lost")
+			}
 		case "POST /api/api-keys":
 			var body struct {
 				Permissions []string `json:"permissions"`

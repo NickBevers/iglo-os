@@ -340,6 +340,23 @@ function AccountsPage({ draft, setDraft, wants }: Omit<PageProps, 'setup'> & { w
                             />
                         </Field>
                     )}
+                    {wants('photos') && (
+                        <label className="flex items-start gap-3 rounded-md border p-3 text-sm">
+                            <Checkbox
+                                checked={draft.allowRestrictedFaceModels}
+                                onCheckedChange={(on) =>
+                                    setDraft((d) => ({ ...d, allowRestrictedFaceModels: on === true }))
+                                }
+                            />
+                            <span>
+                                <span className="font-medium">Enable face grouping</span>
+                                <span className="mt-1 block text-muted-foreground">
+                                    Immich's default face model has non-commercial research terms for its weights. Leave
+                                    this off for FOSS defaults. This only configures a new Photos library.
+                                </span>
+                            </span>
+                        </label>
+                    )}
                     <Field id="admin-password" label="Password" help="At least 12 characters.">
                         <Input
                             id="admin-password"

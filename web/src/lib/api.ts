@@ -199,6 +199,7 @@ export type SetupPlan = {
     flareSolverr: boolean
     animeIndexers: boolean
     proxmoxBackups: boolean
+    allowRestrictedFaceModels: boolean
     confirmPrivileged: boolean
     timezone: string
     storage: string

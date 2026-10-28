@@ -16,6 +16,11 @@ services:
     environment:
       MACHINE_LEARNING_MODEL_REVISION: v2
       MACHINE_LEARNING_WORKERS: 1
+      # Immich v3.3.5 config.py, checked 28 October 2026. Docker CPU quotas
+      # do not limit os.cpu_count(), so bound request and CPU inference pools.
+      MACHINE_LEARNING_REQUEST_THREADS: 2
+      MACHINE_LEARNING_MODEL_INTER_OP_THREADS: 1
+      MACHINE_LEARNING_MODEL_INTRA_OP_THREADS: 2
   database:
     cpus: 1
     mem_limit: 1536m
