@@ -84,9 +84,13 @@ secrets_attach() {
     local ctid="$1" index="$2"
     secrets_unlock "$ctid"
     pct set "$ctid" "--mp$index" "$SECRETS_RUN/$ctid,mp=$SECRETS_MOUNT,ro=1,backup=0"
-    install -d -m 0755 "/etc/systemd/system/pve-container@$ctid.service.d"
-    printf '[Unit]\nRequires=iglo-secrets@%s.service\nAfter=iglo-secrets@%s.service\n' "$ctid" "$ctid" \
-        >"/etc/systemd/system/pve-container@$ctid.service.d/iglo-secrets.conf"
+    # The normal start and the debug start of Proxmox (pve-container 7d99e49).
+    local unit
+    for unit in pve-container pve-container-debug; do
+        install -d -m 0755 "/etc/systemd/system/$unit@$ctid.service.d"
+        printf '[Unit]\nRequires=iglo-secrets@%s.service\nAfter=iglo-secrets@%s.service\n' "$ctid" "$ctid" \
+            >"/etc/systemd/system/$unit@$ctid.service.d/iglo-secrets.conf"
+    done
     systemctl daemon-reload
 }
 
@@ -116,6 +120,7 @@ secrets_forget_saved() {
 secrets_remove() {
     [[ "$1" =~ ^[0-9]{3,9}$ ]] || return 1
     rm -rf "${SECRETS_ROOT:?}/$1" "${SECRETS_ROOT:?}/$1.before" "${SECRETS_RUN:?}/$1"
-    rm -f "/etc/systemd/system/pve-container@$1.service.d/iglo-secrets.conf"
+    rm -f "/etc/systemd/system/pve-container@$1.service.d/iglo-secrets.conf" \
+        "/etc/systemd/system/pve-container-debug@$1.service.d/iglo-secrets.conf"
     systemctl daemon-reload
 }
