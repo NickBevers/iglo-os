@@ -42,10 +42,10 @@ Headscale controller. Headscale is BSD 3-Clause FOSS. The Linux Tailscale client
 is open source; the hosted control service is optional. Check the license of
 client applications on each platform separately.
 
-1. Run a reachable Headscale server with a trusted HTTPS certificate. Keep it
-   available independently of the Iglo manager. Use the upstream server and
-   reverse-proxy guides linked below. Iglo does not install a public controller
-   or configure a domain for you.
+1. Install the optional [Headscale app](headscale.md) on the Mini PC, or use an
+   existing reachable Headscale server with a trusted HTTPS certificate. The
+   managed app requires public DNS and port forwarding. A controller on this
+   Mini PC goes offline with the host; Iglo does not configure your domain or router.
 2. Keep a LAN connection to Iglo available. Disconnect its current remote
    session, choose **Headscale** under **Control server**, enter the HTTPS base
    URL and save. Provider changes are refused while connected or connecting.

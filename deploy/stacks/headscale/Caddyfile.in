@@ -1,0 +1,27 @@
+# Caddy 2.11.7 and Headscale 0.29.6 proxy routes checked 28 October 2026.
+{
+    admin off
+    auto_https disable_redirects
+}
+http://@HOST@ {
+    handle /generate_204 {
+        respond 204
+    }
+    handle {
+        redir https://@HOST@{uri} permanent
+    }
+}
+https://@HOST@ {
+    tls {
+        issuer acme {
+            dir https://acme-v02.api.letsencrypt.org/directory
+        }
+    }
+    # Admin/API, metrics and embedded relay verification stay private.
+    @private path /api /api/* /v1 /v1/* /verify /swagger* /metrics* /debug*
+    respond @private 404
+    reverse_proxy 127.0.0.1:8080 {
+        header_up True-Client-IP {remote_host}
+        header_up X-Real-IP {remote_host}
+    }
+}

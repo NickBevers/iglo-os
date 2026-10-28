@@ -104,6 +104,9 @@ func (p *fakeProxmox) resources(w http.ResponseWriter, r *http.Request) {
 			}
 		}
 	}
+	if _, err := os.Stat(statePath("headscale-budget-overflow")); err == nil {
+		resources = append(resources, map[string]any{"type": "qemu", "node": "pve", "vmid": 999, "name": "budget-fixture", "status": "stopped", "maxmem": int64(24 << 30)})
+	}
 	for _, resource := range resources {
 		id := resource["type"].(string) + "/" + fmt.Sprint(resource["vmid"])
 		switch resource["type"] {
@@ -213,6 +216,9 @@ func (p *fakeProxmox) node(w http.ResponseWriter, r *http.Request) {
 	case len(parts) == 3 && parts[0] == "lxc" && parts[2] == "config":
 		// The installed apps are from an older release, so the Apps page offers an update.
 		description := "Installed by Iglo-OS\niglo-version: v0.7.1\n"
+		if parts[1] == "210" {
+			description += "iglo-headscale-hostname: " + mockHeadscaleHost() + "\n"
+		}
 		if parts[1] == "150" {
 			description += "iglo-address: iglo-dev.joinmc.link\n"
 		}

@@ -198,7 +198,8 @@ uses far less. That has two sides:
 - **Cores are free to raise.** Jellyfin and the media stack went from 2 to 4
   cores, which costs nothing while idle and helps when the CPU has to step in.
 - **Memory caps add up on paper.** All apps and the manager at their limits
-  come to about 18.5 GiB, and 24.5 GiB while you play. The setup's review shows
+  come to about 18.5 GiB, and 24.5 GiB while you play. The optional native
+  Headscale controller adds 512 MiB, making 19 GiB and 25 GiB. The setup's review shows
   that total against the host's RAM, and warns when the peak doesn't fit.
 
 ### Decide on real pressure
@@ -388,3 +389,21 @@ request. Each scan checks its two mounts once, not per file. A 10-second
 admission tick returns before mount checks when no work waits. Queue state is
 written only on change. Original-codec jobs avoid full software decoding.
 New installs have no Docker. Hardware savings have not been measured.
+
+## Managed Headscale
+
+The optional controller adds a fixed 512 MiB guest cap, one core and 8 GiB SSD.
+Native Headscale and Caddy avoid another Docker daemon. Their caps are 320 MiB
+and 128 MiB, with Go targets of 256 MiB and 96 MiB. Embedded relaying shares that
+same guest cap and a default 5 MB/s interface rate limit. These are configured
+bounds, not measurements of idle memory, energy or relay throughput.
+
+Installation counts all guest memory caps on the node, including stopped ones,
+against measured physical memory, capped at 32 GiB, with 4 GiB host headroom.
+The host repeats the check immediately before creating the guest. It also checks
+MemAvailable. Existing limits are not reduced automatically.
+
+There is no new background watcher or per-tab controller poll. Apps uses its
+existing resource/description caches and event topic. Local health is checked
+only during explicit installation/update. Public HTTPS is not declared ready
+from a loopback check. [Deployment and recovery details](headscale.md).

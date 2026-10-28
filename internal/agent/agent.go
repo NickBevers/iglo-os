@@ -259,7 +259,8 @@ func (c *Client) RetryApp(ctx context.Context, app string) error {
 
 // AppContainerRequest names the container of an app to update or remove.
 type AppContainerRequest struct {
-	VMID int `json:"vmid"`
+	Confirm string `json:"confirm,omitempty"`
+	VMID    int    `json:"vmid"`
 }
 
 func (c *Client) UpdateApp(ctx context.Context, app string, vmid int) error {

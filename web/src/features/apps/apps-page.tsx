@@ -13,6 +13,7 @@ import { api, type Apps, type CatalogApp } from '@/lib/api'
 import { appsQuery } from '@/lib/queries'
 import { formatDateTime } from '@/lib/format'
 import { AppActions } from './app-actions'
+import { HeadscaleDetails } from './headscale-details'
 import { InstallDialog } from './install-dialog'
 
 // On a phone, the buttons go below the description, so the text keeps its width.
@@ -115,7 +116,7 @@ function AppCard({ app, defaults }: { app: CatalogApp; defaults: Apps['defaults'
                                     Change answers
                                 </Button>
                                 {/* The media stack keeps no VPN login for a retry. */}
-                                {app.id !== 'media' && (
+                                {!['media', 'headscale'].includes(app.id) && (
                                     <Button disabled={retry.isPending} onClick={() => retry.mutate()}>
                                         {retry.isPending ? <Loader2Icon className="animate-spin" /> : <RotateCwIcon />}
                                         Try again
@@ -131,6 +132,7 @@ function AppCard({ app, defaults }: { app: CatalogApp; defaults: Apps['defaults'
 
             <CardContent className="flex flex-col gap-4">
                 {operation && <OperationProgress operation={operation} rollback={app.rollback} />}
+                {app.id === 'headscale' && app.installed && <HeadscaleDetails app={app} />}
                 {app.planned && (
                     <p className="text-xs text-muted-foreground">
                         This app's Iglo-OS integration is not implemented yet. Installation, updates and removal are

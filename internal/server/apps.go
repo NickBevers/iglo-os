@@ -1,6 +1,7 @@
 package server
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"net/http"
@@ -43,6 +44,24 @@ func (s *server) appsUpdate(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *server) appsRemove(w http.ResponseWriter, r *http.Request) {
+	if r.PathValue("id") == agent.HeadscaleApp {
+		var in struct {
+			Confirm string `json:"confirm"`
+		}
+		if json.NewDecoder(http.MaxBytesReader(w, r.Body, 1024)).Decode(&in) != nil {
+			writeError(w, 400, "confirm the controller hostname")
+			return
+		}
+		a, ok := s.Apps.(interface {
+			RemoveHeadscale(context.Context, context.Context, string) error
+		})
+		if !ok {
+			writeError(w, 503, "update Iglo-OS first")
+			return
+		}
+		s.writeAppsResult(w, a.RemoveHeadscale(r.Context(), s.Background, in.Confirm), 202)
+		return
+	}
 	s.writeAppsResult(w, s.Apps.Remove(r.Context(), s.Background, r.PathValue("id")), http.StatusAccepted)
 }
 
