@@ -431,7 +431,7 @@ func (s *Service) connectImmich(ctx context.Context, plan Plan) (string, error) 
 	if current.URL == "" {
 		return "", errors.New("Photos has no address yet")
 	}
-	key, err := s.immichKey(ctx, current.URL, plan.Admin)
+	key, err := s.immichKey(ctx, current.URL, plan.Admin, plan.AllowRestrictedFaceModels)
 	if errors.Is(err, errImmichHasAdmin) {
 		return "Immich already had an admin. Connect its API key on the Background work page.", nil
 	}
@@ -446,6 +446,9 @@ func (s *Service) connectImmich(ctx context.Context, plan Plan) (string, error) 
 	settings.Enabled, settings.Workers = true, true
 	settings.URL, settings.APIKey, settings.Node = current.URL, key, memory.Node
 	settings.Window, settings.Timezone = true, plan.Timezone
+	if !plan.AllowRestrictedFaceModels {
+		settings.Queues = slices.DeleteFunc(settings.Queues, func(name string) bool { return name == "faceDetection" || name == "facialRecognition" })
+	}
 	if err := s.Workloads.SaveSettings(settings); err != nil {
 		return "", err
 	}

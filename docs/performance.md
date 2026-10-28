@@ -336,8 +336,8 @@ Not measured yet on the target hardware.
 Checked on 28 October 2026. Health, Updates and Backups now publish their
 own live topics from the manager, also when running against the dev mock.
 With the stream connected, an idle Health or Updates page makes one fallback
-request per minute instead of four. Backups makes one instead of two. Active
-updates still poll every 2 seconds and backups every 3 seconds for progress.
+request per minute instead of four. Backups makes one instead of two. With a dropped stream, active
+updates poll every 2 seconds and backups every 3 seconds for progress.
 These are counted requests per open page, not hardware measurements.
 
 Storage and backup archive lists are shared for one minute. Ten concurrent
@@ -357,9 +357,22 @@ a 1 MiB command and retain a package result from before the visible log tail.
 
 Notification delivery runs outside request and operation handlers. A slow
 provider does not hold the queue's state lock or delay another alert being
-saved. Each delivery pass has a 20-second deadline; an idle worker checks its
-queue twice a minute without network calls or writes. New alerts wake it at
+saved. Each delivery pass has a 20-second deadline. The worker sleeps until a
+pending retry deadline; an empty queue has no timer. New alerts wake it at
 once.
+
+### Signal follow-up
+
+Health, Updates and Backups use one-minute fallback reads while SSE is live,
+even during an operation. Their manager services publish operation changes;
+without SSE, active updates and backups retain 2-second and 3-second reads.
+A connection transition immediately invalidates active topic queries so their
+intervals change without waiting for an old minute-long timer. The first
+connection also refreshes snapshots. Event bursts are throttled to one flush
+per 200 ms, so a continuous burst cannot postpone a refresh indefinitely.
+
+The notification worker now arms a timer only for the earliest pending retry.
+New alerts wake it immediately. An empty queue causes zero periodic wakeups.
 
 ## Native Inbox cost
 

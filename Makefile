@@ -55,7 +55,7 @@ shellcheck:
 test:
 	go vet $(GO_PKGS)
 	go test $(GO_PKGS)
-	cd web && npm run lint && npm run typecheck
+	cd web && npm test && npm run lint && npm run typecheck
 
 # Everything on this computer, with a fake Proxmox and host agent. Open http://localhost:5173.
 dev:

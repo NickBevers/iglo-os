@@ -37,8 +37,7 @@ func (s *Service) immichCall(ctx context.Context, server, method, path, token st
 	}
 	defer response.Body.Close()
 	if response.StatusCode >= 300 {
-		message, _ := io.ReadAll(io.LimitReader(response.Body, 512))
-		return fmt.Errorf("Immich %s: %s %s", path, response.Status, strings.TrimSpace(string(message)))
+		return fmt.Errorf("Immich %s: %s", path, response.Status)
 	}
 	if out != nil {
 		return json.NewDecoder(response.Body).Decode(out)
@@ -48,7 +47,7 @@ func (s *Service) immichCall(ctx context.Context, server, method, path, token st
 
 // immichKey creates the first admin of a new Immich and returns an API key
 // for Background work, which may only read and pause the queues.
-func (s *Service) immichKey(ctx context.Context, server string, admin Admin) (string, error) {
+func (s *Service) immichKey(ctx context.Context, server string, admin Admin, allowRestrictedFaces bool) (string, error) {
 	// Immich takes a while to start after its install.
 	deadline := time.Now().Add(5 * time.Minute)
 	var config struct {
@@ -83,6 +82,9 @@ func (s *Service) immichKey(ctx context.Context, server string, admin Admin) (st
 	if err := s.immichCall(ctx, server, http.MethodPost, "/auth/login", "", credentials, &login); err != nil {
 		return "", err
 	}
+	if err := s.immichDefaults(ctx, server, login.AccessToken, allowRestrictedFaces); err != nil {
+		return "", err
+	}
 	var key struct {
 		Secret string `json:"secret"`
 	}
@@ -94,4 +96,55 @@ func (s *Service) immichKey(ctx context.Context, server string, admin Admin) (st
 		return "", errors.New("Immich made no API key")
 	}
 	return key.Secret, nil
+}
+
+// immichDefaults only runs while making the first admin. Existing libraries
+// keep their choices. Checked against Immich v3.3.5 config-admin.controller.ts,
+// config.dto.ts and enum.ts on 28 October 2026. The admin bearer token stays
+// in memory; the long-lived key still gets queue.read and queue.update only.
+func (s *Service) immichDefaults(ctx context.Context, server, token string, allowRestrictedFaces bool) error {
+	var config map[string]any
+	if err := s.immichCall(ctx, server, http.MethodGet, "/admin/config", token, nil, &config); err != nil {
+		return err
+	}
+	if err := photoDefaults(config, allowRestrictedFaces); err != nil {
+		return err
+	}
+	return s.immichCall(ctx, server, http.MethodPut, "/admin/config", token, config, nil)
+}
+
+func photoDefaults(config map[string]any, allowRestrictedFaces bool) error {
+	section := func(object map[string]any, key string) (map[string]any, error) {
+		value, ok := object[key].(map[string]any)
+		if !ok {
+			return nil, fmt.Errorf("Immich configuration has no %s section", key)
+		}
+		return value, nil
+	}
+	jobs, err := section(config, "job")
+	if err != nil {
+		return err
+	}
+	for _, name := range []string{"videoConversion", "faceDetection", "smartSearch", "ocr"} {
+		job, err := section(jobs, name)
+		if err != nil {
+			return err
+		}
+		job["concurrency"] = 1
+	}
+	encoding, err := section(config, "ffmpeg")
+	if err != nil {
+		return err
+	}
+	encoding["threads"], encoding["transcode"] = 2, "required"
+	learning, err := section(config, "machineLearning")
+	if err != nil {
+		return err
+	}
+	faces, err := section(learning, "facialRecognition")
+	if err != nil {
+		return err
+	}
+	faces["enabled"] = allowRestrictedFaces
+	return nil
 }

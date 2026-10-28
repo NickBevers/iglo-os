@@ -10,7 +10,8 @@
     "lint": "eslint .",
     "format": "prettier --write \"**/*.{ts,tsx}\"",
     "typecheck": "tsc -b",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "test": "node --experimental-strip-types --test checks/*.test.mjs"
   },
   "dependencies": {
     "@base-ui/react": "^1.8.0",

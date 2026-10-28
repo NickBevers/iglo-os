@@ -132,3 +132,24 @@ func TestSlowDeliveryDoesNotBlockEnqueue(t *testing.T) {
 		t.Fatal("concurrent enqueue lost")
 	}
 }
+
+func TestOutboxRetryDeadline(t *testing.T) {
+	q, _ := NewOutbox(filepath.Join(t.TempDir(), "notifications.json"))
+	if _, pending := q.NextAttempt(); pending {
+		t.Fatal("empty queue has a timer")
+	}
+	now := time.Now()
+	target := []Destination{{ID: "one", Send: func(context.Context, string) error { return errors.New("offline") }}}
+	q.Enqueue("alert", target, now)
+	if next, pending := q.NextAttempt(); !pending || !next.Equal(now) {
+		t.Fatal(next, pending)
+	}
+	q.Flush(context.Background(), target, now)
+	if next, _ := q.NextAttempt(); !next.Equal(now.Add(30 * time.Second)) {
+		t.Fatal(next)
+	}
+	q.Enqueue("new alert", target, now.Add(time.Second))
+	if next, _ := q.NextAttempt(); !next.Equal(now.Add(time.Second)) {
+		t.Fatal("new alert did not advance deadline", next)
+	}
+}
