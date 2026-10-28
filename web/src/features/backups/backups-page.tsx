@@ -100,8 +100,8 @@ function RestoreCheck({ check }: { check: Backups['check'] }) {
                 <span className="text-muted-foreground">
                     {last && !last.succeeded ? `${last.message}. ` : ''}
                     Each container is due every 30 days. At most one overdue container is checked each night in a copy
-                    without network, NAS shares or devices. Privileged containers are refused. Next window: {checkDate.format(new Date(check.next))}. Test a backup any
-                    time with Test.
+                    without network, NAS shares or devices. Privileged containers are refused. Next window:{' '}
+                    {checkDate.format(new Date(check.next))}. Test a backup any time with Test.
                 </span>
             </div>
         </Card>
