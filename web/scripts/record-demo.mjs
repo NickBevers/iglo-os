@@ -46,6 +46,7 @@ for (const path of [
     '/music/jobs',
     '/gaming',
     '/gaming/games',
+    '/gaming/pairing',
     '/health',
     '/logs/tasks',
 ]) {

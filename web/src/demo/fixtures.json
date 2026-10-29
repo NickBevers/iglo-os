@@ -951,6 +951,12 @@
     "jobs": [],
     "sample": true
   },
+  "/gaming/pairing": [
+    {
+      "id": "5a1d0c3e9b7f2a64",
+      "clientIp": "192.168.1.70"
+    }
+  ],
   "/gaming": {
     "installed": true,
     "vmid": 190,

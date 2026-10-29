@@ -250,6 +250,8 @@ func New(options Options) http.Handler {
 	mux.Handle("GET /api/gaming", s.requireSession(http.HandlerFunc(s.gamingStatus)))
 	mux.Handle("PUT /api/gaming/play", s.requireSession(http.HandlerFunc(s.gamingPlay)))
 	mux.Handle("POST /api/gaming/sessions/{id}/stop", s.requireSession(http.HandlerFunc(s.gamingStopSession)))
+	mux.Handle("GET /api/gaming/pairing", s.requireSession(http.HandlerFunc(s.gamingPairings)))
+	mux.Handle("POST /api/gaming/pairing/{id}", s.requireSession(http.HandlerFunc(s.gamingPair)))
 	mux.Handle("GET /api/gaming/games", s.requireSession(http.HandlerFunc(s.gamingGames)))
 	mux.Handle("GET /api/gaming/covers/{system}/{name}", s.requireSession(http.HandlerFunc(s.gamingCover)))
 	mux.Handle("POST /api/apps/{id}/install", s.requireSession(http.HandlerFunc(s.appsInstall)))

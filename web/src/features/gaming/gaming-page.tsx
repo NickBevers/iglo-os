@@ -10,6 +10,7 @@ import { api } from '@/lib/api'
 import { formatDateTime } from '@/lib/format'
 import { isLive } from '@/lib/live'
 import { GameLibrary } from './game-library'
+import { PairDevices } from './pair-devices'
 
 export function GamingPage() {
     // The manager follows the session events of Wolf and tells the page; this
@@ -145,6 +146,7 @@ export function GamingPage() {
                             )}
                         </CardFooter>
                     </Card>
+                    {query.data.status === 'running' && <PairDevices />}
                     <GameLibrary />
                     <Card>
                         <CardHeader>
@@ -155,11 +157,8 @@ export function GamingPage() {
                                 <li>Install Moonlight on your PC or on the TV box.</li>
                                 <li>Press Play here, then add the address above as a host in Moonlight.</li>
                                 <li>
-                                    Moonlight shows a PIN. Wolf's log in{' '}
-                                    <Link to="/logs" className="underline">
-                                        Logs
-                                    </Link>{' '}
-                                    has the pairing link for it. Pair only devices you know.
+                                    Moonlight shows a PIN. Type it under Pair a device on this page. Pair only devices
+                                    you know.
                                 </li>
                                 <li>
                                     Choose Retro games. Every screen uses the same saves, so Iglo-OS stops the session

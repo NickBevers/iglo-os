@@ -20,6 +20,7 @@ func TestWolfSessionEventsArePicked(t *testing.T) {
 		"wolf::core::events::PauseStreamEvent":  true,
 		"wolf::core::events::ResumeStreamEvent": true,
 		"StopStreamEvent":                       true,
+		"wolf::core::events::PairSignal":        true,
 		"wolf::core::events::VideoSession":      false,
 		"wolf::core::events::PlugDeviceEvent":   false,
 		"":                                      false,

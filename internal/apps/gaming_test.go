@@ -2,10 +2,13 @@ package apps
 
 import (
 	"context"
+	"errors"
+	"fmt"
 	"slices"
 	"testing"
 
 	"iglo/internal/agent"
+	"iglo/internal/events"
 	"iglo/internal/proxmox"
 )
 
@@ -132,5 +135,52 @@ func TestWatchGamingHoldsWorkAndKeepsOneSession(t *testing.T) {
 	service.checkGaming(context.Background(), hold)
 	if service.gamingSessions != nil || service.gamingOwner != "" {
 		t.Fatal("kept the sessions of a stopped container")
+	}
+}
+
+// pairingAgent fakes the Moonlight devices that wait to pair with Wolf.
+type pairingAgent struct {
+	fakeAgent
+	paired []string
+}
+
+func (f *pairingAgent) GamingPairings(_ context.Context, vmid int) ([]agent.GamingPairing, error) {
+	return []agent.GamingPairing{{ID: "0123456789abcdef", ClientIP: "192.168.1.30"}}, nil
+}
+
+func (f *pairingAgent) PairGamingDevice(_ context.Context, vmid int, id, pin string) error {
+	f.paired = append(f.paired, fmt.Sprintf("%d %s %s", vmid, id, pin))
+	return nil
+}
+
+func TestGamingPairsADevice(t *testing.T) {
+	gaming := proxmox.Resource{Type: "lxc", Node: "pve", VMID: 190, Name: "gaming", Status: "stopped", Tags: "iglo;gaming"}
+	pve := &gamingProxmox{}
+	pve.resources = append(baseResources(), gaming)
+	fake := &pairingAgent{}
+	changed := []string{}
+	service := New(Options{Agent: fake, Proxmox: pve, SelfVMID: 100, Changed: func(topic string) { changed = append(changed, topic) }})
+	ctx := context.Background()
+
+	// Wolf runs only while you play.
+	if pairings, err := service.GamingPairings(ctx); err != nil || len(pairings) != 0 {
+		t.Fatalf("stopped: %v, %v", pairings, err)
+	}
+	if err := service.PairGamingDevice(ctx, "0123456789abcdef", "1234"); !errors.Is(err, ErrNotRunning) {
+		t.Fatalf("stopped pair: %v", err)
+	}
+
+	pve.resources[len(pve.resources)-1].Status = "running"
+	if pairings, err := service.GamingPairings(ctx); err != nil || len(pairings) != 1 {
+		t.Fatalf("running: %v, %v", pairings, err)
+	}
+	if err := service.PairGamingDevice(ctx, "0123456789abcdef", "12a4"); !errors.Is(err, agent.ErrInvalidAnswers) || len(fake.paired) != 0 {
+		t.Fatalf("bad pin: %v, %v", err, fake.paired)
+	}
+	if err := service.PairGamingDevice(ctx, "0123456789abcdef", "1234"); err != nil || len(fake.paired) != 1 || fake.paired[0] != "190 0123456789abcdef 1234" {
+		t.Fatalf("pair: %v, %v", err, fake.paired)
+	}
+	if !slices.Contains(changed, events.Gaming) {
+		t.Fatalf("changed = %v", changed)
 	}
 }

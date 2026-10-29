@@ -113,6 +113,13 @@ export type ScopedAnswers = {
 
 // Gaming is the state of the Gaming app. The library counts the games per
 // system on the Games share, also while the container is stopped.
+// GamingPairing is a Moonlight device that waits to pair. Its pair secret
+// stays on the host; id stands for it.
+export type GamingPairing = {
+    id: string
+    clientIp: string
+}
+
 export type Gaming = {
     installed: boolean
     vmid?: number
@@ -804,6 +811,9 @@ export const api = {
     gaming: () => request<Gaming>('GET', '/gaming'),
     playGaming: (play: boolean) => request<void>('PUT', '/gaming/play', { play }),
     endGamingSession: (id: string) => request<void>('POST', `/gaming/sessions/${encodeURIComponent(id)}/stop`),
+    gamingPairings: () => request<GamingPairing[]>('GET', '/gaming/pairing'),
+    pairGamingDevice: (id: string, pin: string) =>
+        request<void>('POST', `/gaming/pairing/${encodeURIComponent(id)}`, { pin }),
     gamingGames: () => request<{ systems: GameSystem[] }>('GET', '/gaming/games'),
     storageBindings: () => request<{ bindings: StorageBinding[]; sample: boolean }>('GET', '/storage/bindings'),
     setup: () => request<Setup>('GET', '/setup'),
