@@ -33,9 +33,6 @@ tailscale:
 jellyfin:
   url: http://192.168.1.20:8096
   theme: true
-selfUpdate:
-  repo: NickBevers/iglo-os
-  autoInstall: false
 backgroundWork:
   immich: { control: true, url: http://192.168.1.30:2283, node: pve }
   workers: true

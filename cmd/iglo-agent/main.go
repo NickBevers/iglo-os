@@ -1,6 +1,7 @@
 // iglo-agent runs on the Proxmox host and does the few things the Proxmox
 // API can't, like apt upgrades and running commands inside containers.
-// It only listens on a Unix socket that is shared with the manager LXC.
+// It listens on a Unix socket that is shared with the manager LXC, and on a
+// root-only socket for upgrades from the host ("iglo-agent upgrade").
 package main
 
 import (
@@ -8,6 +9,7 @@ import (
 	"encoding/json"
 	"errors"
 	"flag"
+	"fmt"
 	"log/slog"
 	"net"
 	"net/http"
@@ -23,19 +25,28 @@ import (
 var version = "dev"
 
 func main() {
+	if len(os.Args) > 1 && os.Args[1] == "upgrade" {
+		if err := upgradeCommand(os.Args[2:], os.Stdout); err != nil {
+			fmt.Fprintln(os.Stderr, "error:", err)
+			os.Exit(1)
+		}
+		return
+	}
+
 	socketPath := flag.String("socket", "/var/lib/iglo-agent/socket/agent.sock", "Unix socket to listen on")
 	socketGID := flag.Int("socket-gid", -1, "host group ID that may use the socket (the manager's group, shifted by the LXC ID map)")
+	adminSocket := flag.String("admin-socket", defaultAdminSocket, "root-only Unix socket for upgrades from the host")
 	flag.Parse()
 
 	logger := slog.New(slog.NewTextHandler(os.Stdout, nil))
 
-	if err := run(*socketPath, *socketGID, logger); err != nil {
+	if err := run(*socketPath, *adminSocket, *socketGID, logger); err != nil {
 		logger.Error("agent stopped", "error", err)
 		os.Exit(1)
 	}
 }
 
-func run(socketPath string, socketGID int, logger *slog.Logger) error {
+func run(socketPath, adminPath string, socketGID int, logger *slog.Logger) error {
 	if err := os.Remove(socketPath); err != nil && !errors.Is(err, os.ErrNotExist) {
 		return err
 	}
@@ -83,8 +94,9 @@ func run(socketPath string, socketGID int, logger *slog.Logger) error {
 	logs := agent.NewLogs()
 	mux.HandleFunc("GET /v1/logs/journal", journalLogs(logs))
 	mux.HandleFunc("GET /v1/logs/docker", dockerLogs(logs))
+	// The manager shows the last upgrade, but only root on the host can start
+	// one, on the admin socket.
 	upgrader := agent.NewUpgrader(version)
-	mux.HandleFunc("POST /v1/upgrade", startUpgrade(upgrader, logger))
 	mux.HandleFunc("GET /v1/upgrade", upgradeStatus(upgrader))
 	apps := agent.NewAppInstaller()
 	agent.RegisterEvents(mux, apps)
@@ -176,7 +188,14 @@ func run(socketPath string, socketGID int, logger *slog.Logger) error {
 		writeJSON(w, http.StatusOK, apps.Status())
 	})
 
+	admin, err := listenAdmin(adminPath)
+	if err != nil {
+		return err
+	}
+	defer admin.Close()
+
 	srv := &http.Server{Handler: mux, ReadHeaderTimeout: 10 * time.Second}
+	adminSrv := &http.Server{Handler: adminHandler(upgrader, logger), ReadHeaderTimeout: 10 * time.Second}
 
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
@@ -184,11 +203,16 @@ func run(socketPath string, socketGID int, logger *slog.Logger) error {
 	go func() {
 		<-ctx.Done()
 		srv.Shutdown(context.Background())
+		adminSrv.Shutdown(context.Background())
 	}()
 
-	logger.Info("listening", "socket", socketPath, "version", version)
+	logger.Info("listening", "socket", socketPath, "admin", adminPath, "version", version)
 
-	if err := srv.Serve(listener); !errors.Is(err, http.ErrServerClosed) {
+	errs := make(chan error, 2)
+	go func() { errs <- adminSrv.Serve(admin) }()
+	go func() { errs <- srv.Serve(listener) }()
+	if err := <-errs; !errors.Is(err, http.ErrServerClosed) {
+		stop()
 		return err
 	}
 

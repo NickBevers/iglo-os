@@ -1,12 +1,10 @@
 VERSION ?= $(shell git describe --tags --always --dirty 2>/dev/null || echo dev)
-# The GitHub repo that the manager checks for new releases.
-REPO ?= $(shell git remote get-url origin 2>/dev/null | sed -E 's,(git@github.com:|https://github.com/),,; s,\.git$$,,')
-LDFLAGS := -s -w -X main.version=$(VERSION) -X iglo/internal/selfupdate.DefaultRepo=$(REPO)
+LDFLAGS := -s -w -X main.version=$(VERSION)
 # Listed explicitly so Go doesn't scan web/node_modules.
 GO_PKGS := ./cmd/... ./internal/... ./dev/... ./web
 BUNDLE := dist/iglo-$(VERSION)-linux-amd64
 
-.PHONY: web build bundle test dev dev-code dev-api dev-web shellcheck
+.PHONY: web build bundle test dev dev-code dev-api dev-web shellcheck deploy
 
 web:
 	cd web && npm ci && npm run build
@@ -47,6 +45,11 @@ bundle: build
 	install -m 0644 deploy/stacks/headscale/validate.py deploy/stacks/headscale/config.yaml.in deploy/stacks/headscale/Caddyfile.in deploy/stacks/headscale/headscale.service deploy/stacks/headscale/caddy.service deploy/stacks/headscale/nftables.conf $(BUNDLE)/stacks/headscale/
 	# COPYFILE_DISABLE stops macOS tar from adding ._ files, which the agent refuses.
 	COPYFILE_DISABLE=1 tar -czf $(BUNDLE).tar.gz -C dist $(notdir $(BUNDLE))
+
+# deploy checks, builds, signs and installs the tagged commit on your host:
+# make deploy HOST=root@pve. See docs/development.md.
+deploy:
+	deploy/deploy.sh "$(HOST)"
 
 # Every shell script, also the ones without .sh, checked with the sourced
 # files they name. Pinned, so CI and a laptop find the same things.

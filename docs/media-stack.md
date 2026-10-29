@@ -13,7 +13,7 @@ Install Jellyfin first, from the Apps page or in another way: the installer of t
 
 ## Install
 
-Install it on the Apps page. The host agent runs the installer from the release bundle, in its own container, and the page shows the log. Telegram and ntfy tell you when it is done.
+Install it on the Apps page. The host agent runs the installer that the last deploy put on the host, in its own container, and the page shows the log. Telegram and ntfy tell you when it is done.
 
 If the install fails, it removes the container, the media mount and the sealed secrets it made. Then:
 

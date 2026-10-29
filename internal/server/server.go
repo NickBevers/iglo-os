@@ -84,9 +84,6 @@ type Health interface {
 
 type SelfUpdate interface {
 	Status(ctx context.Context) selfupdate.View
-	Check(ctx context.Context) error
-	Install(ctx context.Context) error
-	SaveSettings(input selfupdate.SettingsInput) error
 }
 
 type Tailscale interface {
@@ -219,9 +216,6 @@ func New(options Options) http.Handler {
 	mux.Handle("PUT /api/health/checks/{id}", s.requireSession(http.HandlerFunc(s.healthUpdateCheck)))
 	mux.Handle("DELETE /api/health/checks/{id}", s.requireSession(http.HandlerFunc(s.healthDeleteCheck)))
 	mux.Handle("GET /api/self-update", s.requireSession(http.HandlerFunc(s.selfUpdateStatus)))
-	mux.Handle("POST /api/self-update/check", s.requireSession(http.HandlerFunc(s.selfUpdateCheck)))
-	mux.Handle("POST /api/self-update/install", s.requireSession(http.HandlerFunc(s.selfUpdateInstall)))
-	mux.Handle("PUT /api/self-update/settings", s.requireSession(http.HandlerFunc(s.selfUpdateSettings)))
 	mux.Handle("GET /api/tailscale", s.requireSession(http.HandlerFunc(s.tailscaleStatus)))
 	mux.Handle("POST /api/tailscale/connect", s.requireSession(http.HandlerFunc(s.tailscaleConnect)))
 	mux.Handle("POST /api/tailscale/logout", s.requireSession(http.HandlerFunc(s.tailscaleLogout)))

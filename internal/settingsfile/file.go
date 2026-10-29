@@ -17,7 +17,6 @@ import (
 	"iglo/internal/agent"
 	"iglo/internal/health"
 	"iglo/internal/jellyfin"
-	"iglo/internal/selfupdate"
 	"iglo/internal/tailscale"
 	"iglo/internal/updates"
 	"iglo/internal/workloads"
@@ -41,7 +40,6 @@ type File struct {
 	Health        *Health        `yaml:"health,omitempty"`
 	Tailscale     *Tailscale     `yaml:"tailscale,omitempty"`
 	Jellyfin      *Jellyfin      `yaml:"jellyfin,omitempty"`
-	SelfUpdate    *SelfUpdate    `yaml:"selfUpdate,omitempty"`
 	// BackgroundWork is the control of heavy work. Its Immich API key, the
 	// gaming hold and the paused queues stay on the manager.
 	BackgroundWork *BackgroundWork `yaml:"backgroundWork,omitempty"`
@@ -109,11 +107,6 @@ type Tailscale struct {
 type Jellyfin struct {
 	URL   string `yaml:"url"`
 	Theme *bool  `yaml:"theme,omitempty"`
-}
-
-type SelfUpdate struct {
-	Repo        string `yaml:"repo"`
-	AutoInstall bool   `yaml:"autoInstall"`
 }
 
 type BackgroundWork struct {
@@ -246,9 +239,6 @@ func (f File) Validate() error {
 		if err := jellyfin.ValidateURL(f.Jellyfin.URL); err != nil {
 			return invalid("jellyfin", err)
 		}
-	}
-	if f.SelfUpdate != nil && !selfupdate.ValidRepo(f.SelfUpdate.Repo) {
-		return invalid("selfUpdate", errors.New("the repo must look like owner/name"))
 	}
 	if f.BackgroundWork != nil {
 		settings := f.BackgroundWork.settings()

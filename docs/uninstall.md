@@ -14,7 +14,7 @@ It removes the host agent, the Proxmox user, the API token and the role. It asks
 
 Nothing changes until you answer "yes" to the last question. The backup files, the apps (Jellyfin and the media stack) and the media mount always stay.
 
-Installs from before v0.2.0 have no `iglo-uninstall` yet. Update Iglo-OS first, or run `./install.sh --uninstall` from the release bundle.
+Installs from before v0.2.0 have no `iglo-uninstall` yet. Update Iglo-OS first, or run `./install.sh --uninstall` from a bundle of `make bundle`.
 
 ## Headscale controller
 

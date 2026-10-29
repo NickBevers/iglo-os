@@ -15,7 +15,6 @@ import {
     SidebarGroupLabel,
     SidebarHeader,
     SidebarMenu,
-    SidebarMenuBadge,
     SidebarMenuButton,
     SidebarMenuItem,
     SidebarRail,
@@ -64,11 +63,7 @@ export function AppSidebar() {
                             <SidebarGroupContent>
                                 <SidebarMenu>
                                     {group.items.map((item) => (
-                                        <NavLink
-                                            key={item.to}
-                                            item={item}
-                                            badge={item.to === '/updates' && selfUpdate?.updateAvailable}
-                                        />
+                                        <NavLink key={item.to} item={item} />
                                     ))}
                                 </SidebarMenu>
                             </SidebarGroupContent>
@@ -89,7 +84,7 @@ export function AppSidebar() {
     )
 }
 
-function NavLink({ item, badge }: { item: NavItem; badge?: boolean }) {
+function NavLink({ item }: { item: NavItem }) {
     const { isMobile, setOpenMobile } = useSidebar()
     const pathname = useRouterState({ select: (state) => state.location.pathname })
 
@@ -103,11 +98,6 @@ function NavLink({ item, badge }: { item: NavItem; badge?: boolean }) {
                 <item.icon />
                 <span>{item.label}</span>
             </SidebarMenuButton>
-            {badge && (
-                <SidebarMenuBadge>
-                    <span className="size-2 rounded-full bg-brand" aria-label="Iglo-OS update available" />
-                </SidebarMenuBadge>
-            )}
         </SidebarMenuItem>
     )
 }

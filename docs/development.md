@@ -22,7 +22,6 @@ Open http://localhost:5173 and log in with `admin` / `iglo-dev-password` and the
 - The fake host agent sends the same events as the real one, so live updates work in dev mode. It looks for changes once a second, where the real agent relays the events of Wolf and the Music worker as they happen.
 - Everything you change stays in `.dev/`. Delete that folder to start again.
 - A fake Jellyfin on `http://127.0.0.1:18096` has a library, two things playing and recent items. The manager is connected to it on the first start. Images are not faked.
-- The self-update check needs the real GitHub.
 - Music, Photos, Inbox and Gaming install like the other apps: the real installer of the agent plays a simulated script. After that, the fake host has their container with sample stats, and their cards show **Sample data**.
 
 ## A demo for a review
@@ -78,23 +77,71 @@ The installers only run on a Proxmox host. Test them in a nested Proxmox VM on y
 2. Install Proxmox VE 9 from its ISO.
 3. Build a bundle with `make bundle`, copy it to the VM, and run `./install.sh` as root.
 
-## Making a release
+## Deploy to your server
 
-1. One time: create the signing key. The private key goes straight into a GitHub secret. Commit the public key.
+`make deploy` puts the tagged commit on your Proxmox host. It runs on your own
+machine, and needs SSH access as root to the host (at home, or over
+Tailscale).
+
+One time:
+
+1. Install [age](https://github.com/FiloSottile/age) (BSD-3-Clause) with your
+   package manager.
+2. Make a signing key. The private key goes straight into a file encrypted
+   with a passphrase, and never touches the disk unencrypted. Commit the public
+   key.
 
    ```sh
-   go run ./cmd/iglo-release keygen -public internal/release/signing.pub | gh secret set IGLO_SIGNING_KEY
+   mkdir -p ~/.config/iglo
+   go run ./cmd/iglo-release keygen -public internal/release/signing.pub | age -p -o ~/.config/iglo/signing-key.age
    ```
 
-2. Set the new version in the install command of `README.md`, and merge that to `main`.
-3. Move the app images to their newest versions: `go run ./dev/pinimages deploy/stacks/arr/compose.yaml` pins each tag to the digest it points to now, with the version from the image's label. Test the stack with them on a server before the release; `dev/pinimages` refuses nothing, the test is the check. Every image in the stacks has a digest, and a test fails on one without.
-4. Tag the version and push the tag. GitHub Actions builds, tests, signs and publishes the release.
+3. Keep a copy of `signing-key.age` and its passphrase somewhere safe, like
+   your password manager. Without them, the agent installs no new version, and
+   you install the next one by hand once.
 
-   ```sh
-   git tag -a v0.6.0 -m v0.6.0 && git push origin v0.6.0
-   ```
+   To keep the key in KeePassXC instead, set `IGLO_SIGNING_KEY_CMD` to a
+   command that prints it, like
+   `keepassxc-cli show -s -a Password ~/vault.kdbx iglo-signing-key`.
 
-A build without the key in `signing.pub` can't install updates. If you lose the private key, make a new one and install the next version by hand once.
+Each time:
+
+```sh
+git tag -a v0.2.0 -m v0.2.0
+make deploy HOST=root@192.168.1.10
+git push origin v0.2.0
+```
+
+`make deploy`:
+
+1. Refuses changes that aren't committed, and a commit without a version tag.
+2. Runs every check of [AGENTS.md](../AGENTS.md): `make web`, `make test`,
+   the race tests, `gofmt`, Prettier, `bash -n` and ShellCheck.
+3. Builds the bundle and signs it with your key, which only that one command
+   sees.
+4. Copies the bundle to `/root/iglo-deploy` on the host. Then
+   `iglo-agent upgrade` hands it to the agent over its root-only socket,
+   `/run/iglo-agent/admin.sock`, and prints the install log. The agent checks
+   the signature and that the version is newer, and rolls back when the new
+   version doesn't work. No container can reach that socket.
+
+On a host without Iglo-OS, the same command runs the first install, which
+asks for the admin account. The bundle comes from your own machine over SSH,
+so it needs no download from anywhere.
+
+## New app image versions
+
+The app stacks pin every image to a digest, and a new Iglo-OS version brings
+the new pins. To move an app to its newest images, run
+`go run ./dev/pinimages deploy/stacks/arr/compose.yaml`. It pins each tag to
+the digest it points to now, with the version from the image's label. Test
+the stack with them on a server before you deploy; `dev/pinimages` refuses
+nothing, the test is the check. Every image in the stacks has a digest, and a
+test fails on one without. After a deploy, press **Update** on the Apps page
+to move an installed app to the new pins.
+
+
+## Notes
 
 The manager publishes Health, Updates and Backups topics while using the dev
 mock too. Add or refresh a health check, run an update check, or start a backup

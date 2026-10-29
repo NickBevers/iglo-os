@@ -4,7 +4,7 @@ import { Link } from '@tanstack/react-router'
 
 import { SidebarTrigger } from '@/components/ui/sidebar'
 import { healthProblems } from '@/lib/health'
-import { healthQuery, overviewQuery, selfUpdateQuery } from '@/lib/queries'
+import { healthQuery, overviewQuery } from '@/lib/queries'
 import { cn } from '@/lib/utils'
 
 type Tone = 'ok' | 'warning' | 'critical' | 'neutral'
@@ -21,7 +21,6 @@ export function StatusBar({ page }: { page?: string }) {
     // The bar only shows the node and its state. The overview page polls faster.
     const { data: overview } = useQuery({ ...overviewQuery, refetchInterval: 15000 })
     const { data: health } = useQuery(healthQuery)
-    const { data: selfUpdate } = useQuery(selfUpdateQuery)
 
     const node = overview?.nodes[0]
     const problems = health ? healthProblems(health).length : 0
@@ -45,11 +44,6 @@ export function StatusBar({ page }: { page?: string }) {
             </nav>
 
             <div className="ml-auto flex items-center gap-1.5">
-                {selfUpdate?.updateAvailable && (
-                    <Chip to="/updates" tone="ok" className="hidden sm:inline-flex">
-                        Iglo-OS {selfUpdate.latest?.version} is out
-                    </Chip>
-                )}
                 {health && (
                     <Chip to="/health" tone={problems > 0 ? 'critical' : 'ok'}>
                         {problems === 0 ? 'Healthy' : problems === 1 ? '1 problem' : `${problems} problems`}

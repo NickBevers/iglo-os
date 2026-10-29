@@ -8,7 +8,7 @@ The Updates page checks the Proxmox host and all running containers for updates.
 - **Proxmox host**: the schedule only checks it, because the host has no snapshots. Install host updates from the dashboard. The page tells you when a new kernel needs a reboot.
 - **Scoped Photos, Music, Inbox and Gaming containers** never get automatic disk rollback, including through this page. Their NAS data cannot be rewound with the local database or queue. Inspect a failed operation and use the application recovery procedure.
 - **The manager itself** is never updated by the schedule, and a failed update of it is not rolled back automatically.
-- **Apps of Iglo-OS** run images pinned to a digest, so the weekly run finds no new images for them. Their new versions come with an Iglo-OS release, through **Update** on the Apps page. Legacy stacks use snapshots; scoped apps export their application data and require deliberate recovery.
+- **Apps of Iglo-OS** run images pinned to a digest, so the weekly run finds no new images for them. Their new versions come with a new Iglo-OS version, through **Update** on the Apps page. Legacy stacks use snapshots; scoped apps export their application data and require deliberate recovery.
 
 ## Notifications
 
@@ -34,11 +34,23 @@ Seerr can send its own messages to ntfy, for requests and new media: set it up i
 
 ## Updating Iglo-OS
 
-The manager checks the GitHub releases every 6 hours. When there is a new version, the header shows "Update available" and you get a Telegram message. Install it from the Updates page. You can also turn on automatic installs there.
+New versions come from your own machine: tag a version and run
+`make deploy HOST=root@<host>`. It runs every check, signs the bundle with your
+key, and hands it to the host agent over SSH. See
+[deploy to your server](development.md#deploy-to-your-server).
 
-The host agent only installs a bundle that is signed with the release key. It keeps the previous version. The new version has to start and reach the host agent and Proxmox (`iglo ready`) within about a minute, or the previous version comes back. When even the previous version doesn't come back, the update says so: run `iglo-restore` on the host to restore the manager from its last backup. To do that from away from home, see [reach the host when the manager is down](tailscale.md#reach-the-host-when-the-manager-is-down).
+The manager can't start an upgrade, and it doesn't look for new versions. Only
+root on the host can, through the agent's root-only socket. The agent only
+installs a bundle that is signed with your key, and only a newer version. It
+keeps the previous version. The new version has to start and reach the host
+agent and Proxmox (`iglo ready`) within about a minute, or the previous version
+comes back. When even the previous version doesn't come back, the upgrade says
+so: run `iglo-restore` on the host to restore the manager from its last backup.
+To do that from away from home, see
+[reach the host when the manager is down](tailscale.md#reach-the-host-when-the-manager-is-down).
 
-For a private repo, create a fine-grained token with read-only access to Contents of this repo only, and enter it on the Updates page.
+The Updates page shows the running version, and how the last upgrade went,
+with its log.
 
 ## Headscale controller
 
