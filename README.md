@@ -95,7 +95,6 @@ for tests, a real Proxmox and deploys.
 - [App names (seerr.iglo.local)](docs/app-names.md)
 - [Media stack](docs/media-stack.md)
 - [Movies and series on the Videos share](docs/media-folder.md)
-- [Minecraft server (hidden from Apps)](docs/minecraft.md)
 - [Settings file (iglo.yaml)](docs/settings-file.md)
 - [Uninstall](docs/uninstall.md)
 - [Development](docs/development.md)

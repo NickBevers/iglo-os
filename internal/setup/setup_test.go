@@ -132,7 +132,7 @@ func TestPlanValidate(t *testing.T) {
 	}
 	for name, change := range map[string]func(*Plan){
 		"no apps":         func(p *Plan) { p.Apps = nil },
-		"unknown app":     func(p *Plan) { p.Apps = []string{"minecraft"} },
+		"unknown app":     func(p *Plan) { p.Apps = []string{"made-up"} },
 		"short password":  func(p *Plan) { p.Admin.Password = "short" },
 		"bad username":    func(p *Plan) { p.Admin.Username = "nick b" },
 		"no email":        func(p *Plan) { p.Admin.Email = "" },

@@ -113,7 +113,7 @@ and memory choices for people.
 - Use the GPU when the host has one, and keep working without it: optional
   compose files through `COMPOSE_FILE` in `.env`, and codecs read from
   `vainfo`, not assumed.
-- Minecraft is dropped. Its code stays hidden; don't bring it back.
+- Minecraft is dropped and its code removed. Don't bring it back.
 
 ## Installers
 

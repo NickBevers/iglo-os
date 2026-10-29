@@ -21,7 +21,6 @@ import { Field, Section } from './form-parts'
 import { JellyfinForm } from './jellyfin-form'
 import { ScopedForm } from './scoped-form'
 import { HeadscaleForm } from './headscale-form'
-import { MinecraftForm } from './minecraft-form'
 import { keepSaved } from './keep-saved'
 import { VpnFields } from './vpn-fields'
 import { useVideosShares } from './use-videos-shares'
@@ -46,7 +45,6 @@ const descriptions: Record<string, string> = {
     gaming: 'Experimental. Install Wolf with ES-DE in a privileged container, with read access to your Games share. It only runs while you play.',
     jellyfin: 'Iglo-OS makes a new container for Jellyfin on this host, with read access to your movies and series.',
     media: 'Iglo-OS makes a new container for it on this host. Nothing else changes, except that Jellyfin gets read access to the Videos share, if it has none yet.',
-    minecraft: 'Iglo-OS makes a new container on this host with a Paper server: the Minecraft Java server, but faster.',
 }
 
 export function InstallDialog({ app, defaults, saved, open, onOpenChange }: InstallDialogProps) {
@@ -87,8 +85,6 @@ export function InstallDialog({ app, defaults, saved, open, onOpenChange }: Inst
                         <HeadscaleForm defaults={defaults} saved={saved} onDone={() => onOpenChange(false)} />
                     ) : app.id === 'jellyfin' ? (
                         <JellyfinForm defaults={defaults} saved={saved} onDone={() => onOpenChange(false)} />
-                    ) : app.id === 'minecraft' ? (
-                        <MinecraftForm defaults={defaults} saved={saved} onDone={() => onOpenChange(false)} />
                     ) : ['photos', 'music', 'inbox', 'gaming'].includes(app.id) ? (
                         <ScopedForm id={app.id} defaults={defaults} saved={saved} onDone={() => onOpenChange(false)} />
                     ) : app.id === 'media' ? (

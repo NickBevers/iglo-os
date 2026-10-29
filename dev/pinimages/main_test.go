@@ -15,8 +15,7 @@ func TestEveryImageIsPinned(t *testing.T) {
 	reference := regexp.MustCompile(`(?m)^\s*image\s*[:=]\s*"?([^"\s#]+)`)
 	checked := 0
 	for _, file := range files {
-		// Minecraft is dropped and stays as it was.
-		if strings.Contains(file, "/minecraft/") || !(strings.HasSuffix(file, ".yaml") || strings.HasSuffix(file, ".toml")) {
+		if !strings.HasSuffix(file, ".yaml") && !strings.HasSuffix(file, ".toml") {
 			continue
 		}
 		data, err := os.ReadFile(file)
