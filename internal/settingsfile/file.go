@@ -99,8 +99,7 @@ type Tailscale struct {
 }
 
 type Jellyfin struct {
-	URL   string `yaml:"url"`
-	Theme *bool  `yaml:"theme,omitempty"`
+	URL string `yaml:"url"`
 }
 
 type BackgroundWork struct {

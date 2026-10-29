@@ -30,7 +30,6 @@ tailscale:
   subnet: 192.168.1.0/24
 jellyfin:
   url: http://192.168.1.20:8096
-  theme: true
 backgroundWork:
   immich: { control: true, url: http://192.168.1.30:2283, node: pve }
   workers: true

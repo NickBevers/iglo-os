@@ -359,7 +359,6 @@ export type Jellyfin = {
     error?: string
     serverName?: string
     version?: string
-    themeEnabled: boolean
     movies: number
     series: number
     episodes: number
@@ -573,7 +572,6 @@ export type JellyfinAnswers = {
     musicBinding?: string
     adminUsername: string
     adminPassword: string
-    theme: boolean
     storage: string
 }
 
@@ -603,8 +601,6 @@ export type CatalogApp = {
     description: string
     links: { name: string; description: string; url?: string }[]
     installed: boolean
-    // managed is set when Iglo-OS installed the container, so it can update and remove it.
-    managed: boolean
     // planned is set for an app that Iglo-OS can't install yet.
     planned: boolean
     stats?: AppStats
@@ -822,7 +818,6 @@ export const api = {
     jellyfin: () => request<Jellyfin>('GET', '/jellyfin'),
     saveJellyfinSettings: (settings: { url: string; apiKey: string }) =>
         request<void>('PUT', '/jellyfin/settings', settings),
-    setJellyfinTheme: (enabled: boolean) => request<void>('PUT', '/jellyfin/theme', { enabled }),
     selfUpdate: () => request<SelfUpdate>('GET', '/self-update'),
     backups: () => request<Backups>('GET', '/backups'),
     saveBackupJob: (job: BackupJob) => request<void>('PUT', '/backups/job', job),

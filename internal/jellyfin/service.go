@@ -30,7 +30,7 @@ type Service struct {
 	mu       sync.Mutex
 	settings Settings
 	// library is what the dashboard shows of Jellyfin that changes slowly:
-	// the theme, the counts and the recent items. The page asks every 10
+	// the counts and the recent items. The page asks every 10
 	// seconds, and the counts cost Jellyfin real work on a large library.
 	library   libraryView
 	libraryAt time.Time
@@ -42,7 +42,6 @@ type Service struct {
 const libraryTTL = 5 * time.Minute
 
 type libraryView struct {
-	theme  bool
 	counts Counts
 	recent []RecentItem
 }
@@ -160,20 +159,19 @@ type RecentItem struct {
 }
 
 type View struct {
-	Configured   bool         `json:"configured"`
-	URL          string       `json:"url"`
-	Error        string       `json:"error,omitempty"`
-	ServerName   string       `json:"serverName,omitempty"`
-	Version      string       `json:"version,omitempty"`
-	ThemeEnabled bool         `json:"themeEnabled"`
-	Movies       int          `json:"movies"`
-	Series       int          `json:"series"`
-	Episodes     int          `json:"episodes"`
-	Albums       int          `json:"albums"`
-	Songs        int          `json:"songs"`
-	MusicVideos  int          `json:"musicVideos"`
-	NowPlaying   []NowPlaying `json:"nowPlaying"`
-	Recent       []RecentItem `json:"recent"`
+	Configured  bool         `json:"configured"`
+	URL         string       `json:"url"`
+	Error       string       `json:"error,omitempty"`
+	ServerName  string       `json:"serverName,omitempty"`
+	Version     string       `json:"version,omitempty"`
+	Movies      int          `json:"movies"`
+	Series      int          `json:"series"`
+	Episodes    int          `json:"episodes"`
+	Albums      int          `json:"albums"`
+	Songs       int          `json:"songs"`
+	MusicVideos int          `json:"musicVideos"`
+	NowPlaying  []NowPlaying `json:"nowPlaying"`
+	Recent      []RecentItem `json:"recent"`
 }
 
 // Status collects everything for the dashboard. When Jellyfin is down, it
@@ -203,7 +201,6 @@ func (s *Service) Status(ctx context.Context) View {
 		}
 	}
 	library := s.libraryOf(ctx, client)
-	view.ThemeEnabled = library.theme
 	counts := library.counts
 	view.Movies, view.Series, view.Episodes = counts.MovieCount, counts.SeriesCount, counts.EpisodeCount
 	view.Albums, view.Songs, view.MusicVideos = counts.AlbumCount, counts.SongCount, counts.MusicVideoCount
@@ -233,11 +230,6 @@ func (s *Service) libraryOf(ctx context.Context, client *Client) libraryView {
 
 	library := libraryView{recent: []RecentItem{}}
 	complete := true
-	if enabled, err := client.ThemeEnabled(ctx); err == nil {
-		library.theme = enabled
-	} else {
-		complete = false
-	}
 	if counts, err := client.Counts(ctx); err == nil {
 		library.counts = counts
 	} else {
@@ -311,31 +303,6 @@ func (s *Service) Settings() Settings {
 	defer s.mu.Unlock()
 
 	return s.settings
-}
-
-func (s *Service) ThemeEnabled(ctx context.Context) (bool, error) {
-	client, err := s.client()
-	if err != nil {
-		return false, err
-	}
-
-	return client.ThemeEnabled(ctx)
-}
-
-func (s *Service) SetTheme(ctx context.Context, enabled bool) error {
-	client, err := s.client()
-	if err != nil {
-		return err
-	}
-
-	if err := client.SetTheme(ctx, enabled); err != nil {
-		return err
-	}
-	// The dashboard shows the theme, so ask for it again.
-	s.mu.Lock()
-	s.libraryAt = time.Time{}
-	s.mu.Unlock()
-	return nil
 }
 
 func (s *Service) Image(ctx context.Context, itemID, imageType string, maxWidth int) (*http.Response, error) {

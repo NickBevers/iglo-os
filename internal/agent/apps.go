@@ -230,7 +230,6 @@ type JellyfinAnswers struct {
 	MusicBinding  string `json:"musicBinding"`
 	AdminUsername string `json:"adminUsername"`
 	AdminPassword string `json:"adminPassword"`
-	Theme         bool   `json:"theme"`
 	Storage       string `json:"storage"`
 }
 
@@ -258,11 +257,6 @@ func (a JellyfinAnswers) Validate() error {
 }
 
 func (a JellyfinAnswers) file() string {
-	theme := "n"
-	if a.Theme {
-		theme = "y"
-	}
-
 	lines := append([]string{"VIDEOS_BINDING=" + a.VideosBinding},
 		"MOVIES_FOLDER="+a.MoviesFolder,
 		"SERIES_FOLDER="+a.SeriesFolder,
@@ -271,7 +265,6 @@ func (a JellyfinAnswers) file() string {
 		"MUSIC_BINDING="+a.MusicBinding,
 		"JELLYFIN_ADMIN_USERNAME="+a.AdminUsername,
 		"JELLYFIN_ADMIN_PASSWORD="+a.AdminPassword,
-		"THEME="+theme,
 		"STORAGE="+a.Storage,
 	)
 

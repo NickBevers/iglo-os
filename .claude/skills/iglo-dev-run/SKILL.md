@@ -21,7 +21,7 @@ go build -o "$S/mock" ./dev/mock
 go build -o "$S/iglo" ./cmd/iglo
 ```
 
-Switches in `$S/.dev/`: `no-jellyfin` hides the community Jellyfin of the
+Switches in `$S/.dev/`: `no-jellyfin` hides the Jellyfin container of the
 mock, `gaming-not-ready` makes Gaming not ready, `gaming-second-session`
 lets a second device join a running game.
 

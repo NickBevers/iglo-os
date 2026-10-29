@@ -2,7 +2,7 @@
 
 ## Containers and the host
 
-The Updates page checks the Proxmox host and all running containers for updates. It uses apt, the `update` command of community-scripts.org containers, and Docker Compose images.
+The Updates page checks the Proxmox host and all running containers for updates. It uses apt and Docker Compose images.
 
 - **Containers**: once a week (Sunday 04:00 by default), each container with auto-update on gets a snapshot and then its updates. If the update fails, or the container stops, the manager rolls it back to the snapshot. The last 3 snapshots are kept.
 - **Proxmox host**: the schedule only checks it, because the host has no snapshots. Install host updates from the dashboard. The page tells you when a new kernel needs a reboot.

@@ -103,7 +103,7 @@ function AppCard({ app, defaults }: { app: CatalogApp; defaults: Apps['defaults'
                         </a>
                     )}
                 </CardDescription>
-                {app.installed && app.managed && !app.planned && !running && (
+                {app.installed && !app.planned && !running && (
                     <CardAction className={actionClass}>
                         <AppActions app={app} />
                     </CardAction>
@@ -145,12 +145,6 @@ function AppCard({ app, defaults }: { app: CatalogApp; defaults: Apps['defaults'
                     <p className="text-xs text-muted-foreground">
                         This test preview uses a sample container and statistics. It does not represent an installed app
                         on your server.
-                    </p>
-                )}
-                {app.installed && !app.managed && (
-                    <p className="text-xs text-muted-foreground">
-                        Iglo-OS did not install this container, so it can't update or remove it here. Update it on the
-                        Updates page.
                     </p>
                 )}
                 {saved && !running && (

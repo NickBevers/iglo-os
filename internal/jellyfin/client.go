@@ -1,4 +1,4 @@
-// Package jellyfin talks to the Jellyfin server: now playing, library stats and the theme.
+// Package jellyfin talks to the Jellyfin server: now playing and library stats.
 package jellyfin
 
 import (

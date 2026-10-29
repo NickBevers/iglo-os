@@ -4,7 +4,7 @@
 //
 //	iglo-jellyfin setup --url http://192.168.1.20:8096 --admin dries \
 //	    --movies /data/media/movies --series /data/media/series [library flags] \
-//	    [--gpu [--vainfo FILE] [--huc]] [--theme] < password
+//	    [--gpu [--vainfo FILE] [--huc]] < password
 //	iglo-jellyfin libraries --url http://192.168.1.20:8096 [library flags] < api-key
 //
 // The library flags are --music, --music-videos and --home-videos, each with
@@ -28,7 +28,7 @@ import (
 	"iglo/internal/stacks/jellyfinsetup"
 )
 
-const usage = `usage: iglo-jellyfin setup --url URL --admin NAME --movies PATH --series PATH [library flags] [--gpu [--vainfo FILE] [--huc]] [--theme] < password
+const usage = `usage: iglo-jellyfin setup --url URL --admin NAME --movies PATH --series PATH [library flags] [--gpu [--vainfo FILE] [--huc]] < password
        iglo-jellyfin libraries --url URL [library flags] < api-key
 library flags: [--music PATH] [--music-videos PATH] [--home-videos PATH]`
 
@@ -111,7 +111,6 @@ func setup(args []string) error {
 	gpu := flags.Bool("gpu", false, "turn on VA-API hardware transcoding")
 	vainfo := flags.String("vainfo", "", "file with the output of vainfo, for the codecs that the GPU decodes")
 	huc := flags.Bool("huc", false, "the host loaded the HuC firmware, for the Intel low-power encoders")
-	theme := flags.Bool("theme", false, "turn on the Netflix theme")
 	flags.Parse(args)
 
 	if *url == "" || *admin == "" || *movies == "" || *series == "" {
@@ -146,7 +145,6 @@ func setup(args []string) error {
 		GPU:             *gpu,
 		VAInfo:          gpuInfo,
 		HuC:             *huc,
-		Theme:           *theme,
 		Logf:            logf,
 	}
 	extra.apply(&cfg)

@@ -673,7 +673,6 @@ uninstall() {
   Still there, remove them yourself if you want:
   - the backup files on your storages (Proxmox UI > storage > Backups)
   - the device in the Tailscale admin console, if you used Tailscale
-  - the Netflix theme in Jellyfin (Dashboard > General > Custom CSS)
   - the media stack container and the NAS mount, if you installed them
 
 EOF

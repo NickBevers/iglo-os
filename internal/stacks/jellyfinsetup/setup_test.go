@@ -28,7 +28,6 @@ type fakeJellyfin struct {
 	config    map[string]any
 	triggers  map[string][]map[string]any
 	keys      []string
-	css       string
 }
 
 func (f *fakeJellyfin) ServeHTTP(w http.ResponseWriter, r *http.Request) {
@@ -37,9 +36,6 @@ func (f *fakeJellyfin) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	// Jellyfin (ASP.NET) matches paths without case.
 	call := r.Method + " " + r.URL.Path
-	if strings.EqualFold(r.URL.Path, "/System/Configuration/Branding") {
-		call = r.Method + " /System/Configuration/branding"
-	}
 	f.calls = append(f.calls, call)
 	raw, _ := io.ReadAll(r.Body)
 	var body map[string]any
@@ -103,10 +99,6 @@ func (f *fakeJellyfin) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		json.NewEncoder(w).Encode(map[string]any{"Items": items})
 	case "POST /Auth/Keys":
 		f.keys = append(f.keys, r.URL.Query().Get("app"))
-	case "GET /System/Configuration/branding":
-		json.NewEncoder(w).Encode(map[string]string{"CustomCss": f.css})
-	case "POST /System/Configuration/branding":
-		f.css, _ = body["CustomCss"].(string)
 	}
 }
 
@@ -114,7 +106,7 @@ func testConfig(url string) Config {
 	return Config{
 		URL: url, AdminUsername: "dries", AdminPassword: "secret",
 		MoviesPath: "/data/media/movies", SeriesPath: "/data/media/series",
-		GPU: true, Theme: true, Logf: func(string, ...any) {}, Wait: time.Second,
+		GPU: true, Logf: func(string, ...any) {}, Wait: time.Second,
 	}
 }
 
@@ -149,8 +141,9 @@ func TestSetup(t *testing.T) {
 	if fake.encoding["HardwareAccelerationType"] != "vaapi" || fake.encoding["VaapiDevice"] != GPUDevice || fake.encoding["EncodingThreadCount"] != float64(-1) {
 		t.Fatalf("encoding = %v", fake.encoding)
 	}
-	if !strings.Contains(fake.css, "iglo-theme:start") {
-		t.Fatal("the theme was not turned on")
+	// The setup leaves the look of Jellyfin alone.
+	if slices.ContainsFunc(fake.calls, func(call string) bool { return strings.Contains(strings.ToLower(call), "branding") }) {
+		t.Fatalf("the setup changed the branding: %v", fake.calls)
 	}
 
 	// A second run skips the wizard and makes no second key or library.
@@ -165,18 +158,18 @@ func TestSetup(t *testing.T) {
 	}
 }
 
-func TestSetupWithoutGPUAndTheme(t *testing.T) {
+func TestSetupWithoutGPU(t *testing.T) {
 	fake := &fakeJellyfin{encoding: map[string]any{"HardwareAccelerationType": "none"}}
 	server := httptest.NewServer(fake)
 	defer server.Close()
 
 	cfg := testConfig(server.URL)
-	cfg.GPU, cfg.Theme = false, false
+	cfg.GPU = false
 	if _, err := Setup(context.Background(), cfg); err != nil {
 		t.Fatal(err)
 	}
-	if fake.encoding["HardwareAccelerationType"] != "none" || fake.css != "" {
-		t.Fatalf("encoding = %v, css = %q", fake.encoding, fake.css)
+	if fake.encoding["HardwareAccelerationType"] != "none" {
+		t.Fatalf("encoding = %v", fake.encoding)
 	}
 }
 

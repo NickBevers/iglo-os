@@ -34,7 +34,6 @@ HOME_VIDEOS_FOLDER="home-videos"
 # Music share (internal/music).
 MUSIC_AUDIO_FOLDER="audio"
 MUSIC_VIDEOS_FOLDER="videos"
-THEME="y"
 GPU=""
 GPU_DEVICE="/dev/dri/renderD128"
 # VAINFO_FILE keeps what the GPU decodes, for the codecs that Jellyfin turns on.
@@ -75,7 +74,7 @@ load_answers() {
         case "$key" in
             VIDEOS_BINDING | MOVIES_FOLDER | SERIES_FOLDER | ANIME_FOLDER | ANIME_MOVIES_FOLDER | \
                 MUSIC_BINDING | JELLYFIN_ADMIN_USERNAME | \
-                JELLYFIN_ADMIN_PASSWORD | THEME | STORAGE)
+                JELLYFIN_ADMIN_PASSWORD | STORAGE)
                 printf -v "$key" '%s' "$value"
                 ;;
             *) die "unknown answer: $key" ;;
@@ -118,7 +117,6 @@ ask_settings() {
         echo "The admin account of Jellyfin:"
         ask JELLYFIN_ADMIN_USERNAME "Username" "admin"
         ask JELLYFIN_ADMIN_PASSWORD "Password" "" secret
-        ask THEME "Turn on the Netflix theme? (y/n)" "y"
     fi
 
     check_folders
@@ -378,7 +376,6 @@ configure_jellyfin() {
     local flags=()
     [[ -n "$GPU" ]] && flags+=(--gpu --vainfo "$VAINFO_FILE")
     [[ -n "$GPU" && "$HUC" == y ]] && flags+=(--huc)
-    [[ "$THEME" == "y" ]] && flags+=(--theme)
     [[ -z "$ANIME_FOLDER" ]] || flags+=(--anime "/data/media/$ANIME_FOLDER")
     [[ -z "$ANIME_MOVIES_FOLDER" ]] || flags+=(--anime-movies "/data/media/$ANIME_MOVIES_FOLDER")
     extra_libraries

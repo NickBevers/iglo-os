@@ -76,18 +76,12 @@ EOF
     docker image prune -f
 }
 
-# Containers from community-scripts.org have their own updater.
-community_script() {
-    [ -x /usr/bin/update ] && grep -q community-scripts /usr/bin/update
-}
-
 case "$mode" in
     check)
         if has apt-get; then apt_check; else echo "IGLO unsupported no apt-get"; fi
         if [ "$apt_only" != 1 ] && has docker; then docker_check; fi
         ;;
     update)
-        if [ "$apt_only" != 1 ] && community_script; then PHS_SILENT=1 /usr/bin/update; fi
         if has apt-get; then apt_update; else echo "IGLO unsupported no apt-get"; fi
         if [ "$apt_only" != 1 ] && has docker; then docker_update; fi
         ;;
