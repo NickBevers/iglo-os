@@ -1,7 +1,6 @@
 package agent
 
 import (
-	"context"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
@@ -11,19 +10,6 @@ import (
 	"time"
 )
 
-func TestLegacyInboxUsesCachedTagsWithoutGuestCall(t *testing.T) {
-	configs.Lock()
-	configs.entries = map[int]cachedConfig{180: {text: "tags: iglo;inbox\n", at: time.Now()}}
-	configs.Unlock()
-	t.Cleanup(func() { configs.Lock(); configs.entries = nil; configs.Unlock() })
-	view, err := InboxJobs(context.Background(), 180)
-	if err != nil || view.Backend != "fileflows" {
-		t.Fatal(view, err)
-	}
-	if err = inboxCall(context.Background(), 180, "POST", "/scan", nil, nil); err == nil {
-		t.Fatal("legacy mutation allowed")
-	}
-}
 func TestInboxBridgeRejectsInvalidInputsBeforeGuestCall(t *testing.T) {
 	mux := http.NewServeMux()
 	RegisterInbox(mux)
@@ -37,7 +23,7 @@ func TestInboxBridgeRejectsInvalidInputsBeforeGuestCall(t *testing.T) {
 }
 func TestOperationCompletionInvalidatesContainerConfigOnce(t *testing.T) {
 	i := &AppInstaller{Dir: t.TempDir()}
-	state := AppInstallStatus{App: InboxApp, Action: ActionMigrate, State: UpgradeSucceeded, StartedAt: time.Now()}
+	state := AppInstallStatus{App: InboxApp, Action: ActionUpdate, State: UpgradeSucceeded, StartedAt: time.Now()}
 	data, _ := json.Marshal(state)
 	if err := os.WriteFile(i.statusPath(), data, 0600); err != nil {
 		t.Fatal(err)
@@ -49,7 +35,7 @@ func TestOperationCompletionInvalidatesContainerConfigOnce(t *testing.T) {
 	i.Status()
 	configs.Lock()
 	if len(configs.entries) != 0 {
-		t.Error("stale config survived migration")
+		t.Error("stale config survived the update")
 	}
 	configs.entries = map[int]cachedConfig{180: {text: "new", at: time.Now()}}
 	configs.Unlock()

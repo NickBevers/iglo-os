@@ -17,7 +17,6 @@ export function InboxPage() {
     })
     const client = useQueryClient()
     const [path, setPath] = useState('')
-    const [confirmed, setConfirmed] = useState(false)
     const refresh = () => {
         void client.invalidateQueries({ queryKey: ['inbox-jobs'] })
         void client.invalidateQueries({ queryKey: ['apps'] })
@@ -51,39 +50,7 @@ export function InboxPage() {
             {view?.sample && (
                 <p className="text-sm text-muted-foreground">Development simulation. No real video conversion.</p>
             )}
-            {view?.backend === 'fileflows' && (
-                <Card>
-                    <CardHeader>
-                        <CardTitle>Move from FileFlows to native FFmpeg</CardTitle>
-                    </CardHeader>
-                    <CardContent className="flex flex-col gap-4">
-                        <p>
-                            The migration stops FileFlows and archives its local data on SSD. Its files stay for a
-                            manual rollback. Custom flows are not imported. The native queue starts paused. Sources and
-                            published videos stay on the NAS.
-                        </p>
-                        <label className="flex items-center gap-3 text-sm">
-                            <input
-                                type="checkbox"
-                                checked={confirmed}
-                                onChange={(e) => setConfirmed(e.target.checked)}
-                            />
-                            I have reviewed the change and want to migrate this Inbox.
-                        </label>
-                        <Button
-                            className="self-start"
-                            disabled={!confirmed || change.isPending}
-                            onClick={() => change.mutate(api.migrateInbox)}
-                        >
-                            Migrate to native FFmpeg
-                        </Button>
-                        <p className="text-sm text-muted-foreground">
-                            Follow progress on Apps. Leave FileFlows running if you still need its custom flows.
-                        </p>
-                    </CardContent>
-                </Card>
-            )}
-            {view?.backend === 'native' && (
+            {view && (
                 <>
                     <Card>
                         <CardHeader>

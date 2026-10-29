@@ -102,7 +102,6 @@ func run(socketPath, adminPath string, socketGID int, logger *slog.Logger) error
 	agent.RegisterEvents(mux, apps)
 	agent.RegisterHeadscale(mux, apps)
 	agent.RegisterInbox(mux)
-	mux.HandleFunc("POST /v1/apps/inbox/migrate", appOnContainer(func(_ string, id int) error { return apps.Recover(agent.InboxApp, id, agent.ActionMigrate) }, "Inbox migration started", logger))
 	for _, action := range []agent.AppAction{agent.ActionBackup, agent.ActionVerify} {
 		mux.HandleFunc("POST /v1/apps/photos/"+string(action), appOnContainer(func(app string, vmid int) error { return apps.Recover(agent.PhotosApp, vmid, action) }, "photos recovery started", logger))
 	}

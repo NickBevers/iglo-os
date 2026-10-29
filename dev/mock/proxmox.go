@@ -94,11 +94,6 @@ func (p *fakeProxmox) resources(w http.ResponseWriter, r *http.Request) {
 		for _, app := range scopedApps {
 			if _, err := os.Stat(statePath(app["name"].(string) + "-installed")); err == nil {
 				resource := maps.Clone(app)
-				if app["name"] == "inbox" {
-					if _, err := os.Stat(statePath("inbox-native")); err == nil {
-						resource["tags"] = "iglo;inbox;inbox-native"
-					}
-				}
 				// Play and Stop on the Gaming page start and stop the fake container.
 				if _, err := os.Stat(statePath("gaming-running")); err == nil && app["name"] == "gaming" {
 					resource["status"], resource["cpu"], resource["mem"], resource["uptime"] = "running", 0.35, 2_200_000_000, 600

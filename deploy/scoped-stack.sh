@@ -14,7 +14,6 @@ while [[ $# -gt 0 ]]; do
         --remove) MODE=remove;shift;;
         --backup) MODE=backup;shift;;
         --verify) MODE=verify;shift;;
-        --migrate) MODE=migrate;shift;;
         *) die "Unknown option: $1";;
     esac
 done
@@ -74,7 +73,8 @@ scoped_files() {
 }
 # render_device gives Photos or Inbox the render node of the host GPU, when
 # there is one. A render node only computes and encodes video; it can't show
-# anything on a screen. The stack loads compose.gpu.yaml when it sees it.
+# anything on a screen. Photos loads compose.gpu.yaml when it sees it. The
+# Inbox worker hands it to FFmpeg for VAAPI.
 render_device() {
     [[ -c /dev/dri/renderD128 ]] || return 0
     log "Passing the GPU (/dev/dri/renderD128) to the container"
@@ -104,12 +104,6 @@ scoped_main() {
         require_app_container "$CT_ID" "$APP"
         remove_app "$CT_ID" "$APP"
         remove_binding_dependencies "$CT_ID"
-        return
-    fi
-    if [[ "$MODE" == migrate ]]; then
-        [[ "$APP" == inbox ]] || die "Migration is only supported for Inbox"
-        require_app_container "$CT_ID" inbox;require_running "$CT_ID"
-        migrate_stack
         return
     fi
     [[ "$APP" == music || "$APP" == inbox ]] || require_docker_lxc
@@ -157,7 +151,6 @@ scoped_main() {
     pct push "$CT_ID" "$ANSWERS" /etc/iglo-stack.conf --perms 0600
     scoped_files
     install_stack
-    if [[ "$APP" == inbox ]]; then pct set "$CT_ID" --tags "iglo;inbox;inbox-native"; fi
     CREATED_CT=""
     echo "IGLO app $APP $CT_ID $(container_ip "$CT_ID")"
 }

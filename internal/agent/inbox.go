@@ -4,50 +4,18 @@ import (
 	"context"
 	"encoding/hex"
 	"encoding/json"
-	"errors"
 	"net/http"
 	"strconv"
-	"strings"
 
 	"iglo/internal/inbox"
 )
 
-func nativeInbox(ctx context.Context, id int) (bool, error) {
-	if err := workerGuest(ctx, InboxApp, id); err != nil {
-		return false, err
-	}
-	config, err := containerConfig(ctx, id)
-	for line := range strings.Lines(config) {
-		if tags, ok := strings.CutPrefix(line, "tags: "); ok {
-			for _, tag := range strings.Split(tags, ";") {
-				if strings.TrimSpace(tag) == "inbox-native" {
-					return true, err
-				}
-			}
-		}
-	}
-	return false, err
-}
 func inboxCall(ctx context.Context, id int, method, path string, in, out any) error {
-	native, err := nativeInbox(ctx, id)
-	if err != nil {
-		return err
-	}
-	if !native {
-		return errors.New("migrate FileFlows before using native Inbox controls")
-	}
 	return nativeWorkerCall(ctx, InboxApp, id, method, path, in, out)
 }
 func InboxJobs(ctx context.Context, id int) (inbox.View, error) {
-	native, err := nativeInbox(ctx, id)
-	if err != nil {
-		return inbox.View{}, err
-	}
-	if !native {
-		return inbox.View{Backend: "fileflows", Profile: "preserve", Jobs: []inbox.Job{}}, nil
-	}
 	var view inbox.View
-	err = inboxCall(ctx, id, "GET", "/jobs", nil, &view)
+	err := inboxCall(ctx, id, "GET", "/jobs", nil, &view)
 	return view, err
 }
 func RegisterInbox(mux *http.ServeMux) {
@@ -63,9 +31,8 @@ func RegisterInbox(mux *http.ServeMux) {
 	})
 	mux.HandleFunc("GET /v1/inbox/{vmid}/events", func(w http.ResponseWriter, r *http.Request) {
 		id, _ := strconv.Atoi(r.PathValue("vmid"))
-		native, err := nativeInbox(r.Context(), id)
-		if err != nil || !native {
-			http.Error(w, "native Inbox is unavailable", 502)
+		if err := workerGuest(r.Context(), InboxApp, id); err != nil {
+			http.Error(w, "Inbox is unavailable", 502)
 			return
 		}
 		relayGuestStream(w, r, id, []string{"http://127.0.0.1:8789/events"}, "inbox", func(name string) bool { return name == "jobs" })
@@ -142,17 +109,11 @@ func (c *Client) SubmitInbox(ctx context.Context, id int, in inbox.Input) (inbox
 func (c *Client) InboxEvents(ctx context.Context, id int, onEvent func(string)) error {
 	return c.follow(ctx, "/v1/inbox/"+strconv.Itoa(id)+"/events", onEvent)
 }
-func (c *Client) MigrateInbox(ctx context.Context, id int) error {
-	return c.do(ctx, "POST", "/v1/apps/inbox/migrate", AppContainerRequest{VMID: id}, nil)
-}
 
 func InboxStats(ctx context.Context, id int) (AppStats, error) {
 	v, err := InboxJobs(ctx, id)
 	if err != nil {
 		return AppStats{}, err
-	}
-	if v.Backend != "native" {
-		return AppStats{}, ErrNoStats
 	}
 	counts := map[string]int64{}
 	activity := []Activity{}
