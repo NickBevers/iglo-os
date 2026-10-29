@@ -33,12 +33,8 @@ var (
 // snapshotPrefix is the prefix of the Updates page too, which keeps the newest 3 of these snapshots.
 const snapshotPrefix = "iglo_"
 
-var (
-	// versionPattern is the line that the installers write in the description of an app container.
-	versionPattern = regexp.MustCompile(`(?m)^iglo-version: (\S+)$`)
-	// addressPattern is the public address of an app, like the playit.gg address of Minecraft.
-	addressPattern = regexp.MustCompile(`(?m)^iglo-address: (\S+)$`)
-)
+// versionPattern is the line that the installers write in the description of an app container.
+var versionPattern = regexp.MustCompile(`(?m)^iglo-version: (\S+)$`)
 
 type Agent interface {
 	InstallApp(ctx context.Context, app string, request agent.InstallRequest) error
@@ -49,8 +45,6 @@ type Agent interface {
 	RemoveApp(ctx context.Context, app string, vmid int) error
 	VPN(ctx context.Context, vmid int) (agent.VPNView, error)
 	ChangeVPN(ctx context.Context, vmid int, settings agent.VPNSettings) error
-	MinecraftPlayers(ctx context.Context, vmid int) (agent.MinecraftPlayers, error)
-	ChangeMinecraftPlayers(ctx context.Context, vmid int, players agent.MinecraftPlayers) error
 	AppStats(ctx context.Context, app string, vmid int) (agent.AppStats, error)
 	AppInstallStatus(ctx context.Context) (agent.AppInstallStatus, error)
 }
@@ -70,10 +64,7 @@ type Link struct {
 	Name        string `json:"name"`
 	Description string `json:"description"`
 	Port        int    `json:"-"`
-	// Address is set for an app that is not a website, like a game server.
-	// URL is then ip:port, to copy into the game.
-	Address bool   `json:"address,omitempty"`
-	URL     string `json:"url,omitempty"`
+	URL         string `json:"url,omitempty"`
 }
 
 type App struct {
@@ -170,10 +161,8 @@ type AppView struct {
 	UpdateAvailable bool   `json:"updateAvailable"`
 	// HostURL is the address of the app through Iglo-OS, like https://seerr.iglo.local.
 	HostURL string `json:"hostUrl,omitempty"`
-	// PublicAddress is where people outside your network reach the app, like a playit.gg address.
-	PublicAddress string `json:"publicAddress,omitempty"`
-	VMID          int    `json:"vmid,omitempty"`
-	Status        string `json:"status,omitempty"`
+	VMID    int    `json:"vmid,omitempty"`
+	Status  string `json:"status,omitempty"`
 	// Stats are what the app holds and does right now, when it reports them.
 	Stats *agent.AppStats `json:"stats,omitempty"`
 	// Operation is the last install, update or removal of this app, while it runs or when it failed.
@@ -210,8 +199,6 @@ type Defaults struct {
 	SubtitleLanguages string `json:"subtitleLanguages"`
 	Username          string `json:"username"`
 	DownloadsSize     int    `json:"downloadsSize"`
-	// Minecraft are the answers that the Minecraft form starts with.
-	Minecraft agent.MinecraftAnswers `json:"minecraft"`
 	// LANAddress and LANGateway are the host's on vmbr0, like 192.168.1.10/24,
 	// so the Headscale form can fill in the gateway and show the prefix.
 	LANAddress string `json:"lanAddress,omitempty"`
@@ -341,9 +328,6 @@ func (s *Service) appView(ctx context.Context, app App, resources []proxmox.Reso
 				if match := versionPattern.FindStringSubmatch(description); match != nil {
 					appView.Version = match[1]
 				}
-				if match := addressPattern.FindStringSubmatch(description); match != nil {
-					appView.PublicAddress = match[1]
-				}
 				appView.UpdateAvailable = s.Version != "" && appView.Version != s.Version
 			}
 		}
@@ -353,9 +337,6 @@ func (s *Service) appView(ctx context.Context, app App, resources []proxmox.Reso
 		if ip := s.guestIP(ctx, guest); ip != "" {
 			for i, link := range appView.Links {
 				appView.Links[i].URL = fmt.Sprintf("http://%s:%d", ip, link.Port)
-				if link.Address {
-					appView.Links[i].URL = fmt.Sprintf("%s:%d", ip, link.Port)
-				}
 			}
 		}
 	}
@@ -449,10 +430,6 @@ func (s *Service) defaults(ctx context.Context, node string, resources []proxmox
 		SubtitleLanguages: "en",
 		Username:          "iglo",
 		DownloadsSize:     200,
-		Minecraft: agent.MinecraftAnswers{
-			Memory: 4, MOTD: "A Iglo-OS Minecraft server", Difficulty: "normal", Mode: "survival",
-			MaxPlayers: 10, ViewDistance: 10, Whitelist: []string{}, WorldSize: 20,
-		},
 	}
 
 	storages, err := s.storages.get(node, 5*time.Minute, func() ([]proxmox.BackupStorage, error) {
@@ -569,11 +546,8 @@ func (s *Service) Install(ctx context.Context, background context.Context, id st
 	// With KeepSecrets, the agent checks the answers after it adds the saved secrets.
 	if !request.KeepSecrets {
 		var answers interface{ Validate() error } = request.MediaStackAnswers
-		switch id {
-		case agent.JellyfinApp:
+		if id == agent.JellyfinApp {
 			answers = request.Jellyfin
-		case agent.MinecraftApp:
-			answers = request.Minecraft
 		}
 		if err := answers.Validate(); err != nil {
 			return err
@@ -702,16 +676,6 @@ func (s *Service) ChangeVPN(ctx context.Context, background context.Context, id 
 	return nil
 }
 
-// Players returns the whitelist and the operators of the Minecraft server.
-func (s *Service) Players(ctx context.Context, id string) (agent.MinecraftPlayers, error) {
-	_, guest, err := s.runningApp(ctx, id, agent.MinecraftApp)
-	if err != nil {
-		return agent.MinecraftPlayers{}, err
-	}
-
-	return s.Agent.MinecraftPlayers(ctx, guest.VMID)
-}
-
 func (s *Service) RecoverPhotos(ctx context.Context, background context.Context, action agent.AppAction) error {
 	if action != agent.ActionBackup && action != agent.ActionVerify {
 		return agent.ErrInvalidAnswers
@@ -733,29 +697,6 @@ func (s *Service) RecoverPhotos(ctx context.Context, background context.Context,
 		return err
 	}
 	s.watch(background, operation{app: app, action: action, guest: guest})
-	return nil
-}
-
-// ChangePlayers gives the Minecraft server a new whitelist and operators,
-// without a restart.
-func (s *Service) ChangePlayers(ctx context.Context, background context.Context, id string, players agent.MinecraftPlayers) error {
-	if err := players.Validate(); err != nil {
-		return err
-	}
-	app, guest, err := s.runningApp(ctx, id, agent.MinecraftApp)
-	if err != nil {
-		return err
-	}
-	if err := s.checkIdle(ctx); err != nil {
-		return err
-	}
-
-	if err := s.Agent.ChangeMinecraftPlayers(ctx, guest.VMID, players); err != nil {
-		return err
-	}
-	s.Logger.Info("change of the minecraft players started", "vmid", guest.VMID, "players", len(players.Whitelist))
-	s.watch(background, operation{app: app, action: agent.ActionPlayers, guest: guest})
-
 	return nil
 }
 
@@ -924,9 +865,6 @@ func (s *Service) monitor(ctx context.Context, op operation, generation int) {
 			s.finishRemove(ctx, op, status)
 		case agent.ActionVPN:
 			s.finishVPN(ctx, op, status)
-		case agent.ActionPlayers:
-			// The Players dialog shows the result, so no message.
-			s.Logger.Info("minecraft players changed", "vmid", op.guest.VMID, "state", status.State, "message", status.Message)
 		default:
 			s.finishInstall(ctx, op.app, status)
 		}

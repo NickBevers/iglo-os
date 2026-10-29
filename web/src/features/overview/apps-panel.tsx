@@ -7,7 +7,7 @@ import { BlockMeter } from '@/components/block-meter'
 import { Badge } from '@/components/ui/badge'
 import { Card } from '@/components/ui/card'
 import { Skeleton } from '@/components/ui/skeleton'
-import { api, type AppStats, type CatalogApp, type Jellyfin } from '@/lib/api'
+import type { AppStats, CatalogApp, Jellyfin } from '@/lib/api'
 import { formatBytes } from '@/lib/format'
 import { appsQuery, jellyfinQuery } from '@/lib/queries'
 import { cn } from '@/lib/utils'
@@ -20,7 +20,6 @@ const actionNames: Record<string, string> = {
     update: 'Updating',
     remove: 'Removing',
     vpn: 'Changing the VPN',
-    players: 'Changing the players',
 }
 
 // AppsPanel shows each app of the catalog: whether it runs, and what it does right now.
@@ -157,10 +156,6 @@ function AppFacts({ app, running, jellyfin }: { app: CatalogApp; running: boolea
         )
     }
 
-    if (app.id === 'minecraft') {
-        return <MinecraftFacts app={app} running={running} />
-    }
-
     // The media stack: one link for each app in it.
     const links = app.links.filter((link) => link.url)
     if (links.length === 0) {
@@ -181,33 +176,6 @@ function AppFacts({ app, running, jellyfin }: { app: CatalogApp; running: boolea
                 </a>
             ))}
         </div>
-    )
-}
-
-function MinecraftFacts({ app, running }: { app: CatalogApp; running: boolean }) {
-    const { data: players } = useQuery({
-        queryKey: ['apps', 'minecraft', 'players'],
-        queryFn: api.minecraftPlayers,
-        enabled: running,
-    })
-    const address = app.links.find((link) => link.address)?.url
-
-    return (
-        <Facts>
-            {address && (
-                <>
-                    At home: <span className="font-mono text-xs text-foreground select-all">{address}</span>.{' '}
-                </>
-            )}
-            {app.publicAddress && (
-                <>
-                    Friends: <span className="font-mono text-xs text-foreground select-all">{app.publicAddress}</span>
-                    .{' '}
-                </>
-            )}
-            {players &&
-                `${players.whitelist.length} ${players.whitelist.length === 1 ? 'player' : 'players'} on the whitelist.`}
-        </Facts>
     )
 }
 

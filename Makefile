@@ -26,9 +26,6 @@ bundle: build
 	install -m 0755 deploy/stacks/arr/install.sh $(BUNDLE)/stacks/arr/install.sh
 	install -m 0644 deploy/stacks/arr/compose.yaml deploy/stacks/arr/recyclarr.yml $(BUNDLE)/stacks/arr/
 	install -m 0755 deploy/stacks/jellyfin/install.sh $(BUNDLE)/stacks/jellyfin/install.sh
-	mkdir -p $(BUNDLE)/stacks/minecraft
-	install -m 0755 deploy/stacks/minecraft/install.sh $(BUNDLE)/stacks/minecraft/install.sh
-	install -m 0644 deploy/stacks/minecraft/compose.yaml $(BUNDLE)/stacks/minecraft/
 	mkdir -p $(BUNDLE)/stacks/photos
 	install -m 0755 deploy/stacks/photos/install.sh deploy/stacks/photos/recovery.sh $(BUNDLE)/stacks/photos/
 	install -m 0644 deploy/stacks/photos/compose.yaml deploy/stacks/photos/compose.override.yaml deploy/stacks/photos/compose.gpu.yaml $(BUNDLE)/stacks/photos/

@@ -27,7 +27,7 @@ type fakeInstalls struct {
 
 func newAppInstaller() (*agent.AppInstaller, error) {
 	stacks := statePath("stacks")
-	for _, dir := range []string{"arr", "jellyfin", "minecraft", "photos", "music", "inbox", "gaming", "headscale"} {
+	for _, dir := range []string{"arr", "jellyfin", "photos", "music", "inbox", "gaming", "headscale"} {
 		if err := os.MkdirAll(filepath.Join(stacks, dir), 0o700); err != nil {
 			return nil, err
 		}
@@ -62,14 +62,6 @@ func (f *fakeInstalls) start(script string, args []string, cleanup, logPath, exi
 		}
 		os.Remove(cleanup)
 		play = func() { f.playVPN(string(answers), logPath, exitPath) }
-	}
-	if args[0] == "--players" {
-		answers, err := os.ReadFile(cleanup)
-		if err != nil {
-			return err
-		}
-		os.Remove(cleanup)
-		play = func() { f.playPlayers(string(answers), logPath, exitPath) }
 	}
 	if args[0] == "--answers" {
 		answers, err := os.ReadFile(cleanup)
@@ -184,7 +176,7 @@ func (f *fakeInstalls) playOnContainer(stack, action, logPath, exitPath string) 
 	}
 	finish := func(code int) { os.WriteFile(exitPath, []byte(fmt.Sprintln(code)), 0o600) }
 
-	installed := map[string]string{"arr": "media-installed", "jellyfin": "jellyfin-installed", "minecraft": "minecraft-installed", "photos": "photos-installed", "music": "music-installed", "inbox": "inbox-installed", "gaming": "gaming-installed", "headscale": "headscale-installed"}[stack]
+	installed := map[string]string{"arr": "media-installed", "jellyfin": "jellyfin-installed", "photos": "photos-installed", "music": "music-installed", "inbox": "inbox-installed", "gaming": "gaming-installed", "headscale": "headscale-installed"}[stack]
 	if action == "--backup" || action == "--verify" {
 		write("==> Development simulation: no files copied or database restored")
 		write("==> Simulated Photos recovery finished")
@@ -214,11 +206,6 @@ func (f *fakeInstalls) playOnContainer(stack, action, logPath, exitPath string) 
 		write("==> Downloading the new images")
 		write("==> Starting the stack")
 		write("==> Waiting for the VPN")
-	case "minecraft":
-		write("==> Copying the stack of Iglo-OS dev into the container")
-		write("==> Downloading the new images")
-		write("==> Starting the server")
-		write("==> Waiting for the server")
 	default:
 		write("==> Waiting for Jellyfin")
 	}
@@ -258,10 +245,6 @@ func (f *fakeInstalls) play(stack, answers, logPath, exitPath string) {
 	case "gaming":
 		steps = []string{"==> Development simulation: no host or NAS changes", "==> Checking the Games share, GPU and input devices",
 			"==> Creating the privileged gaming container", "==> Installing Docker", "==> Starting Wolf"}
-	case "minecraft":
-		steps = []string{"==> Downloading Debian 13 template", "==> Creating container 150 (minecraft) with 5 GB memory", "==> Installing Docker",
-			"==> Copying the stack into the container", "==> Starting the server (the first start downloads Paper and makes the world, this takes a few minutes)",
-			"==> Waiting for the server"}
 	case "jellyfin":
 		steps = append(steps, "==> Creating container 140 (jellyfin)", "==> Installing Jellyfin from repo.jellyfin.org",
 			"==> Passing the GPU (/dev/dri/renderD128) to the container", "==> Setting up Jellyfin", "==> Finishing the setup wizard")
@@ -326,11 +309,6 @@ func (f *fakeInstalls) play(stack, answers, logPath, exitPath string) {
 		}
 		write(fmt.Sprintf("IGLO app %s %d %s", stack, id, ip))
 		os.WriteFile(statePath(stack+"-installed"), nil, 0600)
-	case "minecraft":
-		savePlayers(answers)
-		write("==> Done")
-		write("IGLO app minecraft 150 192.168.1.170")
-		os.WriteFile(statePath("minecraft-installed"), nil, 0o600)
 	case "jellyfin":
 		write("IGLO jellyfin-key 0123456789abcdef0123456789abcdef")
 		write("==> Done")
@@ -357,78 +335,6 @@ func bindVideos(id int, answers string) error {
 		}
 	}
 	return nil
-}
-
-// savePlayers keeps the players of a fake Minecraft install: the operator is on the whitelist too.
-func savePlayers(answers string) {
-	var operator, whitelist string
-	for line := range strings.Lines(answers) {
-		key, value, _ := strings.Cut(strings.TrimSpace(line), "=")
-		switch key {
-		case "OPERATOR":
-			operator = value
-		case "WHITELIST":
-			whitelist = value
-		}
-	}
-
-	players := agent.MinecraftPlayers{Whitelist: []string{operator}, Operators: []string{operator}}
-	for name := range strings.SplitSeq(whitelist, ",") {
-		if name != "" {
-			players.Whitelist = append(players.Whitelist, name)
-		}
-	}
-	data, _ := json.Marshal(players)
-	os.WriteFile(statePath("minecraft-players.json"), data, 0o600)
-}
-
-func loadPlayers() agent.MinecraftPlayers {
-	players := agent.MinecraftPlayers{Whitelist: []string{"Steve"}, Operators: []string{"Steve"}}
-	if data, err := os.ReadFile(statePath("minecraft-players.json")); err == nil {
-		json.Unmarshal(data, &players)
-	}
-
-	return players
-}
-
-// playPlayers plays a change of the players. A name with "Ghost" in it has no Java profile.
-func (f *fakeInstalls) playPlayers(answers, logPath, exitPath string) {
-	defer func() {
-		f.mu.Lock()
-		f.running = false
-		f.mu.Unlock()
-	}()
-
-	logFile, err := os.OpenFile(logPath, os.O_APPEND|os.O_WRONLY, 0o600)
-	if err != nil {
-		return
-	}
-	defer logFile.Close()
-
-	var players agent.MinecraftPlayers
-	for line := range strings.Lines(answers) {
-		key, value, _ := strings.Cut(strings.TrimSpace(line), "=")
-		names := strings.FieldsFunc(value, func(r rune) bool { return r == ',' })
-		switch key {
-		case "WHITELIST":
-			players.Whitelist = names
-		case "OPS":
-			players.Operators = names
-		}
-	}
-
-	time.Sleep(time.Second)
-	for _, name := range players.Whitelist {
-		if strings.Contains(name, "Ghost") {
-			fmt.Fprintf(logFile, "error: Minecraft does not know the player %s. Check the Java profile name on minecraft.net\n", name)
-			os.WriteFile(exitPath, []byte("1\n"), 0o600)
-			return
-		}
-	}
-	data, _ := json.Marshal(players)
-	os.WriteFile(statePath("minecraft-players.json"), data, 0o600)
-	fmt.Fprintln(logFile, "==> Done")
-	os.WriteFile(exitPath, []byte("0\n"), 0o600)
 }
 
 // addAppRoutes serves the app routes of the agent with the real installer.
@@ -506,21 +412,6 @@ func addAppRoutes(mux *http.ServeMux, installer *agent.AppInstaller) {
 			return
 		}
 		if err := installer.ChangeVPN(request.VMID, request.VPNSettings); err != nil {
-			fail(w, err)
-			return
-		}
-		w.WriteHeader(http.StatusAccepted)
-	})
-	mux.HandleFunc("GET /v1/apps/minecraft/players", func(w http.ResponseWriter, r *http.Request) {
-		writeJSON(w, loadPlayers())
-	})
-	mux.HandleFunc("PUT /v1/apps/minecraft/players", func(w http.ResponseWriter, r *http.Request) {
-		var request agent.PlayersRequest
-		if err := json.NewDecoder(r.Body).Decode(&request); err != nil {
-			http.Error(w, "invalid request body", http.StatusBadRequest)
-			return
-		}
-		if err := installer.ChangePlayers(request.VMID, request.MinecraftPlayers); err != nil {
 			fail(w, err)
 			return
 		}

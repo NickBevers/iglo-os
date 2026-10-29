@@ -545,7 +545,7 @@ export type DockerLogs = {
 
 export type AppOperation = {
     app?: string
-    action?: 'install' | 'update' | 'remove' | 'vpn' | 'players' | 'backup' | 'verify'
+    action?: 'install' | 'update' | 'remove' | 'vpn' | 'backup' | 'verify'
     state: 'idle' | 'running' | 'succeeded' | 'failed'
     message?: string
     startedAt?: string
@@ -570,36 +570,14 @@ export type JellyfinAnswers = {
     storage: string
 }
 
-export type MinecraftAnswers = {
-    acceptEula: boolean
-    // memory is in GB.
-    memory: number
-    motd: string
-    difficulty: 'peaceful' | 'easy' | 'normal' | 'hard'
-    mode: 'survival' | 'creative' | 'adventure'
-    maxPlayers: number
-    viewDistance: number
-    seed: string
-    operator: string
-    whitelist: string[]
-    playitSecretKey: string
-    publicAddress: string
-    storage: string
-    worldSize: number
-}
-
-export type MinecraftPlayers = { whitelist: string[]; operators: string[] }
-
 export type SavedAnswers = {
     headscale?: HeadscaleAnswers
     scoped: ScopedAnswers
     answers: MediaStackAnswers
     jellyfin: JellyfinAnswers
-    minecraft: MinecraftAnswers
     hasJellyfinApiKey: boolean
     hasJellyfinAdminPassword: boolean
     hasOpenSubtitlesPassword: boolean
-    hasPlayitSecretKey: boolean
     until: string
 }
 
@@ -616,8 +594,7 @@ export type CatalogApp = {
     id: string
     name: string
     description: string
-    // A link with address is not a website, like a game server: url is then ip:port.
-    links: { name: string; description: string; address?: boolean; url?: string }[]
+    links: { name: string; description: string; url?: string }[]
     installed: boolean
     // managed is set when Iglo-OS installed the container, so it can update and remove it.
     managed: boolean
@@ -627,8 +604,6 @@ export type CatalogApp = {
     version?: string
     updateAvailable: boolean
     hostUrl?: string
-    // publicAddress is where people outside your network reach the app, like a playit.gg address.
-    publicAddress?: string
     vmid?: number
     status?: string
     operation: AppOperation | null
@@ -653,7 +628,6 @@ export type Apps = {
         subtitleLanguages: string
         username: string
         downloadsSize: number
-        minecraft: MinecraftAnswers
         // The host's address with its prefix and its gateway on vmbr0, for the Headscale form.
         lanAddress?: string
         lanGateway?: string
@@ -867,15 +841,11 @@ export const api = {
         request<void>('POST', '/apps/jellyfin/install', { jellyfin, keepSecrets }),
     installApp: (id: string, answers: MediaStackAnswers, keepSecrets = false) =>
         request<void>('POST', `/apps/${id}/install`, { ...answers, keepSecrets }),
-    installMinecraft: (minecraft: MinecraftAnswers, keepSecrets = false) =>
-        request<void>('POST', '/apps/minecraft/install', { minecraft, keepSecrets }),
     retryApp: (id: string) => request<void>('POST', `/apps/${id}/retry`),
     forgetAppAnswers: (id: string) => request<void>('DELETE', `/apps/${id}/answers`),
     updateApp: (id: string) => request<void>('POST', `/apps/${id}/update`),
     removeApp: (id: string, confirm?: string) =>
         request<void>('POST', `/apps/${id}/remove`, confirm === undefined ? undefined : { confirm }),
-    minecraftPlayers: () => request<MinecraftPlayers>('GET', '/apps/minecraft/players'),
-    changeMinecraftPlayers: (players: MinecraftPlayers) => request<void>('PUT', '/apps/minecraft/players', players),
     vpnSettings: (id: string) => request<VpnView>('GET', `/apps/${id}/vpn`),
     changeVpn: (id: string, settings: VpnSettings) => request<void>('PUT', `/apps/${id}/vpn`, settings),
     settingsExportUrl: '/api/settings/export',

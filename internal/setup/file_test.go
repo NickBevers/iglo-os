@@ -60,7 +60,7 @@ func TestParseFileIsStrict(t *testing.T) {
 		"no version":    "apps: [jellyfin]",
 		"other version": "version: 2",
 		"unknown key":   "version: 1\nappz: [jellyfin]",
-		"unknown app":   "version: 1\napps: [minecraft]",
+		"unknown app":   "version: 1\napps: [made-up]",
 		"unknown share": "version: 1\nnas: {shares: {movies: {share: Movies}}}",
 		"too large":     "version: 1\n#" + strings.Repeat("x", MaxFileSize),
 	} {
