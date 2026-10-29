@@ -9,6 +9,7 @@ import { formatDateTime, formatRelative } from '@/lib/format'
 import { healthProblems } from '@/lib/health'
 import { backupsQuery, healthQuery, updatesQuery } from '@/lib/queries'
 import { cn } from '@/lib/utils'
+import { PanelError } from './panel-error'
 
 type Tone = 'ok' | 'warning' | 'critical' | 'neutral'
 
@@ -31,9 +32,13 @@ export function Summaries() {
 }
 
 function HealthSummary() {
-    const { data } = useQuery(healthQuery)
+    const { data, error, refetch } = useQuery(healthQuery)
     if (!data) {
-        return <Skeleton className="h-28 rounded-lg" />
+        return error ? (
+            <PanelError title="Health" error={error} retry={() => void refetch()} className="h-28" />
+        ) : (
+            <Skeleton className="h-28 rounded-lg" />
+        )
     }
 
     const problems = healthProblems(data)
@@ -73,9 +78,13 @@ function HealthSummary() {
 }
 
 function UpdatesSummary() {
-    const { data } = useQuery(updatesQuery)
+    const { data, error, refetch } = useQuery(updatesQuery)
     if (!data) {
-        return <Skeleton className="h-28 rounded-lg" />
+        return error ? (
+            <PanelError title="Updates" error={error} retry={() => void refetch()} className="h-28" />
+        ) : (
+            <Skeleton className="h-28 rounded-lg" />
+        )
     }
 
     const targets = [data.host, ...data.guests]
@@ -101,9 +110,13 @@ function UpdatesSummary() {
 }
 
 function BackupsSummary() {
-    const { data } = useQuery(backupsQuery)
+    const { data, error, refetch } = useQuery(backupsQuery)
     if (!data) {
-        return <Skeleton className="h-28 rounded-lg" />
+        return error ? (
+            <PanelError title="Backups" error={error} retry={() => void refetch()} className="h-28" />
+        ) : (
+            <Skeleton className="h-28 rounded-lg" />
+        )
     }
 
     const last = data.history.find((run) => run.kind === 'backup')

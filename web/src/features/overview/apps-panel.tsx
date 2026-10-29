@@ -11,6 +11,7 @@ import { api, type AppStats, type CatalogApp, type Jellyfin } from '@/lib/api'
 import { formatBytes } from '@/lib/format'
 import { appsQuery, jellyfinQuery } from '@/lib/queries'
 import { cn } from '@/lib/utils'
+import { PanelError } from './panel-error'
 
 const numbers = new Intl.NumberFormat()
 
@@ -24,11 +25,15 @@ const actionNames: Record<string, string> = {
 
 // AppsPanel shows each app of the catalog: whether it runs, and what it does right now.
 export function AppsPanel() {
-    const { data } = useQuery(appsQuery)
+    const { data, error, refetch } = useQuery(appsQuery)
     const { data: jellyfin } = useQuery(jellyfinQuery)
 
     if (!data) {
-        return <Skeleton className="h-60 rounded-lg" />
+        return error ? (
+            <PanelError title="Apps" error={error} retry={() => void refetch()} className="h-60" />
+        ) : (
+            <Skeleton className="h-60 rounded-lg" />
+        )
     }
 
     // A new server points to the guided setup, which installs everything in one go.

@@ -17,11 +17,15 @@ function isClientError(error: unknown) {
 const queryClient = new QueryClient({
     queryCache: new QueryCache({
         onError(error, query) {
-            // The session expired or the server restarted: go back to login.
-            // The session query itself is handled by the route guards.
+            // The session expired or the server restarted: go back to login,
+            // and back to this page after it. The session query itself is
+            // handled by the route guards.
             if (error instanceof ApiError && error.status === 401 && query.queryKey[0] !== sessionQuery.queryKey[0]) {
                 queryClient.removeQueries({ queryKey: sessionQuery.queryKey })
-                router.navigate({ to: '/login' })
+                const { pathname, href } = router.state.location
+                if (pathname !== '/login') {
+                    router.navigate({ to: '/login', search: { redirect: href } })
+                }
             }
         },
     }),

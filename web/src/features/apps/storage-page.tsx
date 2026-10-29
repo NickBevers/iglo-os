@@ -8,10 +8,13 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { api, type BindingInput } from '@/lib/api'
 import { Field } from './form-parts'
 
-const empty: BindingInput = {
-    id: '',
+// A null ID or server is one you haven't typed. The page then suggests one.
+type Draft = Omit<BindingInput, 'id' | 'server'> & { id: string | null; server: string | null }
+
+const empty: Draft = {
+    id: null,
     role: 'photos',
-    server: '',
+    server: null,
     share: '',
     username: '',
     password: '',
@@ -21,6 +24,18 @@ const empty: BindingInput = {
 // list. The poll only notices a mount that dropped, and each check reads every
 // container config on the host.
 const bindingsQuery = { queryKey: ['storage-bindings'], queryFn: api.storageBindings, refetchInterval: 60000 }
+const roles = ['videos', 'music', 'photos', 'games', 'inbox', 'cameras', 'backups']
+
+// disconnectBlocker says why a share can't be disconnected yet, or nothing.
+function disconnectBlocker(binding: { consumers: string[]; proxmoxStorage?: string }) {
+    if (binding.consumers.length > 0) {
+        return `Containers ${binding.consumers.join(', ')} use this share. Remove the apps that use it first.`
+    }
+    if (binding.proxmoxStorage) {
+        return 'Proxmox keeps its backups here. Stop using it for Proxmox backups first.'
+    }
+    return ''
+}
 
 export function StoragePage() {
     const query = useQuery(bindingsQuery)
@@ -28,10 +43,18 @@ export function StoragePage() {
     const [input, setInput] = useState(empty)
     const [removeID, setRemoveID] = useState<string | null>(null)
     const refresh = () => client.invalidateQueries({ queryKey: bindingsQuery.queryKey })
+    const bindings = query.data?.bindings ?? []
+    // The role is the suggested ID while no share has it as its ID, and the
+    // NAS of the first share, from its source //server/share, the suggested server.
+    const binding: BindingInput = {
+        ...input,
+        id: input.id ?? (bindings.some((b) => b.id === input.role) ? '' : input.role),
+        server: input.server ?? bindings[0]?.source.split('/')[2] ?? '',
+    }
     const create = useMutation({
-        mutationFn: () => api.createBinding(input),
+        mutationFn: () => api.createBinding(binding),
         onSuccess: () => {
-            setInput(empty)
+            setInput({ ...empty, server: input.server })
             refresh()
             toast.success('Share mounted')
         },
@@ -107,6 +130,9 @@ export function StoragePage() {
                                 </Button>
                             </div>
                         )}
+                        {disconnectBlocker(b) && removeID !== b.id && (
+                            <p className="text-muted-foreground">{disconnectBlocker(b)}</p>
+                        )}
                         {removeID === b.id ? (
                             <div className="flex items-center gap-2">
                                 <span>Disconnect this share? NAS files stay in place.</span>
@@ -125,7 +151,7 @@ export function StoragePage() {
                             <Button
                                 variant="outline"
                                 className="self-start"
-                                disabled={b.consumers.length > 0 || Boolean(b.proxmoxStorage)}
+                                disabled={Boolean(disconnectBlocker(b))}
                                 onClick={() => setRemoveID(b.id)}
                             >
                                 Disconnect
@@ -149,7 +175,7 @@ export function StoragePage() {
                                 id="binding-id"
                                 required
                                 pattern="[a-z][a-z0-9]{0,31}"
-                                value={input.id}
+                                value={binding.id}
                                 onChange={(e) => setInput({ ...input, id: e.target.value })}
                             />
                         </Field>
@@ -160,7 +186,7 @@ export function StoragePage() {
                                 value={input.role}
                                 onChange={(e) => setInput({ ...input, role: e.target.value })}
                             >
-                                {['videos', 'music', 'photos', 'games', 'inbox', 'cameras', 'backups'].map((r) => (
+                                {roles.map((r) => (
                                     <option key={r}>{r}</option>
                                 ))}
                             </select>
@@ -169,9 +195,14 @@ export function StoragePage() {
                             <Field
                                 key={key}
                                 id={`binding-${key}`}
+                                help={
+                                    key === 'server'
+                                        ? "Use its IP address. The host can't look up names like umbrel.local."
+                                        : undefined
+                                }
                                 label={
                                     {
-                                        server: 'NAS hostname or IP',
+                                        server: 'NAS address',
                                         share: 'Share name',
                                         username: 'SMB username',
                                         password: 'SMB password',
@@ -183,7 +214,7 @@ export function StoragePage() {
                                     required
                                     autoComplete="off"
                                     type={key === 'password' ? 'password' : 'text'}
-                                    value={input[key]}
+                                    value={binding[key]}
                                     onChange={(e) => setInput({ ...input, [key]: e.target.value })}
                                 />
                             </Field>
