@@ -2,6 +2,7 @@ import { useEffect, useRef, useState, type SubmitEvent, type ReactNode } from 'r
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
 
+import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Badge } from '@/components/ui/badge'
 import { Button, buttonVariants } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card'
@@ -15,14 +16,25 @@ import { api, type Setup } from '@/lib/api'
 import { formatBytes } from '@/lib/format'
 import { cn } from '@/lib/utils'
 import { connectedShare, draftFromPlan, newDraft, planOf, readOnlyRoles, rolesOf, shareNames, type Draft } from './plan'
+import { forgetDraft, loadDraft, saveDraft } from './saved-draft'
 
 const pages = ['Apps', 'NAS', 'Accounts', 'Review'] as const
 type Page = (typeof pages)[number]
 
 // Wizard asks for everything first, and starts nothing until the review.
 export function Wizard({ setup }: { setup: Setup }) {
-    const [draft, setDraft] = useState<Draft>(() => newDraft(setup))
-    const [page, setPage] = useState<Page>('Apps')
+    // Answers from before a reload come back, without their secrets.
+    const [restored] = useState(() => loadDraft(setup))
+    const [draft, setDraft] = useState<Draft>(() => restored?.draft ?? newDraft(setup))
+    const [page, setPage] = useState<Page>(() => pages.find((name) => name === restored?.page) ?? 'Apps')
+    // Nothing is kept until you change something, so an untouched form
+    // doesn't come back as answers.
+    const [first] = useState(draft)
+    useEffect(() => {
+        if (restored || draft !== first || page !== 'Apps') {
+            saveDraft(draft, page)
+        }
+    }, [draft, page, first, restored])
     // A new page takes the focus, so keyboard and screen reader users start at
     // its top instead of on the button they pressed. The first page doesn't.
     const region = useRef<HTMLElement>(null)
@@ -37,7 +49,10 @@ export function Wizard({ setup }: { setup: Setup }) {
     const client = useQueryClient()
     const start = useMutation({
         mutationFn: () => api.startSetup(planOf(draft)),
-        onSuccess: () => client.invalidateQueries({ queryKey: ['setup'] }),
+        onSuccess: () => {
+            forgetDraft()
+            client.invalidateQueries({ queryKey: ['setup'] })
+        },
     })
     const roles = rolesOf(draft, setup)
     const wants = (app: string) => draft.apps.includes(app)
@@ -57,6 +72,14 @@ export function Wizard({ setup }: { setup: Setup }) {
 
     return (
         <form className="flex flex-col gap-6" onSubmit={next}>
+            {restored && (
+                <Alert>
+                    <AlertDescription>
+                        Your answers came back after the reload. Type the passwords and keys again, and confirm the
+                        privileged container if you chose Gaming.
+                    </AlertDescription>
+                </Alert>
+            )}
             <ol className="flex flex-wrap gap-2 text-sm" aria-label="Setup steps">
                 {pages.map((name, index) => (
                     <li

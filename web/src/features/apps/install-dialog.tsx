@@ -1,4 +1,4 @@
-import { useState, type SubmitEvent } from 'react'
+import { useRef, useState, type SubmitEvent } from 'react'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { Loader2Icon } from 'lucide-react'
 import { toast } from 'sonner'
@@ -50,9 +50,34 @@ const descriptions: Record<string, string> = {
 }
 
 export function InstallDialog({ app, defaults, saved, open, onOpenChange }: InstallDialogProps) {
+    // A form that you typed in asks before Esc or a click outside closes it,
+    // because closing drops what you typed. Cancel and Install close at once.
+    const typed = useRef(false)
+
     return (
-        <Dialog open={open} onOpenChange={onOpenChange}>
-            <DialogContent className="max-h-[90svh] overflow-y-auto sm:max-w-xl">
+        <Dialog
+            open={open}
+            onOpenChange={(next, details) => {
+                const stray = details.reason === 'escape-key' || details.reason === 'outside-press'
+                if (!next && typed.current && stray && !window.confirm('Close this form? What you typed is lost.')) {
+                    details.cancel()
+                    return
+                }
+                onOpenChange(next)
+            }}
+            // Every close starts the next form clean, also one after Install.
+            onOpenChangeComplete={(isOpen) => {
+                if (!isOpen) {
+                    typed.current = false
+                }
+            }}
+        >
+            <DialogContent
+                className="max-h-[90svh] overflow-y-auto sm:max-w-xl"
+                onInput={() => {
+                    typed.current = true
+                }}
+            >
                 <DialogHeader>
                     <DialogTitle>Install {app.id === 'media' ? `the ${app.name.toLowerCase()}` : app.name}</DialogTitle>
                     <DialogDescription>{descriptions[app.id]}</DialogDescription>
