@@ -22,6 +22,7 @@ type fakeProxmox struct {
 	jobs      []proxmox.BackupJob
 	backups   map[string][]proxmox.Backup
 	tasks     []proxmox.Task
+	running   []proxmox.Task
 	calls     []string
 	failTask  string
 }
@@ -42,6 +43,9 @@ func (f *fakeProxmox) BackupStorages(context.Context, string) ([]proxmox.BackupS
 }
 func (f *fakeProxmox) Backups(_ context.Context, _, storage string) ([]proxmox.Backup, error) {
 	return f.backups[storage], nil
+}
+func (f *fakeProxmox) RunningBackupTasks(context.Context, string) ([]proxmox.Task, error) {
+	return f.running, nil
 }
 func (f *fakeProxmox) BackupTasks(context.Context, string, int) ([]proxmox.Task, error) {
 	return f.tasks, nil
@@ -477,5 +481,25 @@ func TestLiveBackupsOnlyPublishChanges(t *testing.T) {
 	h.service.publishChanged()
 	if len(topics) != 2 {
 		t.Fatal("busy state did not publish")
+	}
+}
+
+func TestRunningSeesOwnRunsAndTheNightlyJob(t *testing.T) {
+	h := newHarness(t)
+	if h.service.Running(context.Background()) {
+		t.Fatal("running with nothing going on")
+	}
+	// The nightly job runs in Proxmox, not in Iglo-OS.
+	h.pve.running = []proxmox.Task{{UPID: "UPID:pve:vzdump", Type: "vzdump", Status: "RUNNING"}}
+	if !h.service.Running(context.Background()) {
+		t.Fatal("missed the running vzdump task")
+	}
+	h.pve.running = nil
+	// A run of Iglo-OS itself, like a restore check.
+	h.service.mu.Lock()
+	h.service.busy = "check"
+	h.service.mu.Unlock()
+	if !h.service.Running(context.Background()) {
+		t.Fatal("missed its own run")
 	}
 }

@@ -161,6 +161,24 @@ func (c *Client) BackupTasks(ctx context.Context, node string, limit int) ([]Tas
 	return tasks, err
 }
 
+// RunningBackupTasks returns the vzdump tasks that run now on a node, like the
+// nightly job. A token with Sys.Audit on the node sees the tasks of every user
+// (pve-manager PVE/API2/Tasks.pm at 73ac838, checked on 29 October 2026).
+func (c *Client) RunningBackupTasks(ctx context.Context, node string) ([]Task, error) {
+	var tasks []Task
+	if err := c.get(ctx, "/nodes/"+url.PathEscape(node)+"/tasks?typefilter=vzdump&source=active", &tasks); err != nil {
+		return nil, err
+	}
+	// The active list also holds tasks that just ended and aren't archived yet.
+	running := []Task{}
+	for _, task := range tasks {
+		if task.EndTime == 0 || task.Status == "RUNNING" {
+			running = append(running, task)
+		}
+	}
+	return running, nil
+}
+
 // Tasks returns the last finished tasks of all types on a node, newest first.
 func (c *Client) Tasks(ctx context.Context, node string, limit int) ([]Task, error) {
 	var tasks []Task

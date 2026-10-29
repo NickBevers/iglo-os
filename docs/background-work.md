@@ -18,6 +18,7 @@ The queue API (`GET /api/queues`, `PUT /api/queues/{name}` with `isPaused`) is a
 Every 15 seconds while work is admitted, once a minute while nothing may run, and right after settings changes or gaming protection, the controller:
 
 - Defers selected queues during timed gaming protection or outside the configured daily processing window.
+- Holds new heavy work while backups or updates run: a backup, restore or restore check of Iglo-OS, a vzdump task in Proxmox like the nightly job, or an update run. The processing window (02:00 to 07:00 by default) overlaps the nightly backups at 03:00, the weekly updates at 04:00 and the restore check at 05:00. Work that already runs finishes.
 - Checks host headroom from the host agent, never less than 4 GiB. Unknown host memory defers new heavy work. After low headroom, another 512 MiB above the configured threshold is required to resume, reducing repeated pause/resume cycles.
 - Limits how many selected queues accept new work. Queues with active work count toward the budget; excess existing queues are paused until enough jobs finish. Selection follows the configured queue order, so a continuously busy earlier queue can delay later ones.
 - Pauses before resuming other queues. New jobs remain queued; the controller never deletes work or force-stops active jobs.

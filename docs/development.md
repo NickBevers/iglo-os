@@ -20,6 +20,7 @@ Open http://localhost:5173 and log in with `admin` / `iglo-dev-password` and the
 - The console opens a shell on your own computer, not in a container.
 - While the fake gaming container runs, a PC plays on Moonlight. To let a TV join and see the manager stop its session, run `touch .dev/gaming-second-session`.
 - The fake host agent sends the same events as the real one, so live updates work in dev mode. It looks for changes once a second, where the real agent relays the events of Wolf and the Music worker as they happen.
+- `touch .dev/backup-running` makes the fake Proxmox run a nightly backup, so Background work and the workers hold new heavy work.
 - Everything you change stays in `.dev/`. Delete that folder to start again.
 - A fake Jellyfin on `http://127.0.0.1:18096` has a library, two things playing and recent items. The manager is connected to it on the first start. Images are not faked.
 - Music, Photos, Inbox and Gaming install like the other apps: the real installer of the agent plays a simulated script. After that, the fake host has their container with sample stats, and their cards show **Sample data**.

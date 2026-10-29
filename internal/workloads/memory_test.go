@@ -43,3 +43,12 @@ func TestNoAgentMeansNoReading(t *testing.T) {
 		t.Fatal("found memory without the host agent")
 	}
 }
+
+func TestBackupsHoldImmichQueues(t *testing.T) {
+	f := setup(t)
+	f.s.SetHold(func(context.Context) string { return "Updates are running" })
+	f.s.Reconcile(context.Background())
+	if f.s.Status().Reason != "Updates are running" || len(f.writes) == 0 {
+		t.Fatalf("reason = %q, writes = %v", f.s.Status().Reason, f.writes)
+	}
+}

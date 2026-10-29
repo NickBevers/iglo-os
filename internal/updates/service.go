@@ -107,6 +107,15 @@ func New(options Options) (*Service, error) {
 	return &Service{Options: options, path: path, state: loaded, outbox: outbox, customNotifier: customNotifier, notifyWake: make(chan struct{}, 1)}, nil
 }
 
+// Running says whether an update or a check runs now, like the weekly run.
+// Heavy background work waits for it, because updates take snapshots and
+// download images.
+func (s *Service) Running() bool {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.busy != ""
+}
+
 // start runs an operation in the background, one at a time.
 func (s *Service) start(ctx context.Context, name string, operation func(context.Context)) error {
 	defer s.publishChanged()

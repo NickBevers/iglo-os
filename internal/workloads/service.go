@@ -178,6 +178,10 @@ type Options struct {
 }
 
 type Service struct {
+	// hold names what keeps heavy work back for now, like a running backup,
+	// or is nil. SetHold sets it after the services it asks exist.
+	holdMu           sync.Mutex
+	hold             func(context.Context) string
 	workers          func(context.Context, string, int64) error
 	workerMemoryHeld bool
 	op               sync.Mutex
@@ -236,6 +240,25 @@ func New(opts Options) (*Service, error) {
 	}
 	s.publish(View{Reason: "Not connected", Queues: []Queue{}})
 	return s, nil
+}
+
+// SetHold sets what keeps heavy work back, like running backups and updates.
+// It returns the reason, or "" when nothing holds.
+func (s *Service) SetHold(hold func(context.Context) string) {
+	s.holdMu.Lock()
+	s.hold = hold
+	s.holdMu.Unlock()
+}
+
+// holdReason asks the hold, if there is one.
+func (s *Service) holdReason(ctx context.Context) string {
+	s.holdMu.Lock()
+	hold := s.hold
+	s.holdMu.Unlock()
+	if hold == nil {
+		return ""
+	}
+	return hold(ctx)
 }
 
 func (s *Service) Status() View {
@@ -502,6 +525,12 @@ func (s *Service) Reconcile(ctx context.Context) {
 		case !InWindow(settings, s.now()):
 			blocked = true
 			view.Reason = "Outside processing window"
+		default:
+			// A backup or an update keeps new heavy work back, like a game does.
+			if reason := s.holdReason(ctx); reason != "" {
+				blocked = true
+				view.Reason = reason
+			}
 		}
 		reading, found := s.memory(ctx, settings.Node)
 		if found {
