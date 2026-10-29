@@ -15,6 +15,13 @@ const (
 	watchRetry = 15 * time.Second
 	// sessionsPeriod is how often Jellyfin sends the sessions unasked. It also
 	// sends them at once when playback starts or stops.
+	//
+	// Any API call, ours too, is session activity, and Jellyfin sends the
+	// sessions for it unforced: only once this period passed since the last
+	// send. So our own calls cause at most one refresh a minute, not a loop.
+	// Starts, stops and seeks are forced. Checked against Jellyfin v12.4
+	// (SessionInfoWebSocketListener, BasePeriodicWebSocketListener) on 29
+	// October 2026; the installed version follows the Jellyfin repository.
 	sessionsPeriod = "0,60000"
 )
 
