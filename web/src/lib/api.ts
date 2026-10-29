@@ -543,7 +543,7 @@ export type DockerLogs = {
 
 export type AppOperation = {
     app?: string
-    action?: 'install' | 'update' | 'remove' | 'vpn' | 'backup' | 'verify'
+    action?: 'install' | 'update' | 'remove' | 'vpn' | 'flaresolverr' | 'backup' | 'verify'
     state: 'idle' | 'running' | 'succeeded' | 'failed'
     message?: string
     startedAt?: string
@@ -607,6 +607,9 @@ export type CatalogApp = {
     operation: AppOperation | null
     rollback?: string
     saved: SavedAnswers | null
+    // flareSolverr says whether the media stack runs FlareSolverr. Only set for
+    // a media stack that runs.
+    flareSolverr?: boolean
 }
 
 export type Apps = {
@@ -846,6 +849,7 @@ export const api = {
         request<void>('POST', `/apps/${id}/remove`, confirm === undefined ? undefined : { confirm }),
     vpnSettings: (id: string) => request<VpnView>('GET', `/apps/${id}/vpn`),
     changeVpn: (id: string, settings: VpnSettings) => request<void>('PUT', `/apps/${id}/vpn`, settings),
+    changeFlareSolverr: (id: string, enabled: boolean) => request<void>('PUT', `/apps/${id}/flaresolverr`, { enabled }),
     settingsExportUrl: '/api/settings/export',
     downloadDataBackup,
     restoreDataBackup,

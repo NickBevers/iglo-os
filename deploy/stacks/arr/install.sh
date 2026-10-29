@@ -8,6 +8,7 @@
 #   ./install.sh --update --ctid 130
 #   ./install.sh --remove --ctid 130
 #   ./install.sh --vpn --ctid 130 --answers file    (VPN_PROVIDER, VPN_LOCATIONS, and the secrets below or empty to keep them)
+#   ./install.sh --flaresolverr on --ctid 130        (or off: starts or stops FlareSolverr, and adds or removes its proxy in Prowlarr)
 # The VPN answers are VPN_PROVIDER (protonvpn or pia), VPN_LOCATIONS (countries
 # or regions, separated by commas), WIREGUARD_PRIVATE_KEY for ProtonVPN, and
 # PIA_USERNAME, PIA_PASSWORD and the optional PIA_DEDICATED_TOKEN for PIA.
@@ -33,7 +34,8 @@ ANSWERS=""
 MODE="install"
 RESTART_JELLYFIN="y"
 VIDEOS_BINDING=""
-FLARESOLVERR="y"
+FLARESOLVERR="n"
+FLARESOLVERR_SWITCH=""
 ANIME_INDEXERS="y"
 
 while [[ $# -gt 0 ]]; do
@@ -48,6 +50,7 @@ while [[ $# -gt 0 ]]; do
         --update) MODE="update"; shift ;;
         --remove) MODE="remove"; shift ;;
         --vpn) MODE="vpn"; shift ;;
+        --flaresolverr) MODE="flaresolverr"; FLARESOLVERR_SWITCH="${2:-}"; shift 2 ;;
         *) die "unknown option: $1" ;;
     esac
 done
@@ -140,8 +143,9 @@ ask_settings() {
     fi
     check_vpn
 
-    echo "FlareSolverr runs a browser for indexers behind Cloudflare. It uses a few hundred MB."
-    ask FLARESOLVERR "Run FlareSolverr? (y/n)" "y"
+    echo "FlareSolverr runs a browser for indexers behind Cloudflare. It can take up to 1 GB."
+    echo "You can turn it on or off later on the Apps page."
+    ask FLARESOLVERR "Run FlareSolverr? (y/n)" "n"
     ask ANIME_INDEXERS "Add the anime trackers Nyaa.si and Anime Tosho to Prowlarr? (y/n)" "y"
     ask SUBTITLE_LANGUAGES "Subtitle languages (2-letter codes, comma separated)" "en"
     echo "Optional: an OpenSubtitles.com account finds many more subtitles (free at opensubtitles.com)."
@@ -524,9 +528,50 @@ put_back_vpn() {
         if [[ -f "$f.before-vpn" ]]; then mv -f "$f.before-vpn" "$f"; else rm -f "$f"; fi'
 }
 
+# change_flaresolverr turns FlareSolverr on or off in a stack that runs,
+# without passwords: iglo-arr uses the Prowlarr API key in .env. On starts
+# the service, then adds its proxy to Prowlarr. Off removes the proxy, then
+# stops the service. Indexers keep the flaresolverr tag either way.
+change_flaresolverr() {
+    [[ "$FLARESOLVERR_SWITCH" == on || "$FLARESOLVERR_SWITCH" == off ]] || die "--flaresolverr takes on or off"
+    require_proxmox
+    for file in compose.yaml recyclarr.yml iglo-arr; do
+        [[ -f "$STACK_DIR/$file" ]] || die "missing $file next to install.sh"
+    done
+    require_app_container "$CT_ID" media
+    require_running "$CT_ID"
+
+    # This release's iglo-arr knows the flaresolverr command, and its
+    # compose.yaml has the profile. The other services keep running as they are.
+    push_stack_files
+    local before
+    before="$(pct exec "$CT_ID" -- sed -n 's/^FLARESOLVERR=//p' /opt/arr/.env)"
+
+    if [[ "$FLARESOLVERR_SWITCH" == on ]]; then
+        log "Starting FlareSolverr"
+        # Naming the service starts it without its profile. --no-deps
+        # leaves Gluetun and the apps behind it alone.
+        pct exec "$CT_ID" -- docker compose --project-directory /opt/arr up -d --no-deps --quiet-pull flaresolverr
+        if ! pct exec "$CT_ID" -- /usr/local/bin/iglo-arr flaresolverr on; then
+            # A stack from before the switch has no answer, and runs it.
+            if [[ "$before" == n ]]; then
+                pct exec "$CT_ID" -- docker compose --project-directory /opt/arr rm -s -f flaresolverr || true
+            fi
+            die "Prowlarr did not take FlareSolverr, read the error above"
+        fi
+    else
+        pct exec "$CT_ID" -- /usr/local/bin/iglo-arr flaresolverr off ||
+            die "could not remove FlareSolverr from Prowlarr, so it keeps running. Read the error above"
+        log "Stopping FlareSolverr"
+        pct exec "$CT_ID" -- docker compose --project-directory /opt/arr rm -s -f flaresolverr
+    fi
+    log "Done"
+}
+
 main() {
     case "$MODE" in
         vpn) change_vpn; return ;;
+        flaresolverr) change_flaresolverr; return ;;
         update) update; return ;;
         remove)
             require_proxmox
@@ -549,8 +594,11 @@ main() {
     start_stack
     configure_stack
 
-    local ip
+    local ip cloudflare="Indexers behind Cloudflare: give them the 'flaresolverr' tag in Prowlarr."
     ip="$(container_ip "$CT_ID")"
+    if [[ "$FLARESOLVERR" != y ]]; then
+        cloudflare="Indexers behind Cloudflare need FlareSolverr. Turn it on from the Apps page."
+    fi
 
     log "Done"
     # For the host agent, which shows the links on the Apps page.
@@ -565,7 +613,7 @@ main() {
   qBittorrent:       http://$ip:8080
 
   Log in with '$ARR_USERNAME' and your password.
-  Indexers behind Cloudflare: give them the 'flaresolverr' tag in Prowlarr.
+  $cloudflare
 
 EOF
 }

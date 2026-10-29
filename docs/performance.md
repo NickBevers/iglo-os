@@ -226,7 +226,7 @@ second catches "struggling". On another node it falls back to Proxmox.
   `MemoryMax=1G`. Installs run in their own systemd units, so the caps don't
   touch them.
 - **FlareSolverr**, which runs a browser for some indexers, is capped at 1 GB,
-  and can be left out entirely. It is then a Docker Compose profile that
+  and is off by default. While it is off, it is a Docker Compose profile that
   doesn't start.
 
 ### On the host

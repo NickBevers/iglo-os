@@ -31,6 +31,8 @@ type fakeHost struct {
 	backupsOn string
 	settings  workloads.Settings
 	space     map[string]apps.StorageSpace
+	// flareSolverr is the FlareSolverr switch of an installed media stack.
+	flareSolverr *bool
 }
 
 func (f *fakeHost) StorageBindings(context.Context) (agent.BindingView, error) {
@@ -64,7 +66,11 @@ func (f *fakeHost) Status(context.Context) (apps.View, error) {
 	defer f.mu.Unlock()
 	view := apps.View{Defaults: apps.Defaults{Storage: "local-lvm", Storages: []string{"local-lvm"}, StorageSpace: f.space}}
 	for _, id := range Apps {
-		view.Apps = append(view.Apps, apps.AppView{App: apps.App{ID: id, Name: id}, Installed: f.installed[id]})
+		app := apps.AppView{App: apps.App{ID: id, Name: id}, Installed: f.installed[id]}
+		if id == agent.MediaStackApp && app.Installed {
+			app.FlareSolverr = f.flareSolverr
+		}
+		view.Apps = append(view.Apps, app)
 	}
 	return view, nil
 }

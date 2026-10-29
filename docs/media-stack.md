@@ -44,7 +44,7 @@ Media stacks that were installed before you could choose the folders use `movies
 - keeps downloads on a local disk (`/data/downloads`);
 - connects all apps: logins, root folders, qBittorrent, Prowlarr sync, FlareSolverr, subtitles and Jellyfin libraries.
 
-FlareSolverr is a switch in the form, on by default. It runs a browser for indexers behind Cloudflare, which takes a few hundred MB of memory. Turn it off when your indexers don't need it. It is then a Docker Compose profile that doesn't start, and Prowlarr gets no FlareSolverr proxy. Indexers that need it get the `flaresolverr` tag in Prowlarr. A stack from before the switch keeps FlareSolverr after an update.
+FlareSolverr is a switch in the form, off by default. It runs a browser for indexers behind Cloudflare, which can take up to 1 GB of memory. Turn it on when an indexer needs it, at the install or later (see [FlareSolverr](#flaresolverr)). While it is off, it is a Docker Compose profile that doesn't start, and Prowlarr gets no FlareSolverr proxy. Indexers that need it get the `flaresolverr` tag in Prowlarr. A stack from before the switch keeps FlareSolverr after an update.
 
 After the install, the Apps page shows links to each app. Then add your indexers in Prowlarr.
 
@@ -96,6 +96,19 @@ A media stack from before these changes gets the Radarr anime profile and the fi
 4. In Bazarr, add **anime** to **Excluded Series Types** under **Settings > Sonarr**, and to **Excluded Tags** under **Settings > Radarr**.
 
 Which audio and subtitles play is up to the player. Set the language preferences in Jellyfin, or in Kodi on the TV.
+
+## FlareSolverr
+
+The card of the media stack on the Apps page says whether FlareSolverr runs. Click **FlareSolverr** to turn it on or off. It needs no password and no reinstall, and the other apps keep running.
+
+- **On** starts the `flaresolverr` service, waits until Prowlarr can reach it, and adds the FlareSolverr indexer proxy with the `flaresolverr` tag.
+- **Off** removes that proxy from Prowlarr, then stops and removes the service. A FlareSolverr proxy that points elsewhere stays.
+
+Both write `FLARESOLVERR` and `COMPOSE_PROFILES` in `/opt/arr/.env`, so an update keeps the choice. Indexers keep the `flaresolverr` tag when it is off, and use FlareSolverr again once it is back on. Prowlarr only removes a tag that nothing uses. The image stays in the container after off, so turning it on again needs no download.
+
+`iglo-arr flaresolverr on|off` talks to Prowlarr with the API key that the installer wrote in `.env`. This follows Prowlarr v2.7.0.5723 (`POST` and `DELETE /api/v1/indexerProxy`, and the test that a save runs first), checked on 29 October 2026.
+
+If Prowlarr does not take FlareSolverr, the installer stops the service again and the switch stays off. If it can't remove the proxy, FlareSolverr keeps running.
 
 ## VPN
 

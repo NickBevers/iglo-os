@@ -361,19 +361,8 @@ func configureProwlarr(ctx context.Context, cfg Config, prowlarr *servarr) error
 	if !cfg.FlareSolverr {
 		return nil
 	}
-	// Prowlarr only sends indexers with this tag through FlareSolverr.
-	tag, err := prowlarr.ensureTag(ctx, "flaresolverr")
-	if err != nil {
-		return err
-	}
 
-	return prowlarr.ensure(ctx, provider{
-		resource:       "indexerProxy",
-		implementation: "FlareSolverr",
-		name:           "FlareSolverr",
-		fields:         map[string]any{"host": flaresolverrURL},
-		settings:       map[string]any{"tags": []int{tag}},
-	})
+	return addFlareSolverr(ctx, prowlarr)
 }
 
 // animeIndexers are public anime trackers, by their Cardigann definitions in Prowlarr.

@@ -93,6 +93,21 @@ func TestExportIsTheLastPlanOrWhatIsThere(t *testing.T) {
 	if err != nil || plan.NAS.Server != "192.168.1.20" || plan.NAS.Shares["videos"].Share != "Films" || !plan.ProxmoxBackups || len(plan.Apps) != 1 || plan.Apps[0] != agent.JellyfinApp {
 		t.Fatalf("plan = %+v, %v", plan, err)
 	}
+	// FlareSolverr is off, unless the media stack runs it.
+	if plan.FlareSolverr {
+		t.Fatal("FlareSolverr is on without a media stack")
+	}
+	on := true
+	host.mu.Lock()
+	host.installed[agent.MediaStackApp], host.flareSolverr = true, &on
+	host.mu.Unlock()
+	data, _ = service.ExportPlan(context.Background())
+	if plan, _ := ParseFile(data); !plan.FlareSolverr {
+		t.Fatalf("plan of a media stack with FlareSolverr = %+v", plan)
+	}
+	host.mu.Lock()
+	delete(host.installed, agent.MediaStackApp)
+	host.mu.Unlock()
 
 	// After a setup starts, the file is its plan.
 	run := validPlan()
