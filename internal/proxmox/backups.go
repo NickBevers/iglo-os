@@ -113,6 +113,23 @@ func (c *Client) ContainerStorages(ctx context.Context, node string) ([]BackupSt
 	return storages, err
 }
 
+// Bridge is a network bridge of a node, like vmbr0, with its IPv4 address
+// and gateway as in /etc/network/interfaces.
+type Bridge struct {
+	Iface   string `json:"iface"`
+	CIDR    string `json:"cidr"`
+	Gateway string `json:"gateway"`
+}
+
+// Bridges returns the bridges of a node. Any user may list them (pve-manager
+// PVE/API2/Network.pm at 73ac838, checked on 29 October 2026).
+func (c *Client) Bridges(ctx context.Context, node string) ([]Bridge, error) {
+	var bridges []Bridge
+	err := c.get(ctx, "/nodes/"+url.PathEscape(node)+"/network?type=bridge", &bridges)
+
+	return bridges, err
+}
+
 type Interface struct {
 	Name string `json:"name"`
 	// Inet is the IPv4 address with its prefix, like 192.168.1.50/24.

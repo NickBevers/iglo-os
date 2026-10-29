@@ -662,6 +662,9 @@ export type Apps = {
         username: string
         downloadsSize: number
         minecraft: MinecraftAnswers
+        // The host's address with its prefix and its gateway on vmbr0, for the Headscale form.
+        lanAddress?: string
+        lanGateway?: string
     }
     error?: string
 }

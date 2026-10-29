@@ -58,6 +58,7 @@ type Agent interface {
 type Proxmox interface {
 	Resources(ctx context.Context) ([]proxmox.Resource, error)
 	ContainerStorages(ctx context.Context, node string) ([]proxmox.BackupStorage, error)
+	Bridges(ctx context.Context, node string) ([]proxmox.Bridge, error)
 	ContainerInterfaces(ctx context.Context, node string, vmid int) ([]proxmox.Interface, error)
 	ContainerDescription(ctx context.Context, node string, vmid int) (string, error)
 	SnapshotSupported(ctx context.Context, node string, vmid int) (bool, error)
@@ -202,6 +203,10 @@ type Defaults struct {
 	DownloadsSize     int    `json:"downloadsSize"`
 	// Minecraft are the answers that the Minecraft form starts with.
 	Minecraft agent.MinecraftAnswers `json:"minecraft"`
+	// LANAddress and LANGateway are the host's on vmbr0, like 192.168.1.10/24,
+	// so the Headscale form can fill in the gateway and show the prefix.
+	LANAddress string `json:"lanAddress,omitempty"`
+	LANGateway string `json:"lanGateway,omitempty"`
 }
 
 type View struct {
@@ -252,6 +257,7 @@ type Service struct {
 	descriptions ttlCache[string]
 	addresses    ttlCache[string]
 	storages     ttlCache[[]proxmox.BackupStorage]
+	bridges      ttlCache[[]proxmox.Bridge]
 	// stats are kept for 30 seconds. During an install the Apps view is built
 	// about once a second, and stats can cost a pct exec or reads on a share.
 	stats ttlCache[agent.AppStats]
@@ -453,6 +459,16 @@ func (s *Service) defaults(ctx context.Context, node string, resources []proxmox
 		defaults.Storage = "local-lvm"
 	} else {
 		defaults.Storage = defaults.Storages[0]
+	}
+
+	// The network of the host rarely changes, and a guess only fills a form.
+	bridges, err := s.bridges.get(node, 10*time.Minute, func() ([]proxmox.Bridge, error) {
+		return s.Proxmox.Bridges(ctx, node)
+	})
+	if err == nil {
+		if index := slices.IndexFunc(bridges, func(bridge proxmox.Bridge) bool { return bridge.Iface == "vmbr0" }); index >= 0 {
+			defaults.LANAddress, defaults.LANGateway = bridges[index].CIDR, bridges[index].Gateway
+		}
 	}
 
 	for _, resource := range resources {

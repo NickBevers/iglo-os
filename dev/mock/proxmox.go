@@ -262,6 +262,10 @@ func (p *fakeProxmox) node(w http.ResponseWriter, r *http.Request) {
 		})
 	case path == "disks/zfs":
 		writeData(w, []map[string]any{{"name": "tank", "health": "DEGRADED", "size": 3_985_729_650_688, "alloc": 1_200_000_000_000, "free": 2_785_729_650_688, "frag": 3, "dedup": 1.0}})
+	case path == "network":
+		writeData(w, []map[string]any{
+			{"iface": "vmbr0", "type": "bridge", "cidr": "192.168.1.10/24", "address": "192.168.1.10", "netmask": "24", "gateway": "192.168.1.1", "active": 1},
+		})
 	case path == "tasks":
 		// Fixed times, so the manager sees each task once, as on Proxmox.
 		now := mockStart.Unix()

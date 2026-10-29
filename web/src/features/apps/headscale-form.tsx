@@ -18,7 +18,15 @@ export function HeadscaleForm({
     const [answers, set] = useState<HeadscaleAnswers>(
         saved?.headscale?.hostname
             ? { ...saved.headscale, prerequisites: false }
-            : { hostname: '', address: '', gateway: '', storage: defaults.storage, rateMB: 5, prerequisites: false },
+            : {
+                  hostname: '',
+                  address: '',
+                  // The host's gateway on vmbr0 is the guest's too.
+                  gateway: defaults.lanGateway ?? '',
+                  storage: defaults.storage,
+                  rateMB: 5,
+                  prerequisites: false,
+              },
     )
     const client = useQueryClient()
     const install = useMutation({
@@ -71,7 +79,15 @@ export function HeadscaleForm({
                     onChange={(e) => set({ ...answers, hostname: e.target.value.toLowerCase() })}
                 />
             </Field>
-            <Field id="controller-ip" label="Static guest IPv4 address and prefix">
+            <Field
+                id="controller-ip"
+                label="Static guest IPv4 address and prefix"
+                help={
+                    defaults.lanAddress
+                        ? `The host has ${defaults.lanAddress} on vmbr0. Use another free address with the same /${defaults.lanAddress.split('/')[1]}.`
+                        : undefined
+                }
+            >
                 <Input
                     id="controller-ip"
                     required
