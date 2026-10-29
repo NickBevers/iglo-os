@@ -361,16 +361,14 @@
     ]
   },
   "/self-update": {
-    "version": "dev",
-    "repo": "",
-    "tokenSet": false,
-    "autoInstall": false,
-    "latest": null,
-    "updateAvailable": false,
-    "checkedAt": "2026-10-23T13:14:02.603148+02:00",
-    "error": "no GitHub repo set",
-    "installing": false,
-    "upgrade": null
+    "version": "v0.1.0",
+    "upgrade": {
+      "state": "succeeded",
+      "version": "v0.1.0",
+      "startedAt": "2026-10-28T20:14:02+01:00",
+      "finishedAt": "2026-10-28T20:15:37+01:00",
+      "log": "==> Upgraded to v0.1.0"
+    }
   },
   "/backups": {
     "busy": "",

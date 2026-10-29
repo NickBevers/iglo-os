@@ -8,14 +8,17 @@ Iglo-OS started from [DriesH/homelab](https://github.com/DriesH/homelab) v0.10.1
 
 You need Proxmox VE 9 or newer on an amd64 host.
 
-On the Proxmox host, as root. Use the newest version from [Releases](https://github.com/NickBevers/iglo-os/releases):
+Iglo-OS installs from your own machine, over SSH as root on the Proxmox host.
+There are no downloads: you build what you install. One time, make a signing
+key (see [deploy to your server](docs/development.md#deploy-to-your-server)).
+Then tag a version and deploy it:
 
 ```sh
-curl -LO https://github.com/NickBevers/iglo-os/releases/download/v0.1.0/iglo-v0.1.0-linux-amd64.tar.gz
-tar xzf iglo-v0.1.0-linux-amd64.tar.gz
-cd iglo-v0.1.0-linux-amd64
-./install.sh
+git tag -a v0.1.0 -m v0.1.0
+make deploy HOST=root@192.168.1.10
 ```
+
+On a host without Iglo-OS, that runs the first install.
 
 1. Create your admin account when the installer asks. Add the secret it shows to an authenticator app.
 2. Download `http://iglo.local/ca.crt` and install it as a trusted root certificate on each device.
@@ -27,8 +30,8 @@ For the least memory pressure, install Proxmox on ext4 with LVM-thin, not ZFS. W
 
 ## Storage, processing and gaming
 
-These capabilities describe this source branch. Use a release built from this
-revision to install them; pushing a branch does not publish a signed release.
+These capabilities describe this source branch. Deploy a version tagged on
+this revision to get them.
 
 | Area | Implemented | Setup and limits |
 | --- | --- | --- |
@@ -48,7 +51,7 @@ performance or recovery on a real Proxmox/NAS installation.
 
 ## Update
 
-Open the Updates page and click "Install v…". Iglo-OS checks GitHub every 6 hours and only installs signed releases. If a new version does not start, the old one comes back.
+Tag a newer version and run `make deploy HOST=…` again. The host agent only installs a bundle signed with your key, and only a newer version. If the new version does not work, the old one comes back. The Updates page shows the running version and how the last upgrade went. See [updates](docs/updates.md#updating-iglo-os).
 
 ## Uninstall
 
@@ -70,7 +73,7 @@ make dev-code   # the login code, in a second terminal
 Open the URL printed by Vite (normally http://localhost:5173; it selects another
 port if occupied) and log in with `admin` / `iglo-dev-password`. Use
 `make dev-code` for the current login code. See [docs/development.md](docs/development.md)
-for tests, a real Proxmox and releases.
+for tests, a real Proxmox and deploys.
 
 ## Docs
 

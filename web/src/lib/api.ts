@@ -455,20 +455,12 @@ export type UpgradeStatus = {
     log?: string
 }
 
+// SelfUpdate is the running version and the last upgrade, which came from
+// "make deploy" on the owner's machine.
 export type SelfUpdate = {
     version: string
-    repo: string
-    tokenSet: boolean
-    autoInstall: boolean
-    latest: { version: string; notes: string; url: string; publishedAt: string } | null
-    updateAvailable: boolean
-    checkedAt?: string
-    error?: string
-    installing: boolean
     upgrade: UpgradeStatus | null
 }
-
-export type SelfUpdateSettings = { repo: string; token: string; clearToken: boolean; autoInstall: boolean }
 
 export type TailscaleSettings = { shareSubnet: boolean; subnet: string; useTag?: boolean; loginServer?: string }
 
@@ -727,8 +719,7 @@ export type MediaStackAnswers = {
 }
 
 export type SettingsChange = {
-    section:
-        'selfUpdate' | 'notifications' | 'updates' | 'health' | 'backups' | 'tailscale' | 'jellyfin' | 'backgroundWork'
+    section: 'notifications' | 'updates' | 'health' | 'backups' | 'tailscale' | 'jellyfin' | 'backgroundWork'
     status: 'unchanged' | 'changed' | 'applied' | 'skipped' | 'failed'
     message?: string
 }
@@ -861,9 +852,6 @@ export const api = {
         request<void>('PUT', '/jellyfin/settings', settings),
     setJellyfinTheme: (enabled: boolean) => request<void>('PUT', '/jellyfin/theme', { enabled }),
     selfUpdate: () => request<SelfUpdate>('GET', '/self-update'),
-    checkSelfUpdate: () => request<SelfUpdate>('POST', '/self-update/check'),
-    installSelfUpdate: () => request<void>('POST', '/self-update/install'),
-    saveSelfUpdateSettings: (settings: SelfUpdateSettings) => request<void>('PUT', '/self-update/settings', settings),
     backups: () => request<Backups>('GET', '/backups'),
     saveBackupJob: (job: BackupJob) => request<void>('PUT', '/backups/job', job),
     backUpGuest: (vmid: number) => request<void>('POST', `/backups/guests/${vmid}`),

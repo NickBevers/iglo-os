@@ -8,7 +8,7 @@ import { Skeleton } from '@/components/ui/skeleton'
 import { api } from '@/lib/api'
 import { formatDateTime } from '@/lib/format'
 import { updatesQuery } from '@/lib/queries'
-import { SelfUpdateCard, SelfUpdateSourceCard } from '@/features/self-update/self-update-card'
+import { SelfUpdateCard } from '@/features/self-update/self-update-card'
 import { ContainerUpdates } from './container-updates'
 import { HostUpdates } from './host-updates'
 import { NtfyCard, ScheduleCard, TelegramCard } from './settings-cards'
@@ -78,7 +78,6 @@ export function UpdatesPage() {
                 <ScheduleCard updates={data} />
                 <TelegramCard updates={data} />
                 <NtfyCard updates={data} />
-                <SelfUpdateSourceCard />
             </div>
 
             <section className="flex flex-col gap-3">

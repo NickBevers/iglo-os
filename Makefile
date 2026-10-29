@@ -1,7 +1,5 @@
 VERSION ?= $(shell git describe --tags --always --dirty 2>/dev/null || echo dev)
-# The GitHub repo that the manager checks for new releases.
-REPO ?= $(shell git remote get-url origin 2>/dev/null | sed -E 's,(git@github.com:|https://github.com/),,; s,\.git$$,,')
-LDFLAGS := -s -w -X main.version=$(VERSION) -X iglo/internal/selfupdate.DefaultRepo=$(REPO)
+LDFLAGS := -s -w -X main.version=$(VERSION)
 # Listed explicitly so Go doesn't scan web/node_modules.
 GO_PKGS := ./cmd/... ./internal/... ./dev/... ./web
 BUNDLE := dist/iglo-$(VERSION)-linux-amd64

@@ -43,7 +43,7 @@ iglo-restore nas:backup/vzdump-lxc-120-2026_09_29-03_00_02.tar.zst   # or give o
 
 It stops the manager, restores the backup to the storage of its current disk, and waits until the manager runs again.
 
-On a new Proxmox host, extract the release bundle and run `./install.sh --restore <backup>` with a backup on the NAS. It also installs the host agent and makes a new API token, because the old token only works on the old host.
+On a new Proxmox host, copy over a bundle from `make bundle`, extract it and run `./install.sh --restore <backup>` with a backup on the NAS. It also installs the host agent and makes a new API token, because the old token only works on the old host.
 
 ## Data backup
 

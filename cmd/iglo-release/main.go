@@ -1,6 +1,6 @@
 // iglo-release makes the signing key and signs release bundles.
 //
-//	iglo-release keygen -public internal/release/signing.pub | gh secret set IGLO_SIGNING_KEY
+//	iglo-release keygen -public internal/release/signing.pub | age -p -o ~/.config/iglo/signing-key.age
 //	IGLO_SIGNING_KEY=... iglo-release sign -version v1.2.3 dist/iglo-v1.2.3-linux-amd64.tar.gz
 package main
 

@@ -126,14 +126,10 @@ func serve() error {
 		DataDir: cfg.DataDir,
 		Version: version,
 		Agent:   agentClient,
-		APIURL:  cfg.GitHubAPIURL,
-		Notify:  updateService.Notify,
-		Logger:  logger,
 	})
 	if err != nil {
 		return err
 	}
-	go selfUpdateService.Run(ctx)
 
 	backupService, err := backups.New(backups.Options{
 		Changed:  hub.Publish,
@@ -239,13 +235,12 @@ func serve() error {
 		// The box art copies start with a dot, so data backups skip them.
 		Covers: covers.New(filepath.Join(cfg.DataDir, ".covers")),
 		SettingsFile: &settingsfile.Service{
-			Updates:    updateService,
-			Health:     healthService,
-			Backups:    backupService,
-			Tailscale:  tailscaleService,
-			Jellyfin:   jellyfinService,
-			SelfUpdate: selfUpdateService,
-			Workloads:  workloadService,
+			Updates:   updateService,
+			Health:    healthService,
+			Backups:   backupService,
+			Tailscale: tailscaleService,
+			Jellyfin:  jellyfinService,
+			Workloads: workloadService,
 		},
 		DataDir:       cfg.DataDir,
 		Restart:       func() { restart(errRestart) },

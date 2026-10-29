@@ -11,7 +11,6 @@ import (
 	"iglo/internal/backups"
 	"iglo/internal/health"
 	"iglo/internal/jellyfin"
-	"iglo/internal/selfupdate"
 	"iglo/internal/tailscale"
 	"iglo/internal/updates"
 	"iglo/internal/workloads"
@@ -45,23 +44,17 @@ type JellyfinService interface {
 	SetTheme(ctx context.Context, enabled bool) error
 }
 
-type SelfUpdateService interface {
-	Settings() selfupdate.Settings
-	SaveSettings(input selfupdate.SettingsInput) error
-}
-
 type WorkloadsService interface {
 	Status() workloads.View
 	SaveSettings(workloads.Settings) error
 }
 
 type Service struct {
-	Updates    UpdatesService
-	Health     HealthService
-	Backups    BackupsService
-	Tailscale  TailscaleService
-	Jellyfin   JellyfinService
-	SelfUpdate SelfUpdateService
+	Updates   UpdatesService
+	Health    HealthService
+	Backups   BackupsService
+	Tailscale TailscaleService
+	Jellyfin  JellyfinService
 	// Workloads is left out of the file when it is nil.
 	Workloads WorkloadsService
 
@@ -155,12 +148,6 @@ func (s *Service) current(ctx context.Context) (File, []string) {
 		}
 	}
 
-	if self := s.SelfUpdate.Settings(); self.Repo != "" {
-		file.SelfUpdate = &SelfUpdate{Repo: self.Repo, AutoInstall: self.AutoInstall}
-	} else {
-		notes = append(notes, "selfUpdate: left out, because no GitHub repo is set.")
-	}
-
 	if s.Workloads != nil {
 		file.BackgroundWork = backgroundWork(s.Workloads.Status().Settings)
 	}
@@ -204,17 +191,6 @@ func (s *Service) Import(ctx context.Context, data []byte, apply bool) (Result, 
 			return nil
 		}
 		return operation()
-	}
-
-	if file.SelfUpdate != nil {
-		if reflect.DeepEqual(file.SelfUpdate, current.SelfUpdate) {
-			add("selfUpdate", StatusUnchanged, "")
-		} else {
-			err := run(func() error {
-				return s.SelfUpdate.SaveSettings(selfupdate.SettingsInput{Repo: file.SelfUpdate.Repo, AutoInstall: file.SelfUpdate.AutoInstall})
-			})
-			finish("selfUpdate", err, "")
-		}
 	}
 
 	s.importUpdates(file, current, add, finish, run)

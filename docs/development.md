@@ -22,7 +22,6 @@ Open http://localhost:5173 and log in with `admin` / `iglo-dev-password` and the
 - The fake host agent sends the same events as the real one, so live updates work in dev mode. It looks for changes once a second, where the real agent relays the events of Wolf and the Music worker as they happen.
 - Everything you change stays in `.dev/`. Delete that folder to start again.
 - A fake Jellyfin on `http://127.0.0.1:18096` has a library, two things playing and recent items. The manager is connected to it on the first start. Images are not faked.
-- The self-update check needs the real GitHub.
 - Music, Photos, Inbox and Gaming install like the other apps: the real installer of the agent plays a simulated script. After that, the fake host has their container with sample stats, and their cards show **Sample data**.
 
 ## A demo for a review
@@ -130,23 +129,19 @@ On a host without Iglo-OS, the same command runs the first install, which
 asks for the admin account. The bundle comes from your own machine over SSH,
 so it needs no download from anywhere.
 
-## Making a release
+## New app image versions
 
-1. One time: create the signing key. The private key goes straight into a GitHub secret. Commit the public key.
+The app stacks pin every image to a digest, and a new Iglo-OS version brings
+the new pins. To move an app to its newest images, run
+`go run ./dev/pinimages deploy/stacks/arr/compose.yaml`. It pins each tag to
+the digest it points to now, with the version from the image's label. Test
+the stack with them on a server before you deploy; `dev/pinimages` refuses
+nothing, the test is the check. Every image in the stacks has a digest, and a
+test fails on one without. After a deploy, press **Update** on the Apps page
+to move an installed app to the new pins.
 
-   ```sh
-   go run ./cmd/iglo-release keygen -public internal/release/signing.pub | gh secret set IGLO_SIGNING_KEY
-   ```
 
-2. Set the new version in the install command of `README.md`, and merge that to `main`.
-3. Move the app images to their newest versions: `go run ./dev/pinimages deploy/stacks/arr/compose.yaml` pins each tag to the digest it points to now, with the version from the image's label. Test the stack with them on a server before the release; `dev/pinimages` refuses nothing, the test is the check. Every image in the stacks has a digest, and a test fails on one without.
-4. Tag the version and push the tag. GitHub Actions builds, tests, signs and publishes the release.
-
-   ```sh
-   git tag -a v0.6.0 -m v0.6.0 && git push origin v0.6.0
-   ```
-
-A build without the key in `signing.pub` can't install updates. If you lose the private key, make a new one and install the next version by hand once.
+## Notes
 
 The manager publishes Health, Updates and Backups topics while using the dev
 mock too. Add or refresh a health check, run an update check, or start a backup

@@ -94,8 +94,9 @@ func run(socketPath, adminPath string, socketGID int, logger *slog.Logger) error
 	logs := agent.NewLogs()
 	mux.HandleFunc("GET /v1/logs/journal", journalLogs(logs))
 	mux.HandleFunc("GET /v1/logs/docker", dockerLogs(logs))
+	// The manager shows the last upgrade, but only root on the host can start
+	// one, on the admin socket.
 	upgrader := agent.NewUpgrader(version)
-	mux.HandleFunc("POST /v1/upgrade", startUpgrade(upgrader, logger))
 	mux.HandleFunc("GET /v1/upgrade", upgradeStatus(upgrader))
 	apps := agent.NewAppInstaller()
 	agent.RegisterEvents(mux, apps)
