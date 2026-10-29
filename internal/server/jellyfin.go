@@ -38,27 +38,6 @@ func (s *server) jellyfinSettings(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func (s *server) jellyfinTheme(w http.ResponseWriter, r *http.Request) {
-	var input struct {
-		Enabled bool `json:"enabled"`
-	}
-	if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, 1024)).Decode(&input); err != nil {
-		writeError(w, http.StatusBadRequest, "invalid request body")
-		return
-	}
-
-	err := s.Jellyfin.SetTheme(r.Context(), input.Enabled)
-	switch {
-	case errors.Is(err, jellyfin.ErrNotConfigured):
-		writeError(w, http.StatusBadRequest, err.Error())
-	case err != nil:
-		s.Logger.Error("set jellyfin theme", "error", err)
-		writeError(w, http.StatusBadGateway, "Jellyfin refused the change")
-	default:
-		w.WriteHeader(http.StatusNoContent)
-	}
-}
-
 func (s *server) jellyfinImage(w http.ResponseWriter, r *http.Request) {
 	id := r.PathValue("id")
 	imageType := r.URL.Query().Get("type")

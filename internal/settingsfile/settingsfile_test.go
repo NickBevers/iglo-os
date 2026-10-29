@@ -69,22 +69,12 @@ func (f *fakeTailscale) SetServe(_ context.Context, enabled bool) error {
 
 type fakeJellyfin struct {
 	settings jellyfin.Settings
-	theme    bool
-	themeErr error
 	saved    []jellyfin.Settings
-	themes   []bool
 }
 
 func (f *fakeJellyfin) Settings() jellyfin.Settings { return f.settings }
-func (f *fakeJellyfin) ThemeEnabled(context.Context) (bool, error) {
-	return f.theme, f.themeErr
-}
 func (f *fakeJellyfin) SaveSettings(_ context.Context, input jellyfin.Settings) error {
 	f.saved = append(f.saved, input)
-	return nil
-}
-func (f *fakeJellyfin) SetTheme(_ context.Context, enabled bool) error {
-	f.themes = append(f.themes, enabled)
 	return nil
 }
 
@@ -133,7 +123,7 @@ func newService() (*Service, fakes) {
 			State: "Running", Serving: true,
 			Settings: tailscale.Settings{ShareSubnet: true, Subnet: "192.168.1.0/24"},
 		}},
-		jellyfin: &fakeJellyfin{settings: jellyfin.Settings{URL: "http://192.168.1.20:8096", APIKey: "key"}, theme: true},
+		jellyfin: &fakeJellyfin{settings: jellyfin.Settings{URL: "http://192.168.1.20:8096", APIKey: "key"}},
 		workloads: &fakeWorkloads{settings: workloads.Settings{
 			Enabled: true, URL: "http://192.168.1.30:2283", APIKey: "immich-secret", Node: "pve",
 			ReserveGiB: 4, MaxQueues: 1, Queues: []string{"videoConversion", "smartSearch"},
@@ -170,7 +160,7 @@ func TestExportLeavesSecretsOutAndImportsUnchanged(t *testing.T) {
 			t.Fatalf("export has a secret %q:\n%s", secret, text)
 		}
 	}
-	for _, want := range []string{"day: sun", `time: "04:00"`, "topic: iglo-old", "serve: true", "theme: true", "url: http://192.168.1.30:2283", "timezone: Europe/Brussels"} {
+	for _, want := range []string{"day: sun", `time: "04:00"`, "topic: iglo-old", "serve: true", "url: http://192.168.1.20:8096", "url: http://192.168.1.30:2283", "timezone: Europe/Brussels"} {
 		if !strings.Contains(text, want) {
 			t.Fatalf("export misses %q:\n%s", want, text)
 		}
@@ -193,7 +183,6 @@ func TestExportLeavesSecretsOutAndImportsUnchanged(t *testing.T) {
 func TestExportNotes(t *testing.T) {
 	service, f := newService()
 	f.backups.view.Job.Custom = "*/2:00"
-	f.jellyfin.themeErr = errors.New("timeout")
 
 	data, err := service.Export(context.Background())
 	if err != nil {
@@ -202,9 +191,6 @@ func TestExportNotes(t *testing.T) {
 	text := string(data)
 	if strings.Contains(text, "\nbackups:") || !strings.Contains(text, `# backups: left out, because the schedule "*/2:00"`) {
 		t.Fatalf("custom schedule not left out:\n%s", text)
-	}
-	if strings.Contains(text, "theme:") || !strings.Contains(text, "# jellyfin: theme left out") {
-		t.Fatalf("theme not left out:\n%s", text)
 	}
 	if _, err := Parse(data); err != nil {
 		t.Fatalf("the export can't be imported: %v", err)
@@ -253,7 +239,7 @@ health:
     - {name: " Jellyfin ", type: http, target: "http://192.168.1.20:8096"}
     - {name: SSH, type: tcp, target: "192.168.1.2:22"}
 tailscale: {serve: false, shareSubnet: false}
-jellyfin: {url: "http://192.168.1.21:8096", theme: false}
+jellyfin: {url: "http://192.168.1.21:8096"}
 `), true)
 	if err != nil {
 		t.Fatal(err)
@@ -286,8 +272,8 @@ jellyfin: {url: "http://192.168.1.21:8096", theme: false}
 	if len(f.tailscale.saved) != 1 || f.tailscale.saved[0].ShareSubnet || len(f.tailscale.serve) != 1 || f.tailscale.serve[0] {
 		t.Fatalf("tailscale saved %+v, serve %v", f.tailscale.saved, f.tailscale.serve)
 	}
-	if f.jellyfin.saved[0] != (jellyfin.Settings{URL: "http://192.168.1.21:8096"}) || f.jellyfin.themes[0] {
-		t.Fatalf("jellyfin saved %+v, themes %v", f.jellyfin.saved, f.jellyfin.themes)
+	if len(f.jellyfin.saved) != 1 || f.jellyfin.saved[0] != (jellyfin.Settings{URL: "http://192.168.1.21:8096"}) {
+		t.Fatalf("jellyfin saved %+v", f.jellyfin.saved)
 	}
 }
 
@@ -329,6 +315,7 @@ func TestParseRejectsBadFiles(t *testing.T) {
 		"bad subnet":       "version: 1\ntailscale: {shareSubnet: true, subnet: 192.168.1.1/24}",
 		"bad url":          "version: 1\njellyfin: {url: ftp://nas}",
 		"removed section":  "version: 1\nselfUpdate: {repo: someone/fork}",
+		"removed theme":    "version: 1\njellyfin: {url: \"http://nas:8096\", theme: true}",
 		"bad topic":        "version: 1\nnotifications: {ntfy: {topic: a/b}}",
 		"bad queue":        "version: 1\nbackgroundWork: {reserveGiB: 4, maxQueues: 1, queues: [nope], window: {start: \"02:00\", end: \"07:00\", timezone: UTC}}",
 		"bad zone":         "version: 1\nbackgroundWork: {reserveGiB: 4, maxQueues: 1, queues: [smartSearch], window: {start: \"02:00\", end: \"07:00\", timezone: Mars/Base}}",

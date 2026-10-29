@@ -39,9 +39,7 @@ type TailscaleService interface {
 
 type JellyfinService interface {
 	Settings() jellyfin.Settings
-	ThemeEnabled(ctx context.Context) (bool, error)
 	SaveSettings(ctx context.Context, input jellyfin.Settings) error
-	SetTheme(ctx context.Context, enabled bool) error
 }
 
 type WorkloadsService interface {
@@ -141,11 +139,6 @@ func (s *Service) current(ctx context.Context) (File, []string) {
 
 	if url := s.Jellyfin.Settings().URL; url != "" {
 		file.Jellyfin = &Jellyfin{URL: url}
-		if enabled, err := s.Jellyfin.ThemeEnabled(ctx); err == nil {
-			file.Jellyfin.Theme = &enabled
-		} else {
-			notes = append(notes, fmt.Sprintf("jellyfin: theme left out, because Jellyfin did not answer (%v).", err))
-		}
 	}
 
 	if s.Workloads != nil {
@@ -328,25 +321,14 @@ func (s *Service) importJellyfin(ctx context.Context, file, current File, add ad
 		return
 	}
 
-	urlChanged := current.Jellyfin == nil || file.Jellyfin.URL != current.Jellyfin.URL
-	themeChanged := file.Jellyfin.Theme != nil &&
-		(current.Jellyfin == nil || current.Jellyfin.Theme == nil || *file.Jellyfin.Theme != *current.Jellyfin.Theme)
-	if !urlChanged && !themeChanged {
+	if current.Jellyfin != nil && file.Jellyfin.URL == current.Jellyfin.URL {
 		add("jellyfin", StatusUnchanged, "")
 		return
 	}
 
 	err := run(func() error {
-		if urlChanged {
-			// An empty API key keeps the saved one.
-			if err := s.Jellyfin.SaveSettings(ctx, jellyfin.Settings{URL: file.Jellyfin.URL}); err != nil {
-				return err
-			}
-		}
-		if themeChanged {
-			return s.Jellyfin.SetTheme(ctx, *file.Jellyfin.Theme)
-		}
-		return nil
+		// An empty API key keeps the saved one.
+		return s.Jellyfin.SaveSettings(ctx, jellyfin.Settings{URL: file.Jellyfin.URL})
 	})
 	finish("jellyfin", err, "")
 }

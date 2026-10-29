@@ -355,7 +355,7 @@ func TestSavedAdminPasswordOnlyForTheSameAdmin(t *testing.T) {
 func validJellyfin() JellyfinAnswers {
 	return JellyfinAnswers{
 		VideosBinding: "videos", MoviesFolder: "movies", SeriesFolder: "series",
-		AdminUsername: "dries", AdminPassword: "jelly pass", Theme: true, Storage: "local-lvm",
+		AdminUsername: "dries", AdminPassword: "jelly pass", Storage: "local-lvm",
 	}
 }
 
@@ -389,7 +389,7 @@ func TestJellyfinAnswersValidate(t *testing.T) {
 		"music is videos":  func(a *JellyfinAnswers) { a.MusicBinding = "videos" },
 		"no admin":         func(a *JellyfinAnswers) { a.AdminUsername = "" },
 		"no password":      func(a *JellyfinAnswers) { a.AdminPassword = "" },
-		"password newline": func(a *JellyfinAnswers) { a.AdminPassword = "a\nTHEME=y" },
+		"password newline": func(a *JellyfinAnswers) { a.AdminPassword = "a\nSTORAGE=local" },
 		"same folders":     func(a *JellyfinAnswers) { a.SeriesFolder = "Movies" },
 		"bad storage":      func(a *JellyfinAnswers) { a.Storage = "a b" },
 	} {
@@ -417,10 +417,14 @@ func TestJellyfinInstall(t *testing.T) {
 		t.Fatalf("script = %s", unit.started[0])
 	}
 	answers, _ := os.ReadFile(unit.started[1])
-	for _, line := range []string{"JELLYFIN_ADMIN_PASSWORD=jelly pass\n", "THEME=y\n", "SERIES_FOLDER=series\n", "MUSIC_BINDING=music\n"} {
+	for _, line := range []string{"JELLYFIN_ADMIN_PASSWORD=jelly pass\n", "SERIES_FOLDER=series\n", "MUSIC_BINDING=music\n"} {
 		if !strings.Contains(string(answers), line) {
 			t.Errorf("answers miss %q:\n%s", line, answers)
 		}
+	}
+	// The installer no longer asks about a theme.
+	if strings.Contains(string(answers), "THEME=") {
+		t.Errorf("answers ask about a theme:\n%s", answers)
 	}
 
 	// While it runs or after a failure, the key never shows.
@@ -500,12 +504,12 @@ func TestJellyfinRetryKeepsTheAdminPassword(t *testing.T) {
 	}
 
 	changed := saved.Jellyfin
-	changed.Theme = false
+	changed.SeriesFolder = "Shows"
 	if err := installer.Install(JellyfinApp, InstallRequest{Jellyfin: changed, KeepSecrets: true}); err != nil {
 		t.Fatal(err)
 	}
 	answers, _ := os.ReadFile(unit.started[len(unit.started)-1])
-	if !strings.Contains(string(answers), "JELLYFIN_ADMIN_PASSWORD=jelly pass\n") || !strings.Contains(string(answers), "THEME=n\n") {
+	if !strings.Contains(string(answers), "JELLYFIN_ADMIN_PASSWORD=jelly pass\n") || !strings.Contains(string(answers), "SERIES_FOLDER=Shows\n") {
 		t.Fatalf("answers:\n%s", answers)
 	}
 	unit.running = false

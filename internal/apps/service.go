@@ -25,7 +25,6 @@ var (
 	ErrInstalled    = errors.New("this app is already installed")
 	ErrBusy         = errors.New("an app is already being installed, updated or removed")
 	ErrNotInstalled = errors.New("this app is not installed")
-	ErrNotManaged   = errors.New("Iglo-OS did not install this container, so it can't update or remove it. Update it on the Updates page")
 	ErrNotRunning   = errors.New("the container of this app is not running, start it first")
 	ErrPlanned      = errors.New("this app comes in a later version of Iglo-OS")
 )
@@ -78,9 +77,6 @@ type App struct {
 	Description string `json:"description"`
 	// Tag marks the container of the app in Proxmox.
 	Tag string `json:"-"`
-	// MatchName is a container name that also counts as this app, for an
-	// install that Iglo-OS did not make, like Jellyfin from community-scripts.
-	MatchName string `json:"-"`
 	// Subdomain is the name that Iglo-OS forwards to the app, like seerr in seerr.iglo.local.
 	Subdomain string `json:"-"`
 	// Stack is set when a Iglo-OS release can change the app, like the compose.yaml of the media stack.
@@ -101,7 +97,6 @@ var Catalog = []App{{
 	Name:        "Jellyfin",
 	Description: "Watch your movies and series on every device. Transcodes with the GPU of the host, when it has one.",
 	Tag:         "jellyfin",
-	MatchName:   "jellyfin",
 	Subdomain:   "jellyfin",
 	Links:       []Link{{Name: "Jellyfin", Description: "Watch", Port: 8096}},
 }, {
@@ -158,8 +153,6 @@ type AppView struct {
 	ControllerHost string `json:"controllerHost,omitempty"`
 	App
 	Installed bool `json:"installed"`
-	// Managed is set when Iglo-OS installed the container, so it can update and remove it.
-	Managed bool `json:"managed"`
 	// Version is the Iglo-OS release of the stack in the container. Empty for a
 	// stack from before versions were saved.
 	Version         string `json:"version,omitempty"`
@@ -331,8 +324,7 @@ func (s *Service) appView(ctx context.Context, app App, resources []proxmox.Reso
 
 	if guest, found := findGuest(resources, app); found {
 		appView.Installed, appView.VMID, appView.Status = true, guest.VMID, guest.Status
-		appView.Managed = hasTags(guest, app)
-		if appView.Managed && app.Stack {
+		if app.Stack {
 			description, err := s.descriptions.get(fmt.Sprint(guest.VMID), time.Minute, func() (string, error) {
 				return s.Proxmox.ContainerDescription(ctx, guest.Node, guest.VMID)
 			})
@@ -378,7 +370,7 @@ func (s *Service) appView(ctx context.Context, app App, resources []proxmox.Reso
 	// Not while an operation on the stack runs: an install has no .env yet,
 	// and errors aren't kept, so it would cost a pct exec every second.
 	idle := appView.Operation == nil || appView.Operation.State != agent.UpgradeRunning
-	if app.ID == agent.MediaStackApp && appView.Managed && appView.Status == "running" && idle {
+	if app.ID == agent.MediaStackApp && appView.Installed && appView.Status == "running" && idle {
 		enabled, err := s.flareSolverr.get(fmt.Sprint(appView.VMID), 10*time.Minute, func() (bool, error) {
 			view, err := s.Agent.FlareSolverr(ctx, appView.VMID)
 			return view.Enabled, err
@@ -490,13 +482,15 @@ func (s *Service) defaults(ctx context.Context, node string, resources []proxmox
 		}
 	}
 
-	for _, resource := range resources {
-		if resource.Type == "lxc" && resource.Name == "jellyfin" {
-			defaults.JellyfinVMID = resource.VMID
+	for _, app := range Catalog {
+		guest, found := findGuest(resources, app)
+		if !found {
+			continue
 		}
-	}
-	if index := slices.IndexFunc(Catalog, func(app App) bool { return app.ID == agent.MediaStackApp }); index >= 0 {
-		if guest, found := findGuest(resources, Catalog[index]); found {
+		switch app.ID {
+		case agent.JellyfinApp:
+			defaults.JellyfinVMID = guest.VMID
+		case agent.MediaStackApp:
 			defaults.MediaVMID = guest.VMID
 		}
 	}
@@ -504,16 +498,11 @@ func (s *Service) defaults(ctx context.Context, node string, resources []proxmox
 	return defaults
 }
 
-// findGuest finds the container of an app: by its Iglo-OS tags, or by name
-// for an install that Iglo-OS did not make.
+// findGuest finds the container that Iglo-OS installed for an app, by its
+// tags. A container with only the same name is not the app.
 func findGuest(resources []proxmox.Resource, app App) (proxmox.Resource, bool) {
 	for _, resource := range resources {
 		if resource.Type == "lxc" && resource.Template != 1 && hasTags(resource, app) {
-			return resource, true
-		}
-	}
-	for _, resource := range resources {
-		if resource.Type == "lxc" && resource.Template != 1 && app.MatchName != "" && resource.Name == app.MatchName {
 			return resource, true
 		}
 	}
@@ -800,11 +789,8 @@ func (s *Service) managedGuest(ctx context.Context, id string) (App, proxmox.Res
 		return App{}, proxmox.Resource{}, err
 	}
 	guest, found := findGuest(resources, app)
-	switch {
-	case !found:
+	if !found {
 		return App{}, proxmox.Resource{}, ErrNotInstalled
-	case !hasTags(guest, app):
-		return App{}, proxmox.Resource{}, ErrNotManaged
 	}
 
 	return app, guest, nil

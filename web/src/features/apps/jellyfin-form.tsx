@@ -8,7 +8,6 @@ import { Button } from '@/components/ui/button'
 import { DialogFooter } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import { Switch } from '@/components/ui/switch'
 import { api, type Apps, type JellyfinAnswers, type SavedAnswers } from '@/lib/api'
 import { appsQuery } from '@/lib/queries'
 import { Field, Section } from './form-parts'
@@ -38,7 +37,6 @@ export function JellyfinForm({ defaults, saved, onDone }: JellyfinFormProps) {
                 musicBinding: '',
                 adminUsername: 'admin',
                 adminPassword: '',
-                theme: true,
                 storage: defaults.storage,
             },
     )
@@ -218,15 +216,6 @@ export function JellyfinForm({ defaults, saved, onDone }: JellyfinFormProps) {
                         </SelectContent>
                     </Select>
                 </Field>
-                <label className="flex items-center justify-between gap-4 text-sm">
-                    <span>
-                        Netflix theme
-                        <span className="block text-xs text-muted-foreground">
-                            For the web page of Jellyfin. You can change it later on the Jellyfin page of Iglo-OS.
-                        </span>
-                    </span>
-                    <Switch checked={answers.theme} onCheckedChange={(checked) => set('theme', checked)} />
-                </label>
                 <p className="text-xs text-muted-foreground">
                     When the host has a GPU (Intel or AMD), Jellyfin gets it for hardware transcoding.
                 </p>

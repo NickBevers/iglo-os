@@ -70,7 +70,6 @@ type Updates interface {
 type Jellyfin interface {
 	Status(ctx context.Context) jellyfin.View
 	SaveSettings(ctx context.Context, input jellyfin.Settings) error
-	SetTheme(ctx context.Context, enabled bool) error
 	Image(ctx context.Context, itemID, imageType string, maxWidth int) (*http.Response, error)
 }
 
@@ -211,7 +210,6 @@ func New(options Options) http.Handler {
 	mux.Handle("POST /api/updates/test-notification", s.requireSession(http.HandlerFunc(s.updatesTestNotification)))
 	mux.Handle("GET /api/jellyfin", s.requireSession(http.HandlerFunc(s.jellyfinStatus)))
 	mux.Handle("PUT /api/jellyfin/settings", s.requireSession(http.HandlerFunc(s.jellyfinSettings)))
-	mux.Handle("PUT /api/jellyfin/theme", s.requireSession(http.HandlerFunc(s.jellyfinTheme)))
 	mux.Handle("GET /api/jellyfin/items/{id}/image", s.requireSession(http.HandlerFunc(s.jellyfinImage)))
 	mux.Handle("GET /api/health", s.requireSession(http.HandlerFunc(s.healthStatus)))
 	mux.HandleFunc("GET /api/ready", s.ready)

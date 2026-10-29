@@ -24,7 +24,7 @@ const (
 	maxLogBytes  = 256 * 1024
 	maxJobs      = 50
 	checkTimeout = 15 * time.Minute
-	// Community-script updates can rebuild an app, which takes a while.
+	// A dist-upgrade and new Docker images on a slow line can take a while.
 	updateTimeout = 90 * time.Minute
 )
 
@@ -156,7 +156,7 @@ func jobCommand(ctx context.Context, request JobRequest) (*exec.Cmd, error) {
 
 	if isHostJob(request.Kind) {
 		cmd := exec.CommandContext(ctx, "sh", "-c", guestScript, "guest.sh", mode)
-		// On the host we only want apt, not Docker or community-script updates.
+		// On the host we only want apt, not Docker.
 		cmd.Env = append(os.Environ(), "IGLO_APT_ONLY=1")
 		return cmd, nil
 	}

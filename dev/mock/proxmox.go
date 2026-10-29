@@ -69,14 +69,14 @@ func (p *fakeProxmox) resources(w http.ResponseWriter, r *http.Request) {
 	resources := []map[string]any{
 		{"type": "node", "node": "pve", "status": "online", "cpu": 0.18, "maxcpu": 20, "mem": 9_800_000_000, "maxmem": 34_359_738_368, "disk": 21_000_000_000, "maxdisk": 100_000_000_000, "uptime": 1_234_567},
 		{"type": "lxc", "node": "pve", "vmid": 100, "name": "iglo", "status": "running", "tags": "iglo", "cpu": 0.01, "maxcpu": 1, "mem": 90_000_000, "maxmem": 536_870_912, "uptime": 3600},
-		{"type": "lxc", "node": "pve", "vmid": 101, "name": "jellyfin", "status": "running", "cpu": 0.07, "maxcpu": 4, "mem": 1_300_000_000, "maxmem": 4_294_967_296, "uptime": 345_600},
+		{"type": "lxc", "node": "pve", "vmid": 101, "name": "jellyfin", "status": "running", "tags": "iglo;jellyfin", "cpu": 0.07, "maxcpu": 4, "mem": 1_300_000_000, "maxmem": 4_294_967_296, "uptime": 345_600},
 		{"type": "lxc", "node": "pve", "vmid": 102, "name": "downloads", "status": "running", "cpu": 0.2, "maxcpu": 2, "mem": 2_300_000_000, "maxmem": 4_294_967_296, "uptime": 345_600},
 		{"type": "qemu", "node": "pve", "vmid": 200, "name": "windows-test", "status": "stopped", "maxcpu": 4, "maxmem": 8_589_934_592},
 		{"type": "storage", "node": "pve", "storage": "local", "status": "available", "disk": 41_000_000_000, "maxdisk": 98_000_000_000},
 		{"type": "storage", "node": "pve", "storage": "local-lvm", "status": "available", "disk": 330_000_000_000, "maxdisk": 350_000_000_000},
 		{"type": "storage", "node": "pve", "storage": "backups", "status": "unknown"},
 	}
-	// Without the Jellyfin of a community script, to try the Jellyfin install.
+	// Without Jellyfin, to try the Jellyfin install.
 	if _, err := os.Stat(statePath("no-jellyfin")); err == nil {
 		resources = slices.DeleteFunc(resources, func(resource map[string]any) bool { return resource["name"] == "jellyfin" })
 	}

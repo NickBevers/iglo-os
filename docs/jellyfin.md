@@ -22,8 +22,7 @@ If the media stack already uses a Videos share, the form chooses that one. The f
 6. Finishes the setup wizard with your admin account.
 7. Adds the libraries **Movies** (`/data/media/<movies folder>`) and **Series** (`/data/media/<series folder>`), and **Anime** and **Anime Movies** for the anime folders, when they are set. It also adds the libraries of the other apps, see below.
 8. Makes scrub previews and chapter images at night (see below).
-9. Turns on the Netflix theme, if you chose it.
-10. Makes an API key for Iglo-OS and connects the Jellyfin page of Iglo-OS with it. The key never goes to the browser.
+9. Makes an API key for Iglo-OS and connects the Jellyfin page of Iglo-OS with it. The key never goes to the browser.
 
 The installer takes about 5 minutes. If it fails, it removes the container and the mount it made. Then click **Try again**, or **Change answers** to fix an answer. Your answers stay on the host for 24 hours. The admin password and the SMB password never go back to the browser.
 
@@ -87,13 +86,9 @@ The previews read keyframes only, which is much faster, with previews a little o
 
 Change the times in Jellyfin under **Dashboard > Scheduled Tasks**: **Generate Trickplay Images** and **Extract Chapter Images**. The library settings are under **Dashboard > Libraries**, and the preview settings under **Dashboard > Playback > Trickplay**. Checked against Jellyfin v12.4 on 28 October 2026.
 
-### A Jellyfin that is already installed
-
-A container named `jellyfin` counts as installed, also when Iglo-OS did not make it (for example from community-scripts.org). The Apps page then shows it, and does not install a second one. Iglo-OS can't update or remove that container from the Apps page. Update it on the Updates page.
-
 ### Update and remove
 
-The Apps page can update and remove a Jellyfin that Iglo-OS installed.
+The Apps page can update and remove the Jellyfin that Iglo-OS installed. It finds that container by its tags `iglo` and `jellyfin`. A container that is only named `jellyfin` is not the app.
 
 - **Update** makes a snapshot, and then updates Jellyfin and the other packages. It also connects a new Music share and adds the libraries that are missing (see above). Your settings, users and libraries stay. If the update fails, Iglo-OS rolls the container back to the snapshot.
 - **Remove** removes the container with its disks and snapshots, and the Jellyfin page disconnects. The backups of the container stay, so you can restore it on the Backups page. Your movies and series stay on the share, and the share stays connected.
@@ -102,4 +97,12 @@ The Apps page can update and remove a Jellyfin that Iglo-OS installed.
 
 Connect Jellyfin on the Jellyfin page with its URL and an API key (Jellyfin: Dashboard > API Keys). The page shows library counts, what is playing (and whether it transcodes), and recently added items. A Jellyfin that Iglo-OS installed is connected already.
 
-The page can also turn on a Netflix-style theme for the Jellyfin web client. The theme is written for the Modern layout of Jellyfin 12 and lives in `internal/jellyfin/netflix.css`. The manager adds it to the custom CSS of Jellyfin between two marker comments, so your own custom CSS stays. The TV and phone apps do not use custom CSS.
+### The old Netflix theme
+
+Iglo-OS no longer has a Netflix theme for Jellyfin. A Jellyfin that got the theme from an older Iglo-OS keeps it until you remove it:
+
+1. In Jellyfin, open **Dashboard > Branding**.
+2. In **Custom CSS code**, delete everything from `/* iglo-theme:start */` to `/* iglo-theme:end */`, both lines included. CSS of your own outside those lines can stay.
+3. Click **Save**, and reload the Jellyfin web page.
+
+Checked against jellyfin-web v12.4 on 29 October 2026. The TV and phone apps never used the theme.

@@ -1,13 +1,11 @@
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { useQuery } from '@tanstack/react-query'
 import { AlertTriangleIcon, ExternalLinkIcon } from 'lucide-react'
-import { toast } from 'sonner'
 
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { buttonVariants } from '@/components/ui/button'
-import { Card, CardAction, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import { Card } from '@/components/ui/card'
 import { Skeleton } from '@/components/ui/skeleton'
-import { Switch } from '@/components/ui/switch'
-import { api, jellyfinImage, type Jellyfin } from '@/lib/api'
+import { jellyfinImage, type Jellyfin } from '@/lib/api'
 import { jellyfinQuery } from '@/lib/queries'
 import { JellyfinSettings } from './jellyfin-settings'
 import { NowPlaying } from './now-playing'
@@ -81,8 +79,6 @@ export function JellyfinPage() {
                         <NowPlaying sessions={data.nowPlaying} />
                     </section>
 
-                    <ThemeCard jellyfin={data} />
-
                     <section className="flex flex-col gap-3">
                         <h2 className="section-title">Recently added</h2>
                         <RecentlyAdded items={data.recent} />
@@ -100,38 +96,6 @@ function Stat({ label, value }: { label: string; value: number }) {
         <Card className="gap-1 px-5 py-4">
             <span className="text-sm text-muted-foreground">{label}</span>
             <span className="text-2xl font-semibold tabular-nums">{value.toLocaleString()}</span>
-        </Card>
-    )
-}
-
-function ThemeCard({ jellyfin }: { jellyfin: Jellyfin }) {
-    const queryClient = useQueryClient()
-    const theme = useMutation({
-        mutationFn: api.setJellyfinTheme,
-        onSuccess(_, enabled) {
-            toast.success(enabled ? 'Netflix theme on. Reload Jellyfin to see it.' : 'Netflix theme off')
-            queryClient.invalidateQueries({ queryKey: jellyfinQuery.queryKey })
-        },
-        onError: (error) => toast.error(error.message),
-    })
-
-    return (
-        <Card>
-            <CardHeader>
-                <CardTitle>Netflix theme</CardTitle>
-                <CardDescription>
-                    A dark, Netflix-style look for the Jellyfin web client. The TV and phone apps do not use custom
-                    themes. Your own custom CSS in Jellyfin stays.
-                </CardDescription>
-                <CardAction>
-                    <Switch
-                        checked={jellyfin.themeEnabled}
-                        disabled={theme.isPending}
-                        onCheckedChange={(enabled) => theme.mutate(enabled)}
-                        aria-label="Netflix theme"
-                    />
-                </CardAction>
-            </CardHeader>
         </Card>
     )
 }

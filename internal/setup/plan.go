@@ -188,7 +188,7 @@ func (p Plan) jellyfinAnswers(videos string) agent.JellyfinAnswers {
 	return agent.JellyfinAnswers{
 		VideosBinding: videos, MoviesFolder: "movies", SeriesFolder: "series",
 		AnimeFolder: "anime", AnimeMoviesFolder: "anime-movies",
-		AdminUsername: p.Admin.Username, AdminPassword: p.Admin.Password, Theme: true, Storage: p.Storage,
+		AdminUsername: p.Admin.Username, AdminPassword: p.Admin.Password, Storage: p.Storage,
 	}
 }
 

@@ -2,61 +2,11 @@ package jellyfin
 
 import (
 	"context"
-	"encoding/json"
 	"net/http"
 	"net/http/httptest"
-	"strings"
 	"sync"
 	"testing"
 )
-
-func TestWithThemeKeepsUserCSS(t *testing.T) {
-	userCSS := ".myRule { color: pink; }"
-
-	enabled := withTheme(userCSS, true)
-	if !strings.HasPrefix(enabled, userCSS) || !strings.Contains(enabled, themeStart) || !strings.HasSuffix(enabled, themeEnd) {
-		t.Fatalf("theme not added after user CSS:\n%s", enabled)
-	}
-
-	if again := withTheme(enabled, true); strings.Count(again, themeStart) != 1 {
-		t.Fatal("enabling twice added the theme twice")
-	}
-
-	if disabled := withTheme(enabled, false); disabled != userCSS {
-		t.Fatalf("disabling should leave only the user CSS, got %q", disabled)
-	}
-}
-
-func TestSetThemePostsBrandingWithTheme(t *testing.T) {
-	var posted branding
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.Header.Get("Authorization") != `MediaBrowser Token="key"` {
-			w.WriteHeader(http.StatusUnauthorized)
-			return
-		}
-		switch r.Method + " " + r.URL.Path {
-		case "GET /System/Configuration/branding":
-			json.NewEncoder(w).Encode(branding{LoginDisclaimer: "Welcome", CustomCss: ""})
-		case "POST /System/Configuration/Branding":
-			json.NewDecoder(r.Body).Decode(&posted)
-			w.WriteHeader(http.StatusNoContent)
-		default:
-			http.NotFound(w, r)
-		}
-	}))
-	defer server.Close()
-
-	if err := NewClient(server.URL, "key").SetTheme(context.Background(), true); err != nil {
-		t.Fatal(err)
-	}
-
-	if posted.LoginDisclaimer != "Welcome" {
-		t.Error("other branding settings were lost")
-	}
-	if !strings.Contains(posted.CustomCss, "--nf-red") {
-		t.Error("theme CSS was not posted")
-	}
-}
 
 func TestNowPlayingShowsSeriesForEpisodes(t *testing.T) {
 	session := Session{UserName: "dries", DeviceName: "TV"}
@@ -105,8 +55,6 @@ func TestStatusKeepsTheLibraryForAWhile(t *testing.T) {
 		switch r.URL.Path {
 		case "/System/Info":
 			w.Write([]byte(`{"ServerName":"jellyfin","Version":"10.11.0"}`))
-		case "/System/Configuration/branding", "/System/Configuration/Branding":
-			w.Write([]byte(`{"CustomCss":""}`))
 		case "/Items/Counts":
 			w.Write([]byte(`{"MovieCount":412}`))
 		case "/Items":
@@ -133,8 +81,10 @@ func TestStatusKeepsTheLibraryForAWhile(t *testing.T) {
 	if calls["/System/Info"] != 3 || calls["/Sessions"] != 3 || calls["/Items/Counts"] != 1 {
 		t.Fatalf("calls = %v", calls)
 	}
-	// Changing the theme asks for the library again.
-	service.SetTheme(context.Background(), true)
+	// Saving the settings asks for the library again.
+	if err := service.SaveSettings(context.Background(), Settings{URL: server.URL}); err != nil {
+		t.Fatal(err)
+	}
 	service.Status(context.Background())
 	if calls["/Items/Counts"] != 2 {
 		t.Fatalf("calls = %v", calls)

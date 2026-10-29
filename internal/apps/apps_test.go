@@ -219,7 +219,7 @@ func TestStatusBeforeInstall(t *testing.T) {
 		t.Fatalf("media = %+v", media)
 	}
 	defaults := view.Defaults
-	if defaults.Storage != "local-lvm" || len(defaults.Storages) != 2 || defaults.JellyfinVMID != 110 {
+	if defaults.Storage != "local-lvm" || len(defaults.Storages) != 2 {
 		t.Fatalf("defaults = %+v", defaults)
 	}
 	// The Headscale form starts from the host's own network on vmbr0.
@@ -363,20 +363,28 @@ func TestAddress(t *testing.T) {
 	}
 }
 
-func TestJellyfinFromCommunityScriptsCountsAsInstalled(t *testing.T) {
-	// baseResources has a container named jellyfin without Iglo-OS tags.
-	fake := &fakeAgent{status: agent.AppInstallStatus{State: agent.UpgradeIdle}}
-	service := New(Options{Agent: fake, Proxmox: &fakeProxmox{resources: baseResources()}, SelfVMID: 100})
-
-	view, err := service.Status(context.Background())
-	if err != nil {
-		t.Fatal(err)
-	}
-	jellyfin := appByID(t, view, "jellyfin")
-	if !jellyfin.Installed || jellyfin.VMID != 110 || jellyfin.Links[0].URL != "http://192.168.1.50:8096" {
-		t.Fatalf("jellyfin = %+v", jellyfin)
-	}
+func TestJellyfinIsFoundByItsTagsOnly(t *testing.T) {
 	ctx := context.Background()
+	fake := &fakeAgent{status: agent.AppInstallStatus{State: agent.UpgradeIdle}}
+
+	// baseResources has a container named jellyfin without Iglo-OS tags.
+	service := New(Options{Agent: fake, Proxmox: &fakeProxmox{resources: baseResources()}, SelfVMID: 100})
+	view := mustStatus(t, service)
+	if jellyfin := appByID(t, view, "jellyfin"); jellyfin.Installed || jellyfin.VMID != 0 || view.Defaults.JellyfinVMID != 0 {
+		t.Fatalf("a container named jellyfin counted as installed: %+v, defaults %+v", jellyfin, view.Defaults)
+	}
+	if err := service.Remove(ctx, ctx, "jellyfin"); !errors.Is(err, ErrNotInstalled) {
+		t.Fatalf("remove by name: %v", err)
+	}
+
+	tagged := baseResources()
+	tagged[2].Tags = "iglo;jellyfin"
+	service = New(Options{Agent: fake, Proxmox: &fakeProxmox{resources: tagged}, SelfVMID: 100})
+	view = mustStatus(t, service)
+	jellyfin := appByID(t, view, "jellyfin")
+	if !jellyfin.Installed || jellyfin.VMID != 110 || jellyfin.Links[0].URL != "http://192.168.1.50:8096" || view.Defaults.JellyfinVMID != 110 {
+		t.Fatalf("jellyfin = %+v, defaults %+v", jellyfin, view.Defaults)
+	}
 	if err := service.Install(ctx, ctx, "jellyfin", agent.InstallRequest{Jellyfin: validJellyfin()}); !errors.Is(err, ErrInstalled) {
 		t.Fatalf("second Jellyfin: %v", err)
 	}
@@ -385,7 +393,7 @@ func TestJellyfinFromCommunityScriptsCountsAsInstalled(t *testing.T) {
 func validJellyfin() agent.JellyfinAnswers {
 	return agent.JellyfinAnswers{
 		VideosBinding: "videos", MoviesFolder: "movies", SeriesFolder: "series",
-		AdminUsername: "dries", AdminPassword: "jelly pass", Theme: true, Storage: "local-lvm",
+		AdminUsername: "dries", AdminPassword: "jelly pass", Storage: "local-lvm",
 	}
 }
 
@@ -475,12 +483,8 @@ func TestStatusShowsTheStackVersion(t *testing.T) {
 
 	view, _ := service.Status(context.Background())
 	media := appByID(t, view, "media")
-	if !media.Managed || media.Version != "v0.7.1" || !media.UpdateAvailable {
+	if !media.Installed || media.Version != "v0.7.1" || !media.UpdateAvailable {
 		t.Fatalf("media = %+v", media)
-	}
-	// Jellyfin from community-scripts is not Iglo-OS's.
-	if jellyfin := appByID(t, view, "jellyfin"); jellyfin.Managed || jellyfin.UpdateAvailable {
-		t.Fatalf("jellyfin = %+v", jellyfin)
 	}
 
 	// The notes are kept for a minute, until an operation finishes, like this update.
@@ -502,10 +506,6 @@ func TestUpdateOnlyForAppsOfIglo(t *testing.T) {
 
 	if err := service.Update(ctx, ctx, "media"); !errors.Is(err, ErrNotInstalled) {
 		t.Fatalf("not installed: %v", err)
-	}
-	// baseResources has a Jellyfin without the tags of Iglo-OS.
-	if err := service.Remove(ctx, ctx, "jellyfin"); !errors.Is(err, ErrNotManaged) {
-		t.Fatalf("jellyfin by name: %v", err)
 	}
 	stopped := mediaResources("iglo;media")
 	stopped[len(stopped)-1].Status = "stopped"

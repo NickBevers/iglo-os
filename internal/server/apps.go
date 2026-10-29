@@ -131,7 +131,7 @@ func (s *server) writeAppsResult(w http.ResponseWriter, err error, success int) 
 	case errors.Is(err, apps.ErrUnknownApp):
 		writeError(w, http.StatusNotFound, err.Error())
 	case errors.Is(err, apps.ErrInstalled), errors.Is(err, apps.ErrBusy), errors.Is(err, apps.ErrNotInstalled), errors.Is(err, apps.ErrPlanned),
-		errors.Is(err, apps.ErrNotManaged), errors.Is(err, apps.ErrNotRunning):
+		errors.Is(err, apps.ErrNotRunning):
 		writeError(w, http.StatusConflict, err.Error())
 	case err != nil:
 		s.Logger.Error("app operation", "error", err)

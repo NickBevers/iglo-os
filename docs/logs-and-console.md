@@ -15,7 +15,7 @@ The host agent reads the journals and Docker logs with fixed, read-only commands
 
 ## Console
 
-Open the console of a running container from its menu on the Overview. It is the same tty login as the Console tab in Proxmox. Containers from community-scripts.org log in as root automatically.
+Open the console of a running container from its menu on the Overview. It is the same tty login as the Console tab in Proxmox.
 
 - The host agent runs `pct console <id>` and nothing else, so a console has the same power as the Proxmox `VM.Console` privilege.
 - Only the Iglo-OS page itself can open a console (the websocket checks the origin).

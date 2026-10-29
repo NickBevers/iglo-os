@@ -1,6 +1,6 @@
 // Package jellyfinsetup does the first setup of a new Jellyfin server: the
-// startup wizard, the libraries, hardware transcoding, the theme and an API
-// key for Iglo-OS.
+// startup wizard, the libraries, hardware transcoding and an API key for
+// Iglo-OS.
 package jellyfinsetup
 
 import (
@@ -16,8 +16,6 @@ import (
 	"strings"
 	"syscall"
 	"time"
-
-	"iglo/internal/jellyfin"
 )
 
 // AppName is the name of the API key that Iglo-OS uses.
@@ -51,9 +49,8 @@ type Config struct {
 	VAInfo string
 	// HuC says the host loaded the HuC firmware of the GPU, which the Intel
 	// low-power encoders need for their bitrate control.
-	HuC   bool
-	Theme bool
-	Logf  func(format string, args ...any)
+	HuC  bool
+	Logf func(format string, args ...any)
 	// HTTP is replaced in tests.
 	HTTP *http.Client
 	// Wait is how long to wait for Jellyfin to start, also when it restarts during the setup.
@@ -109,19 +106,7 @@ func Setup(ctx context.Context, cfg Config) (string, error) {
 		return "", err
 	}
 
-	apiKey, err := jf.apiKey(ctx)
-	if err != nil {
-		return "", err
-	}
-
-	if cfg.Theme {
-		cfg.Logf("Turning on the Netflix theme")
-		if err := jellyfin.NewClient(jf.baseURL, apiKey).SetTheme(ctx, true); err != nil {
-			return "", fmt.Errorf("theme: %w", err)
-		}
-	}
-
-	return apiKey, nil
+	return jf.apiKey(ctx)
 }
 
 // AddLibraries adds the libraries of cfg that are missing, with the API key
