@@ -23,8 +23,10 @@ func main() {
 		err = setupAdmin()
 	case "version":
 		fmt.Println(version)
+	case "ready":
+		err = ready()
 	default:
-		fmt.Fprintln(os.Stderr, "usage: iglo [serve|admin|version]")
+		fmt.Fprintln(os.Stderr, "usage: iglo [serve|admin|version|ready]")
 		os.Exit(2)
 	}
 

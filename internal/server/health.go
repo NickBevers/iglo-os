@@ -4,12 +4,34 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"net"
 	"net/http"
 	"sync"
 	"time"
 
 	"iglo/internal/health"
 )
+
+// ready says whether this manager works: it reaches the host agent and
+// Proxmox. An upgrade waits for it before it keeps a new version. It answers
+// only on the loopback address and shows nothing but yes or no.
+func (s *server) ready(w http.ResponseWriter, r *http.Request) {
+	if ip := net.ParseIP(clientIP(r)); ip == nil || !ip.IsLoopback() {
+		writeError(w, http.StatusNotFound, "not found")
+		return
+	}
+	ctx, cancel := context.WithTimeout(r.Context(), 10*time.Second)
+	defer cancel()
+	if _, err := s.Agent.Health(ctx); err != nil {
+		writeError(w, http.StatusServiceUnavailable, "the host agent does not answer")
+		return
+	}
+	if _, err := s.Proxmox.Resources(ctx); err != nil {
+		writeError(w, http.StatusServiceUnavailable, "Proxmox does not answer")
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]bool{"ready": true})
+}
 
 func (s *server) healthStatus(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, s.Health.Status())

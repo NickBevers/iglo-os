@@ -7,6 +7,27 @@ The installer puts Tailscale in the manager container. Connect it on the Tailsca
 
 Tailscale keeps the container's own DNS (`--accept-dns=false`), so the LAN names keep working.
 
+## Reach the host when the manager is down
+
+Everything above runs in the manager container. When that container is down,
+after a failed update or a broken restore, the tailnet can't reach the home
+network, and you can only fix it from home. To keep a way in from anywhere, put
+Tailscale on the Proxmox host too. It uses the same package repository as the
+container. On the host, as root:
+
+```sh
+curl -fsSL https://pkgs.tailscale.com/stable/debian/trixie.noarmor.gpg -o /usr/share/keyrings/tailscale-archive-keyring.gpg
+curl -fsSL https://pkgs.tailscale.com/stable/debian/trixie.tailscale-keyring.list -o /etc/apt/sources.list.d/tailscale.list
+apt-get update && apt-get install -y tailscale
+tailscale up --accept-dns=false
+```
+
+With your own Headscale, add `--login-server https://<your controller>`. That
+controller runs on the same host, so it can't let you in while the host itself
+is down. Then reach the host with SSH at its tailnet address, and run
+`iglo-restore` there to bring the manager back from its last backup. Don't
+advertise routes from the host: the manager container stays the subnet router.
+
 ## Apps on your tailnet (Tailscale Services)
 
 Tailscale Services give Seerr and Jellyfin their own address on your tailnet, like `https://seerr.<tailnet>.ts.net`, with a trusted certificate.
