@@ -41,10 +41,6 @@ func addInboxRoutes(mux *http.ServeMux) error {
 	go s.Run(context.Background())
 	handler := s.Handler()
 	mux.HandleFunc("GET /v1/inbox/{vmid}", func(w http.ResponseWriter, r *http.Request) {
-		if _, err := os.Stat(statePath("inbox-native")); err != nil {
-			writeJSON(w, inbox.View{Backend: "fileflows", Jobs: []inbox.Job{}, Profile: "preserve", Sample: true})
-			return
-		}
 		v := s.Status()
 		v.Sample = true
 		writeJSON(w, v)
@@ -54,10 +50,6 @@ func addInboxRoutes(mux *http.ServeMux) error {
 	})
 	for _, route := range []struct{ pattern, target string }{{"POST /v1/inbox/{vmid}", "/jobs"}, {"PUT /v1/inbox/{vmid}/settings", "/settings"}, {"POST /v1/inbox/{vmid}/scan", "/scan"}, {"POST /v1/inbox/{vmid}/retry/{id}", ""}} {
 		mux.HandleFunc(route.pattern, func(w http.ResponseWriter, r *http.Request) {
-			if _, err := os.Stat(statePath("inbox-native")); err != nil {
-				http.Error(w, "migrate FileFlows first", 409)
-				return
-			}
 			clone := r.Clone(r.Context())
 			u := *r.URL
 			u.Path = route.target

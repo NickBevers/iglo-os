@@ -17,7 +17,6 @@ export interface InboxJob {
     createdAt: string
 }
 export interface InboxQueue {
-    backend: 'native' | 'fileflows'
     storageReady: boolean
     paused: boolean
     admitted: boolean
@@ -804,7 +803,6 @@ export const api = {
         request<void>('PUT', '/inbox/settings', input),
     scanInbox: () => request<void>('POST', '/inbox/scan'),
     retryInbox: (id: string) => request<void>('POST', `/inbox/retry/${encodeURIComponent(id)}`),
-    migrateInbox: () => request<void>('POST', '/inbox/migrate', { confirm: true }),
     musicJobs: () => request<MusicQueue>('GET', '/music/jobs'),
     submitMusic: (input: { url: string; video: boolean }) => request<MusicJob>('POST', '/music/jobs', input),
     pauseMusic: (paused: boolean) => request<void>('PUT', '/music/pause', { paused }),

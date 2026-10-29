@@ -375,7 +375,7 @@ per 200 ms, so a continuous burst cannot postpone a refresh indefinitely.
 The notification worker now arms a timer only for the earliest pending retry.
 New alerts wake it immediately. An empty queue causes zero periodic wakeups.
 
-## Native Inbox cost
+## Inbox cost
 
 Checked on 28 October 2026. One long-lived guest SSE stream serves all tabs.
 The manager checks the shared Proxmox resources twice per minute for the guest.
@@ -388,7 +388,7 @@ Guest scans are bounded to 5000 entries every five minutes, at startup or on
 request. Each scan checks its two mounts once, not per file. A 10-second
 admission tick returns before mount checks when no work waits. Queue state is
 written only on change. Original-codec jobs avoid full software decoding.
-New installs have no Docker. Hardware savings have not been measured.
+Inbox runs without Docker. Hardware savings have not been measured.
 
 ## Managed Headscale
 

@@ -79,8 +79,7 @@ export function WorkloadsPage() {
                 </CardHeader>
                 <CardContent className="flex flex-col gap-3">
                     <p className="text-sm text-muted-foreground">
-                        Music and Inbox: {data.workerReason || 'Native and manual worker controls'}. FileFlows needs the
-                        supplied pre-execute script configured in its own interface.
+                        Music and Inbox: {data.workerReason || 'Native and manual worker controls'}.
                     </p>
                     {data.workerError && (
                         <p role="alert" className="text-sm text-destructive">
@@ -150,8 +149,9 @@ export function WorkloadsPage() {
                 <CardHeader>
                     <CardTitle>Other workloads</CardTitle>
                     <CardDescription>
-                        FileFlows, music imports and backup maintenance are not controlled by this connection. Use their
-                        native schedules for now. A shared GPU does not have a per-app reservation here.
+                        Inbox, music imports and backup maintenance are not controlled by this connection. Inbox and
+                        music imports follow the worker admission above. A shared GPU does not have a per-app
+                        reservation here.
                     </CardDescription>
                 </CardHeader>
             </Card>

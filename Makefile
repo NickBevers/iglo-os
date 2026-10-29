@@ -36,7 +36,7 @@ bundle: build
 	install -m 0755 deploy/stacks/music/install.sh $(BUNDLE)/stacks/music/
 	install -m 0644 deploy/stacks/music/iglo-music.service $(BUNDLE)/stacks/music/
 	install -m 0755 deploy/stacks/inbox/install.sh $(BUNDLE)/stacks/inbox/
-	install -m 0644 deploy/stacks/inbox/compose.yaml deploy/stacks/inbox/compose.gpu.yaml deploy/stacks/inbox/pre-execute.cs deploy/stacks/inbox/iglo-inbox.service $(BUNDLE)/stacks/inbox/
+	install -m 0644 deploy/stacks/inbox/iglo-inbox.service $(BUNDLE)/stacks/inbox/
 	mkdir -p $(BUNDLE)/stacks/gaming
 	install -m 0755 deploy/stacks/gaming/install.sh deploy/stacks/gaming/diagnose.sh $(BUNDLE)/stacks/gaming/
 	install -m 0644 deploy/stacks/gaming/compose.yaml deploy/stacks/gaming/config.toml $(BUNDLE)/stacks/gaming/

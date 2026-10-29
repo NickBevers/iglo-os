@@ -25,7 +25,7 @@ const updateText: Record<string, string> = {
     headscale:
         'The controller and relay pause briefly. Iglo keeps a checked local database backup and preserves device identities, certificates and policy. Unsupported version changes are refused. An interrupted upgrade can lose registrations made after its backup.',
     music: 'Iglo-OS updates the worker and its pinned download tools. An active job can be interrupted and will need resubmission; queued jobs and published NAS files stay.',
-    inbox: 'Native Inbox updates the worker and FFmpeg. Legacy FileFlows keeps its backend and exports local app data before updating. Use Inbox work for an explicit migration. NAS files need their own backup.',
+    inbox: 'Iglo-OS updates the worker and FFmpeg. An active job can be interrupted and will need a retry; queued jobs and published NAS files stay.',
     photos: 'Iglo-OS pauses Photos while copying the database and originals to Backups, then installs the Immich version bundled with this Iglo-OS release. Large libraries can take a long time. Keep a separate off-device backup too.',
     media: 'Iglo-OS makes a snapshot, updates the packages, copies the stack of this Iglo-OS release, and downloads the new images. The apps restart, so they are offline for a few minutes. Your settings in the apps stay. Recyclarr then names new files the way Jellyfin reads them, and adds the anime profile to Radarr; files that are there keep their names.',
     jellyfin:
@@ -38,7 +38,7 @@ const removeText: Record<string, string> = {
     headscale:
         'The controller database, device identities and TLS certificates are deleted. Every device must join again unless you restore a backup. If Iglo uses this controller, its remote access will stop. Keep LAN access available. Repeated reinstalls may hit certificate issuance limits.',
     music: 'The queue and any unfinished staging files are deleted. Published music on the NAS stays.',
-    inbox: 'Worker settings, history and any archived FileFlows data on the local disk are deleted. NAS sources and completed outputs stay.',
+    inbox: 'Worker settings and history on the local disk are deleted. NAS sources and completed outputs stay.',
     photos: 'The local database is deleted with the container. Export and verify a Photos recovery backup first. Originals and existing backups on the NAS stay in place.',
     media: 'The downloads disk goes with it, so downloads that did not finish are lost. Your movies and series stay on the Videos share, and Jellyfin keeps its libraries.',
     jellyfin:

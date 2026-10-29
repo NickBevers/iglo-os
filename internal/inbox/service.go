@@ -58,7 +58,6 @@ type state struct {
 	Seen    map[string]bool `json:"seen"`
 }
 type View struct {
-	Backend      string `json:"backend"`
 	StorageReady bool   `json:"storageReady"`
 	Paused       bool   `json:"paused"`
 	Admitted     bool   `json:"admitted"`
@@ -207,7 +206,7 @@ func (s *Service) Status() View {
 	ready := s.MountOK()
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	return View{Backend: "native", StorageReady: ready, Paused: s.state.Paused, Admitted: worker.Admitted(s.AdmissionDir), Profile: s.state.Profile, GPU: s.GPU, Jobs: slices.Clone(s.state.Jobs), ScanError: s.scanError}
+	return View{StorageReady: ready, Paused: s.state.Paused, Admitted: worker.Admitted(s.AdmissionDir), Profile: s.state.Profile, GPU: s.GPU, Jobs: slices.Clone(s.state.Jobs), ScanError: s.scanError}
 }
 func (s *Service) Settings(paused bool, profile string) error {
 	if !validProfile(profile) {

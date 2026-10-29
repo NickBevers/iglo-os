@@ -13,7 +13,6 @@ type inboxApps interface {
 	InboxJobs(context.Context) (inbox.View, error)
 	SubmitInbox(context.Context, inbox.Input) (inbox.Job, error)
 	InboxCommand(context.Context, string, inbox.Settings) error
-	MigrateInbox(context.Context, context.Context) error
 }
 
 func (s *server) inboxWork(w http.ResponseWriter, r *http.Request) {
@@ -60,15 +59,6 @@ func (s *server) inboxWork(w http.ResponseWriter, r *http.Request) {
 		result(a.InboxCommand(r.Context(), "settings", in), 204)
 	case "/api/inbox/scan":
 		result(a.InboxCommand(r.Context(), "scan", inbox.Settings{}), 202)
-	case "/api/inbox/migrate":
-		var in struct {
-			Confirm bool `json:"confirm"`
-		}
-		if json.NewDecoder(http.MaxBytesReader(w, r.Body, 128)).Decode(&in) != nil || !in.Confirm {
-			writeError(w, 400, "confirm the FileFlows migration")
-			return
-		}
-		result(a.MigrateInbox(r.Context(), s.Background), 202)
 	default:
 		result(a.InboxCommand(r.Context(), "retry/"+r.PathValue("id"), inbox.Settings{}), 202)
 	}

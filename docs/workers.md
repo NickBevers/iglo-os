@@ -47,9 +47,9 @@ does not automatically cover this separate guest.
 Guest backups include the queue, not the NAS music. Only submit media you are
 entitled to download; no account cookies, subscriptions or login bypass are set up.
 
-## Native FFmpeg Inbox
+## Inbox
 
-New installs use a native Go service and Debian FFmpeg, without Docker. One
+Inbox uses a native Go service and Debian FFmpeg, without Docker. One
 worker runs at a time, with two CPU cores and a 1536 MiB systemd ceiling in the
 existing 2048 MiB guest budget. These are limits, not measured memory use.
 The loopback API on port 8789 reaches clients only through the manager/agent.
@@ -87,34 +87,16 @@ depending on build options. Do not use `--enable-nonfree` builds. Checked on
 28 October 2026 against FFmpeg 7.1.5 source and Debian 13; installed package
 revisions may differ.
 
-### Existing FileFlows installations
-
-Updates keep FileFlows until explicit migration from **Inbox work**. Migration
-stops FileFlows and archives local data under `/var/backups/iglo-inbox` on SSD.
-App files and Compose configuration stay. Custom flows are not imported; the
-native queue starts paused. Existing container tags are retained when adding
-`inbox-native`. Failures before migration commits restart FileFlows.
-Docker is disabled only if the dedicated guest has exactly its one stopped
-FileFlows container. Packages remain for deliberate rollback.
-
-For manual rollback, stop and disable `iglo-inbox`, restore the FileFlows archive
-if needed, enable Docker and run `docker compose up -d` in `/opt/inbox`. Remove
-the `inbox-native` tag and `/var/lib/iglo-inbox/worker/native-ready` marker only
-after checking the intended backend. Inspect NAS outputs to prevent duplicates.
-Guest disk rollback cannot undo NAS writes.
-
-Legacy FileFlows retains its port 19200 UI, native schedule and required
-`/opt/inbox/pre-execute.cs` admission script. Local archives need retention and
-a separate off-device backup. Removing the guest deletes worker state and
-archives; NAS originals and output stay.
+Removing the guest deletes worker state and history. NAS originals and output
+stay.
 
 ## Shared processing admission
 
 In **Background work**, select the Proxmox node and enable **Control Music and
 Inbox admission**. This setting is independent of an Immich key. Set 4 GiB
 headroom and the desired window/timezone. A two-hour gaming hold defers new jobs.
-Existing jobs finish. Legacy FileFlows scheduling and manual worker pause also
-apply; an external lease never overrides either one.
+Existing jobs finish. A manual worker pause also applies, and an external lease
+never overrides it.
 
 The manager checks every 15 seconds and sends a new 60-second admission lease
 about every 30 seconds, before the last one runs low. When
@@ -123,7 +105,6 @@ A fixed answer (`0` or `-1`) is only written when it changes, when a worker
 starts again, or every 10 minutes. Each write is a `pct exec` on the host.
 If the manager disappears, the lease expires and new work is deferred. Disabling
 external control writes `-1` and returns authority to native/manual controls.
-FileFlows only obeys the lease after its pre-execute script is configured.
 A Moonlight session holds new work, but there is no hard GPU reservation.
 
 ## Checks completed and still required
@@ -136,14 +117,11 @@ Real YouTube extraction, Intel VAAPI encoding, Proxmox guest installation,
 NAS outages and power-cycle recovery still need hardware acceptance testing.
 
 Primary references:
-[yt-dlp](https://github.com/yt-dlp/yt-dlp),
-[FileFlows Docker](https://fileflows.com/docs/installation/docker),
-[Agent controls](https://fileflows.com/docs/webconsole/agents/),
-[Pre-Execute Script](https://fileflows.com/docs/webconsole/agents/pre-execute-script).
+[yt-dlp](https://github.com/yt-dlp/yt-dlp).
 
 
 Native Inbox tests run real local FFmpeg copying, CPU conversion, GPU failure
-fallback, subtitles and malformed input. The mock simulates migration and
+fallback, subtitles and malformed input. The mock simulates
 publication. It does not run host installers or measure hardware performance.
 
 FFmpeg references: [7.1.5 source](https://github.com/FFmpeg/FFmpeg/tree/n7.1.5),

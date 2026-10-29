@@ -3,7 +3,6 @@ package apps
 import (
 	"context"
 	"encoding/hex"
-	"iglo/internal/agent"
 	"iglo/internal/events"
 	"iglo/internal/inbox"
 	"strings"
@@ -62,26 +61,6 @@ func (s *Service) InboxCommand(ctx context.Context, command string, in inbox.Set
 	}
 	return a.InboxCommand(ctx, g.VMID, command, in)
 }
-func (s *Service) MigrateInbox(ctx, background context.Context) error {
-	app, g, err := s.runningApp(ctx, "inbox", "inbox")
-	if err != nil {
-		return err
-	}
-	if err = s.checkIdle(ctx); err != nil {
-		return err
-	}
-	a, ok := s.Agent.(interface {
-		MigrateInbox(context.Context, int) error
-	})
-	if !ok {
-		return ErrPlanned
-	}
-	if err = a.MigrateInbox(ctx, g.VMID); err != nil {
-		return err
-	}
-	s.watch(background, operation{app: app, guest: g, action: agent.ActionMigrate})
-	return nil
-}
 func (s *Service) WatchInbox(ctx context.Context) {
 	a, ok := s.Agent.(interface {
 		InboxEvents(context.Context, int, func(string)) error
@@ -95,7 +74,7 @@ func (s *Service) WatchInbox(ctx context.Context) {
 		look, cancel := context.WithTimeout(ctx, 30*time.Second)
 		_, g, err := s.managedGuest(look, "inbox")
 		cancel()
-		follow.keep(ctx, g.VMID, err == nil && g.Status == "running" && strings.Contains(";"+g.Tags+";", ";inbox-native;"))
+		follow.keep(ctx, g.VMID, err == nil && g.Status == "running")
 		timer := time.NewTimer(30 * time.Second)
 	wait:
 		for {
