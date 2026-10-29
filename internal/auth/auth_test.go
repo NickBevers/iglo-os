@@ -165,3 +165,25 @@ func TestCheckPasswordCountsFailures(t *testing.T) {
 		t.Fatalf("after failures: %v", err)
 	}
 }
+
+func TestFailuresAndExpiredSessionsArePruned(t *testing.T) {
+	now := time.Unix(59, 0)
+	service := newTestService(t, now)
+	service.now = func() time.Time { return now }
+
+	service.Login("admin", "wrong", "287082", "10.0.0.9")
+	service.sessions[[32]byte{1}] = now.Add(time.Minute)
+
+	// Neither the address nor the session comes back, so only a pass drops them.
+	now = now.Add(lockoutWindow + SessionTTL)
+	service.Login("admin", "wrong", "287082", "10.0.0.10")
+
+	service.mu.Lock()
+	defer service.mu.Unlock()
+	if _, ok := service.failures["10.0.0.9"]; ok || len(service.failures) != 1 {
+		t.Errorf("failures = %v", service.failures)
+	}
+	if len(service.sessions) != 0 {
+		t.Errorf("sessions = %v", service.sessions)
+	}
+}
