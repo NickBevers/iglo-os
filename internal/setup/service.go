@@ -14,6 +14,7 @@ import (
 	"iglo/internal/agent"
 	"iglo/internal/apps"
 	"iglo/internal/backups"
+	"iglo/internal/immich"
 	"iglo/internal/workloads"
 )
 
@@ -462,7 +463,7 @@ func (s *Service) connectImmich(ctx context.Context, plan Plan) (string, error) 
 		return "", errors.New("Photos has no address yet")
 	}
 	key, err := s.immichKey(ctx, current.URL, plan.Admin, plan.AllowRestrictedFaceModels)
-	if errors.Is(err, errImmichHasAdmin) {
+	if errors.Is(err, immich.ErrHasAdmin) {
 		return "Immich already had an admin. Connect its API key on the Background work page.", nil
 	}
 	if err != nil {

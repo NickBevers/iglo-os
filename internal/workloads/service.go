@@ -17,7 +17,6 @@ import (
 	"time"
 
 	"iglo/internal/events"
-	"iglo/internal/proxmox"
 )
 
 var ErrInvalid = errors.New("invalid background-work settings")
@@ -136,15 +135,9 @@ type View struct {
 	GamingUntil  time.Time `json:"gamingUntil,omitzero"`
 	GamingActive bool      `json:"gamingActive"`
 	CheckedAt    time.Time `json:"checkedAt,omitzero"`
-	// ImmichGuest is the container whose address the Immich URL has, like
-	// "photos (170) on pve". It is empty when no container has it.
-	ImmichGuest string `json:"immichGuest,omitempty"`
-	// NodeWarning says when Immich runs on another node than the one whose
-	// memory the checks read.
-	NodeWarning string `json:"nodeWarning,omitempty"`
-	Reason      string `json:"reason"`
-	Error       string `json:"error,omitempty"`
-	FreeBytes   int64  `json:"freeBytes"`
+	Reason       string    `json:"reason"`
+	Error        string    `json:"error,omitempty"`
+	FreeBytes    int64     `json:"freeBytes"`
 	// Pressure is the share of the last 10 seconds, 0 to 100, in which tasks
 	// of the host waited for memory. It is -1 when it is unknown.
 	Pressure   float64 `json:"pressure"`
@@ -160,19 +153,16 @@ type diskState struct {
 	Owned map[string]bool `json:"owned"`
 }
 
-type Resources interface {
-	Resources(context.Context) ([]proxmox.Resource, error)
-}
-
 type Options struct {
-	WorkerAdmission func(context.Context, string, int64) error
+	// WorkerAdmission sends the admission lease to the Music and Inbox
+	// workers of the host: a Unix time, 0 to defer, or -1 for native control.
+	WorkerAdmission func(ctx context.Context, until int64) error
 	// HostMemory reads the memory of the host from the host agent. Without an
 	// answer, or for another node, new heavy work waits.
 	HostMemory func(context.Context) (HostMemory, error)
 	// Changed tells the open pages that a topic changed, like events.Workloads.
 	Changed func(topic string)
 	DataDir string
-	Proxmox Resources
 	HTTP    *http.Client
 	Now     func() time.Time
 }
@@ -182,23 +172,21 @@ type Service struct {
 	// or is nil. SetHold sets it after the services it asks exist.
 	holdMu           sync.Mutex
 	hold             func(context.Context) string
-	workers          func(context.Context, string, int64) error
+	workers          func(context.Context, int64) error
 	workerMemoryHeld bool
 	op               sync.Mutex
 	mu               sync.Mutex
 	state            diskState // protected by op
 	view             View      // protected by mu; no network calls under mu
 	path             string
-	pve              Resources
 	http             *http.Client
 	now              func() time.Time
 	wake             chan struct{}
 	changed          func(topic string)
 	hostMemory       func(context.Context) (HostMemory, error)
-	shown            string      // mu; what the pages last saw, to tell them of a change
-	immich           immichGuest // op
-	memoryHeld       bool        // op; avoid rapid pause/resume around the threshold
-	busy             bool        // op; work was admitted, so watch host memory closely
+	shown            string // mu; what the pages last saw, to tell them of a change
+	memoryHeld       bool   // op; avoid rapid pause/resume around the threshold
+	busy             bool   // op; work was admitted, so watch host memory closely
 }
 
 func New(opts Options) (*Service, error) {
@@ -214,7 +202,7 @@ func New(opts Options) (*Service, error) {
 	if opts.Changed == nil {
 		opts.Changed = func(string) {}
 	}
-	s := &Service{path: filepath.Join(opts.DataDir, "workloads.json"), pve: opts.Proxmox, http: client, now: opts.Now, wake: make(chan struct{}, 1), workers: opts.WorkerAdmission, changed: opts.Changed, hostMemory: opts.HostMemory}
+	s := &Service{path: filepath.Join(opts.DataDir, "workloads.json"), http: client, now: opts.Now, wake: make(chan struct{}, 1), workers: opts.WorkerAdmission, changed: opts.Changed, hostMemory: opts.HostMemory}
 	s.state = diskState{Settings: DefaultSettings(), Owned: map[string]bool{}}
 	data, err := os.ReadFile(s.path)
 	if err != nil && !errors.Is(err, os.ErrNotExist) {
@@ -278,7 +266,7 @@ func (s *Service) publish(view View) {
 	view.Settings.APIKey = ""
 	view.GamingUntil = s.state.GamingUntil
 	// Free memory and the time of the check change every time, so they don't count.
-	shown := fmt.Sprint(view.Settings, view.Configured, view.GamingUntil, view.Reason, view.Error, view.WorkerReason, view.WorkerError, view.ImmichGuest, view.NodeWarning, view.Queues)
+	shown := fmt.Sprint(view.Settings, view.Configured, view.GamingUntil, view.Reason, view.Error, view.WorkerReason, view.WorkerError, view.Queues)
 	s.mu.Lock()
 	changed, gaming := shown != s.shown, !view.GamingUntil.Equal(s.view.GamingUntil)
 	s.view = view
@@ -338,9 +326,10 @@ func (s *Service) SaveSettings(input Settings) error {
 	return nil
 }
 
-// Discover fills an empty connection after an installation. First-login setup
-// and creation of a queue API key still happen in Immich. Existing connections
-// and their pause ownership are never replaced by discovery.
+// Discover fills an empty server URL after an installation. When the install
+// made the first Immich admin, ConnectInstalled adds the key next. Otherwise
+// Nick makes the admin and the key in Immich. Existing connections and their
+// pause ownership are never replaced by discovery.
 func (s *Service) Discover(address string) error {
 	s.op.Lock()
 	defer s.op.Unlock()
@@ -486,10 +475,8 @@ func (s *Service) Reconcile(ctx context.Context) {
 	defer s.op.Unlock()
 	ctx, cancel := context.WithTimeout(ctx, 45*time.Second)
 	defer cancel()
-	s.locateImmich(ctx)
 	settings := s.state.Settings
 	view := View{CheckedAt: s.now(), Reason: "Control disabled", Queues: []Queue{}, Pressure: -1}
-	view.ImmichGuest, view.NodeWarning = s.immich.describe(settings)
 	s.busy = false
 	s.reconcileWorkers(ctx, &view)
 	defer func() {

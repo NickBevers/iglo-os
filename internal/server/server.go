@@ -16,6 +16,7 @@ import (
 	"iglo/internal/backups"
 	"iglo/internal/events"
 	"iglo/internal/health"
+	"iglo/internal/immich"
 	"iglo/internal/jellyfin"
 	"iglo/internal/proxmox"
 	"iglo/internal/selfupdate"
@@ -109,6 +110,7 @@ type Backups interface {
 type Apps interface {
 	Status(ctx context.Context) (apps.View, error)
 	Install(ctx context.Context, background context.Context, id string, request agent.InstallRequest) error
+	InstallThen(ctx context.Context, background context.Context, id string, request agent.InstallRequest, then apps.AfterInstall) error
 	Retry(ctx context.Context, background context.Context, id string) error
 	Forget(ctx context.Context, id string) error
 	Update(ctx context.Context, background context.Context, id string) error
@@ -148,7 +150,10 @@ type Options struct {
 	Console    Console
 	Apps       Apps
 	Workloads  Workloads
-	Covers     Covers
+	// ConnectPhotos makes the first admin of a Photos that the Apps page
+	// installed, and connects Background work to it when it has no Immich yet.
+	ConnectPhotos func(ctx context.Context, status agent.AppInstallStatus, admin immich.Admin) error
+	Covers        Covers
 	// Events tells the open pages which topic changed.
 	Events *events.Hub
 	// Setup installs the whole stack in one guided run.

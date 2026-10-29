@@ -166,8 +166,10 @@ function SettingsForm({ data }: { data: Workloads }) {
     const overview = useQuery({ ...overviewQuery, refetchInterval: false })
     const client = useQueryClient()
     const nodes = Object.fromEntries((overview.data?.nodes ?? []).map((node) => [node.name, node.name]))
-    // A server with one node needs no choice.
-    const node = settings.node || (Object.keys(nodes).length === 1 ? Object.keys(nodes)[0] : '')
+    const online = (overview.data?.nodes ?? []).filter((node) => node.status === 'online').map((node) => node.name)
+    // Iglo-OS runs on one host, so with one online node there is nothing to choose.
+    const single = online.length === 1 && (!settings.node || settings.node === online[0]) ? online[0] : ''
+    const node = settings.node || single
     const save = useMutation({
         mutationFn: () => api.saveWorkloadSettings({ ...settings, node, apiKey: key }),
         onSuccess: () => {
@@ -204,8 +206,8 @@ function SettingsForm({ data }: { data: Workloads }) {
                         />
                     </div>
                     <p className="text-xs text-muted-foreground">
-                        Uses the selected host, headroom and daily window below. A missing manager heartbeat defers new
-                        work. This works independently of the Immich connection. Active jobs finish.
+                        Uses the host, headroom and daily window below. A missing manager heartbeat defers new work.
+                        This works independently of the Immich connection. Active jobs finish.
                     </p>
                     <div className="flex items-center justify-between gap-3">
                         <Label htmlFor="workload-enabled">Control heavy queues</Label>
@@ -235,31 +237,36 @@ function SettingsForm({ data }: { data: Workloads }) {
                                 placeholder={data.configured ? 'Stored key' : ''}
                             />
                         </Field>
-                        <Field label="Proxmox node" id="workload-node">
-                            <Select
-                                items={nodes}
-                                value={node || null}
-                                onValueChange={(value) => value && set('node', value)}
-                            >
-                                <SelectTrigger id="workload-node" className="w-full">
-                                    <SelectValue placeholder="Choose a node" />
-                                </SelectTrigger>
-                                <SelectContent>
-                                    {Object.keys(nodes).map((node) => (
-                                        <SelectItem key={node} value={node}>
-                                            {node}
-                                        </SelectItem>
-                                    ))}
-                                </SelectContent>
-                            </Select>
-                            {data.nodeWarning ? (
-                                <p className="text-xs text-warning">{data.nodeWarning}</p>
-                            ) : (
-                                data.immichGuest && (
-                                    <p className="text-xs text-muted-foreground">Immich runs in {data.immichGuest}.</p>
-                                )
-                            )}
-                        </Field>
+                        {single ? (
+                            <Field label="Proxmox node" id="workload-node">
+                                <Input id="workload-node" readOnly value={single} />
+                                <p className="text-xs text-muted-foreground">
+                                    The memory checks read this host. It is the only online node.
+                                </p>
+                            </Field>
+                        ) : (
+                            <Field label="Proxmox node" id="workload-node">
+                                <Select
+                                    items={nodes}
+                                    value={node || null}
+                                    onValueChange={(value) => value && set('node', value)}
+                                >
+                                    <SelectTrigger id="workload-node" className="w-full">
+                                        <SelectValue placeholder="Choose a node" />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                        {Object.keys(nodes).map((node) => (
+                                            <SelectItem key={node} value={node}>
+                                                {node}
+                                            </SelectItem>
+                                        ))}
+                                    </SelectContent>
+                                </Select>
+                                <p className="text-xs text-muted-foreground">
+                                    The memory checks read the host of the host agent. Choose that node.
+                                </p>
+                            </Field>
+                        )}
                         <Field label="Keep host headroom (GiB)" id="workload-ram">
                             <Input
                                 id="workload-ram"
@@ -284,9 +291,9 @@ function SettingsForm({ data }: { data: Workloads }) {
                         </Field>
                     </div>
                     <p className="text-xs text-muted-foreground">
-                        Queue count is separate from jobs per queue. Set worker concurrency in Immich. Host headroom
-                        uses Proxmox memory accounting, so it is a conservative admission check rather than a memory
-                        reservation.
+                        Queue count is separate from jobs per queue. Set worker concurrency in Immich. Host headroom is
+                        what the kernel of the host can give to new work, read by the host agent. It is an admission
+                        check, not a memory reservation.
                     </p>
                     <fieldset className="flex flex-col gap-3">
                         <legend className="mb-3 text-sm font-medium">Queues to control</legend>

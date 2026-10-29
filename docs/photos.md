@@ -21,12 +21,45 @@ This is admission checking, not a reservation against other future workloads.
 | `/var/lib/immich/{thumbs,encoded-video,model-cache}` | Rebuildable derivatives and models on SSD | Yes |
 | `/opt/photos/.env` | Generated database password, version and paths | Yes; treat guest backups as secrets |
 
-Open Immich from Apps and create the first admin account on your trusted LAN.
-Create an API key granting queue read/update access, then open **Background work**,
-select the Proxmox node, enter the key, and enable control. Installation prefills
-an empty server URL; existing connections are preserved. The key is never created
-before the Immich admin exists. The queue API is exercised by the local fixture,
-but must also be checked against the installed release before relying on it.
+### The first admin and Background work
+
+The install form has **Make the first Immich admin**, on by default. Enter the
+email, name and password to log in to Immich with. After the install, Iglo-OS
+makes that admin and sets the guided setup defaults below. When
+[Background work](background-work.md) has no Immich yet, Iglo-OS also makes an
+API key that can only read and pause the queues (`queue.read` and
+`queue.update`). It saves the key with the node of the host and turns queue
+control on. The other Background work settings stay as they are. The guided
+setup does the same, and also turns on the overnight window.
+
+Iglo-OS never replaces a connection you made. When Background work already has
+a key, owns paused queues or points at another server, only the admin is made.
+The password stays in the memory of the manager until the install ends. It never
+reaches the host agent, a log or a file. A failed install, a retry or a restart
+of the manager drops it, and you make the admin in Immich instead. The key is
+stored like a key you enter by hand: in `workloads.json` (mode 0600), never sent
+to the browser and never in `iglo.yaml`. An Immich that already has an admin is
+left as it is.
+
+Turn the option off to restore a library from a backup when Immich first starts
+(see the rehearsal below), or to make the admin yourself. Then open Immich from
+Apps, create the first admin on your trusted LAN and an API key with queue read
+and update access, and enter it in **Background work**. The install fills an
+empty server URL either way.
+
+Checked against Immich v3.3.5 on 29 October 2026: `GET /api/server/config`
+(`isInitialized`), `POST /api/auth/admin-sign-up` (email, password, name),
+`POST /api/auth/login` (answers `accessToken`), `POST /api/api-keys` (name and
+permissions, answers `secret`), and the `queue.read` and `queue.update`
+permissions that `GET /api/queues` and `PUT /api/queues/{name}` ask for. Sources:
+[auth controller](https://github.com/immich-app/immich/blob/v3.3.5/server/src/controllers/auth.controller.ts),
+[auth schema](https://github.com/immich-app/immich/blob/v3.3.5/server/src/dtos/auth.dto.ts),
+[API key controller](https://github.com/immich-app/immich/blob/v3.3.5/server/src/controllers/api-key.controller.ts),
+[API key schema](https://github.com/immich-app/immich/blob/v3.3.5/server/src/dtos/api-key.dto.ts),
+[queue controller](https://github.com/immich-app/immich/blob/v3.3.5/server/src/controllers/queue.controller.ts),
+[permissions](https://github.com/immich-app/immich/blob/v3.3.5/server/src/enum.ts).
+The dev mock plays these calls; a real Immich still has to confirm them on the
+hardware.
 
 When the host has a GPU (`/dev/dri/renderD128`), the installer passes its
 render node to the container and loads `compose.gpu.yaml`. Machine learning
@@ -109,17 +142,19 @@ PostgreSQL dump/restore check.
 
 ## Guided setup defaults and model licences
 
-Checked against Immich v3.3.5 on 28 October 2026. Guided setup uses the new
-admin's temporary session to read and update `/api/admin/config`. It limits
+Checked against Immich v3.3.5 on 28 October 2026. Guided setup, and an Apps
+page install that makes the first admin, use the new admin's temporary session
+to read and update `/api/admin/config`. It limits
 video conversion, face detection, smart search and OCR to one job per queue,
 sets video conversion to `required` with two CPU threads, and leaves other
 configuration intact. The long-lived key still has only `queue.read` and
 `queue.update`. Existing initialized libraries are never reconfigured.
 
-Face grouping is off by default for new guided setups. Its `buffalo_l` weights
-come from InsightFace, whose model terms restrict use to non-commercial
-research. This is separate from Immich's application licence. The setup has
-an explicit opt-in for those weights; it is saved in the secret-free plan.
+Face grouping is off by default for new guided setups and Apps page installs.
+Its `buffalo_l` weights come from InsightFace, whose model terms restrict use to
+non-commercial research. This is separate from Immich's application licence.
+The setup and the Apps page install form have an explicit opt-in for those
+weights. The setup saves it in the secret-free plan.
 This does not change the model terms or establish unrestricted use. Manual
 admin creation inside Immich retains upstream defaults: disable facial
 recognition there if you want the same policy. Existing people and photos

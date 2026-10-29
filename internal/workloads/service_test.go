@@ -12,8 +12,6 @@ import (
 	"strings"
 	"testing"
 	"time"
-
-	"iglo/internal/proxmox"
 )
 
 type fakeHost struct {
@@ -22,7 +20,7 @@ type fakeHost struct {
 }
 
 func TestDiscoveryDoesNotReplaceConfiguredServer(t *testing.T) {
-	s, err := New(Options{DataDir: t.TempDir(), Proxmox: &fakeHost{free: 8 << 30}})
+	s, err := New(Options{DataDir: t.TempDir()})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -38,10 +36,6 @@ func TestDiscoveryDoesNotReplaceConfiguredServer(t *testing.T) {
 	if s.Status().Settings.URL != "http://photos:2283" {
 		t.Fatal("overwrote existing connection")
 	}
-}
-
-func (h *fakeHost) Resources(context.Context) ([]proxmox.Resource, error) {
-	return []proxmox.Resource{{Type: "node", Node: "pve", Status: "online", MaxMem: 32 << 30, Mem: (32 << 30) - h.free}}, h.err
 }
 
 // HostMemory answers like the host agent, with the same free memory.
@@ -104,7 +98,7 @@ func setup(t *testing.T) *fixture {
 	}))
 	t.Cleanup(f.server.Close)
 	var err error
-	f.s, err = New(Options{DataDir: t.TempDir(), Proxmox: f.host, HostMemory: f.host.HostMemory, Now: func() time.Time { return f.now }})
+	f.s, err = New(Options{DataDir: t.TempDir(), HostMemory: f.host.HostMemory, Now: func() time.Time { return f.now }})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -135,7 +129,7 @@ func TestProtectionAndRecoveryLeaveEssentialAndOperatorQueuesAlone(t *testing.T)
 	}
 	// Recover ownership from disk, not the old process's in-memory state.
 	f.now = f.now.Add(3 * time.Hour)
-	restarted, err := New(Options{DataDir: filepath.Dir(f.s.path), Proxmox: f.host, HostMemory: f.host.HostMemory, Now: func() time.Time { return f.now }})
+	restarted, err := New(Options{DataDir: filepath.Dir(f.s.path), HostMemory: f.host.HostMemory, Now: func() time.Time { return f.now }})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -273,7 +267,7 @@ func TestRecoveryWhenPauseSucceededButReplyFailed(t *testing.T) {
 	if !f.queues[0].IsPaused || !f.s.state.Owned["videoConversion"] || f.s.Status().Error == "" {
 		t.Fatal(f.s.Status(), f.s.state)
 	}
-	restarted, err := New(Options{DataDir: filepath.Dir(f.s.path), Proxmox: f.host, HostMemory: f.host.HostMemory, Now: func() time.Time { return f.now }})
+	restarted, err := New(Options{DataDir: filepath.Dir(f.s.path), HostMemory: f.host.HostMemory, Now: func() time.Time { return f.now }})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -371,7 +365,7 @@ func TestPagesHearOfChangesButNotOfFreeMemory(t *testing.T) {
 	topics := []string{}
 	now := time.Date(2026, 10, 27, 12, 0, 0, 0, time.UTC)
 	host := &fakeHost{free: 8 << 30}
-	s, err := New(Options{DataDir: t.TempDir(), Proxmox: host, Now: func() time.Time { return now }, Changed: func(topic string) { topics = append(topics, topic) }})
+	s, err := New(Options{DataDir: t.TempDir(), HostMemory: host.HostMemory, Now: func() time.Time { return now }, Changed: func(topic string) { topics = append(topics, topic) }})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -404,7 +398,7 @@ func TestHeadroomIsAtLeastFourGiB(t *testing.T) {
 	if err := os.WriteFile(filepath.Join(dir, "workloads.json"), data, 0o600); err != nil {
 		t.Fatal(err)
 	}
-	s, err := New(Options{DataDir: dir, Proxmox: &fakeHost{free: 8 << 30}})
+	s, err := New(Options{DataDir: dir})
 	if err != nil {
 		t.Fatal(err)
 	}

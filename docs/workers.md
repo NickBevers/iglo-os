@@ -104,9 +104,9 @@ stay.
 
 ## Shared processing admission
 
-In **Background work**, select the Proxmox node and enable **Control Music and
-Inbox admission**. This setting is independent of an Immich key. Set 4 GiB
-headroom and the desired window/timezone. A two-hour gaming hold defers new jobs.
+In **Background work**, enable **Control Music and Inbox admission**. The page
+fills in the node of the host. This setting is independent of an Immich key.
+Set 4 GiB headroom and the desired window/timezone. A two-hour gaming hold defers new jobs.
 Existing jobs finish. A manual worker pause also applies, and an external lease
 never overrides it.
 

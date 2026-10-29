@@ -435,6 +435,32 @@ func TestJellyfinInstallConnectsIglo(t *testing.T) {
 	}
 }
 
+// The step after an install runs once it worked, and is dropped when it fails.
+func TestInstallThenRunsOnlyAfterSuccess(t *testing.T) {
+	ctx := context.Background()
+	for _, state := range []agent.UpgradeState{agent.UpgradeSucceeded, agent.UpgradeFailed} {
+		resources := []proxmox.Resource{{Type: "node", Node: "pve", Status: "online"}}
+		fake := &fakeAgent{status: agent.AppInstallStatus{State: agent.UpgradeIdle}}
+		ran := make(chan agent.AppInstallStatus, 1)
+		service := New(Options{Agent: fake, Proxmox: &fakeProxmox{resources: resources}, SelfVMID: 100, PollInterval: 10 * time.Millisecond})
+		then := func(_ context.Context, status agent.AppInstallStatus) error { ran <- status; return nil }
+		if err := service.InstallThen(ctx, ctx, "jellyfin", agent.InstallRequest{Jellyfin: validJellyfin()}, then); err != nil {
+			t.Fatal(err)
+		}
+		fake.set(agent.AppInstallStatus{App: "jellyfin", State: state, VMID: 140, IP: "192.168.1.60"})
+		select {
+		case status := <-ran:
+			if state != agent.UpgradeSucceeded || status.IP != "192.168.1.60" {
+				t.Fatalf("%s: ran with %+v", state, status)
+			}
+		case <-time.After(500 * time.Millisecond):
+			if state == agent.UpgradeSucceeded {
+				t.Fatal("did not run after the install")
+			}
+		}
+	}
+}
+
 func mediaResources(tags string) []proxmox.Resource {
 	return append(baseResources(), proxmox.Resource{Type: "lxc", Node: "pve", VMID: 130, Name: "media", Status: "running", Tags: tags})
 }

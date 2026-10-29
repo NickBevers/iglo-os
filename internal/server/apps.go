@@ -8,6 +8,7 @@ import (
 
 	"iglo/internal/agent"
 	"iglo/internal/apps"
+	"iglo/internal/immich"
 )
 
 func (s *server) appsStatus(w http.ResponseWriter, r *http.Request) {
@@ -22,13 +23,38 @@ func (s *server) appsStatus(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *server) appsInstall(w http.ResponseWriter, r *http.Request) {
-	var request agent.InstallRequest
+	var request struct {
+		agent.InstallRequest
+		// Immich is the first admin of a new Photos. It stays in the memory
+		// of the manager and never reaches the host agent.
+		Immich *immich.Admin `json:"immich"`
+	}
 	if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, 8192)).Decode(&request); err != nil {
 		writeError(w, http.StatusBadRequest, "invalid request body")
 		return
 	}
-
-	s.writeAppsResult(w, s.Apps.Install(r.Context(), s.Background, r.PathValue("id"), request), http.StatusAccepted)
+	id := r.PathValue("id")
+	if request.Immich == nil {
+		s.writeAppsResult(w, s.Apps.Install(r.Context(), s.Background, id, request.InstallRequest), http.StatusAccepted)
+		return
+	}
+	switch {
+	case id != agent.PhotosApp:
+		writeError(w, http.StatusBadRequest, "only Photos makes an Immich admin")
+		return
+	case s.ConnectPhotos == nil:
+		writeError(w, http.StatusServiceUnavailable, "this manager can't make an Immich admin")
+		return
+	}
+	admin := *request.Immich
+	if err := admin.Validate(); err != nil {
+		writeError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	then := func(ctx context.Context, status agent.AppInstallStatus) error {
+		return s.ConnectPhotos(ctx, status, admin)
+	}
+	s.writeAppsResult(w, s.Apps.InstallThen(r.Context(), s.Background, id, request.InstallRequest, then), http.StatusAccepted)
 }
 
 func (s *server) appsRetry(w http.ResponseWriter, r *http.Request) {

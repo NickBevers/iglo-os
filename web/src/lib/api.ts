@@ -98,6 +98,15 @@ export type MusicQueue = {
     jobs: MusicJob[]
     sample?: boolean
 }
+// ImmichAdmin is the first admin that Iglo-OS makes in a new Photos.
+export type ImmichAdmin = {
+    email: string
+    name: string
+    password: string
+    // faceModels turns face grouping on. Its model weights have non-commercial terms.
+    faceModels: boolean
+}
+
 export type ScopedAnswers = {
     storage: string
     libraryBinding: string
@@ -269,9 +278,6 @@ export type Workloads = {
     gamingUntil?: string
     gamingActive: boolean
     checkedAt?: string
-    // immichGuest is the container with the address of the Immich URL, if any.
-    immichGuest?: string
-    nodeWarning?: string
     reason: string
     error?: string
     freeBytes: number
@@ -764,7 +770,9 @@ export const api = {
     pauseMusic: (paused: boolean) => request<void>('PUT', '/music/pause', { paused }),
     photosRecovery: (action: 'backup' | 'verify') => request<void>('POST', `/photos/recovery/${action}`),
     installHeadscale: (headscale: HeadscaleAnswers) => request<void>('POST', '/apps/headscale/install', { headscale }),
-    installScopedApp: (id: string, scoped: ScopedAnswers) => request<void>('POST', `/apps/${id}/install`, { scoped }),
+    // immich makes the first admin of a new Photos. The password stays in the memory of the manager.
+    installScopedApp: (id: string, scoped: ScopedAnswers, immich?: ImmichAdmin) =>
+        request<void>('POST', `/apps/${id}/install`, { scoped, immich }),
     gaming: () => request<Gaming>('GET', '/gaming'),
     playGaming: (play: boolean) => request<void>('PUT', '/gaming/play', { play }),
     endGamingSession: (id: string) => request<void>('POST', `/gaming/sessions/${encodeURIComponent(id)}/stop`),
