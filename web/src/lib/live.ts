@@ -27,9 +27,6 @@ const topicKeys: Record<string, string[]> = {
 
 // connectLive opens the stream and returns a function that closes it.
 export function connectLive(client: QueryClient): () => void {
-    if (import.meta.env?.VITE_DEMO === '1') {
-        return () => {}
-    }
     const source = new EventSource('/api/events')
     const pending = new Set<string>()
     let timer: ReturnType<typeof setTimeout> | undefined

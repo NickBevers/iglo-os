@@ -3,7 +3,6 @@ import { Outlet, useRouterState } from '@tanstack/react-router'
 import { SidebarInset, SidebarProvider } from '@/components/ui/sidebar'
 import { useReloadOnNewVersion } from '@/features/self-update/use-reload-on-new-version'
 import { AppSidebar } from './app-sidebar'
-import { DemoBanner } from './demo-banner'
 import { navigation } from './navigation'
 import { StatusBar } from './status-bar'
 import { useLiveUpdates } from './use-live-updates'
@@ -26,7 +25,6 @@ export function AppLayout() {
         <SidebarProvider>
             <AppSidebar />
             <SidebarInset>
-                <DemoBanner />
                 <StatusBar page={currentPage ?? pageNames(pathname)} />
                 <div className="mx-auto w-full max-w-7xl px-4 py-6 sm:px-6 lg:px-8">
                     <Outlet />
