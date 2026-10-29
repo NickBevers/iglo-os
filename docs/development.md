@@ -24,27 +24,6 @@ Open http://localhost:5173 and log in with `admin` / `iglo-dev-password` and the
 - A fake Jellyfin on `http://127.0.0.1:18096` has a library, two things playing and recent items. The manager is connected to it on the first start. Images are not faked.
 - Music, Photos, Inbox and Gaming install like the other apps: the real installer of the agent plays a simulated script. After that, the fake host has their container with sample stats, and their cards show **Sample data**.
 
-## A demo for a review
-
-The demo build runs the web app without a server. Every answer of the API comes from sample data in `web/src/demo/fixtures.json`. Buttons that change something show a message instead, and a banner says it is a demo.
-
-```sh
-cd web
-npm run build:demo    # the demo in web/dist
-```
-
-`web/vercel.json` builds the demo on Vercel. The Vercel project has `web` as its root directory, so the CLI is linked from the repo root. Deploy from there:
-
-```sh
-vercel pull --yes --environment=production
-vercel build --prod
-vercel deploy --prebuilt --prod
-```
-
-This builds on your machine and only uploads the result. `vercel deploy --prod` builds on Vercel instead. Only a push to `main` starts a build on Vercel, and only when something in `web/` changed. Other branches get no preview deploy. The normal build leaves the demo code and the sample data out.
-
-To record the sample data again, run `node scripts/record-demo.mjs` in the `web` folder while `make dev` runs. It only takes data from the dev mock.
-
 ## Against a real Proxmox
 
 The API only reads from Proxmox, except for the actions you click. Use a token with the role from [architecture.md](architecture.md).

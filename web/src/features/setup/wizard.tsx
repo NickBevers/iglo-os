@@ -143,35 +143,29 @@ function AppsPage({ setup, draft, setDraft }: PageProps) {
                     Everything is chosen. Leave out what you don't want; you can install it later from Apps.
                 </CardDescription>
             </CardHeader>
-            {import.meta.env.VITE_DEMO !== '1' && (
-                <CardContent className="flex flex-wrap items-center gap-2 text-sm">
-                    <label className={buttonVariants({ variant: 'outline' })}>
-                        Load a plan file
-                        <input
-                            type="file"
-                            accept=".yaml,.yml,application/yaml"
-                            className="sr-only"
-                            onChange={(e) => {
-                                const file = e.target.files?.[0]
-                                if (file) {
-                                    load.mutate(file)
-                                }
-                                e.target.value = ''
-                            }}
-                        />
-                    </label>
-                    <a
-                        href={api.setupPlanUrl}
-                        download="iglo-setup.yaml"
-                        className={buttonVariants({ variant: 'ghost' })}
-                    >
-                        Download this server's plan
-                    </a>
-                    <span className="text-xs text-muted-foreground">
-                        A plan file has no passwords or keys. Keep it with your own notes to set up a server again.
-                    </span>
-                </CardContent>
-            )}
+            <CardContent className="flex flex-wrap items-center gap-2 text-sm">
+                <label className={buttonVariants({ variant: 'outline' })}>
+                    Load a plan file
+                    <input
+                        type="file"
+                        accept=".yaml,.yml,application/yaml"
+                        className="sr-only"
+                        onChange={(e) => {
+                            const file = e.target.files?.[0]
+                            if (file) {
+                                load.mutate(file)
+                            }
+                            e.target.value = ''
+                        }}
+                    />
+                </label>
+                <a href={api.setupPlanUrl} download="iglo-setup.yaml" className={buttonVariants({ variant: 'ghost' })}>
+                    Download this server's plan
+                </a>
+                <span className="text-xs text-muted-foreground">
+                    A plan file has no passwords or keys. Keep it with your own notes to set up a server again.
+                </span>
+            </CardContent>
             <CardContent className="grid gap-3 sm:grid-cols-2">
                 {setup.apps.map((app) => (
                     <label

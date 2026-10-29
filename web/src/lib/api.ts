@@ -151,22 +151,9 @@ export type GameSystem = {
     games: { name: string; title: string; cover: boolean }[]
 }
 
-// libretroSystems are the folders of the libretro thumbnail server, for the demo.
-const libretroSystems: Record<string, string> = {
-    gb: 'Nintendo - Game Boy',
-    gbc: 'Nintendo - Game Boy Color',
-    gba: 'Nintendo - Game Boy Advance',
-    n64: 'Nintendo - Nintendo 64',
-    gc: 'Nintendo - GameCube',
-}
-
 // coverURL is the address of a game's cover. The server tries your own cover
-// first, then libretro. The demo has no server, so it asks libretro directly.
+// first, then libretro.
 export function coverURL(system: string, game: GameSystem['games'][number]) {
-    if (import.meta.env.VITE_DEMO === '1') {
-        const name = game.name.replace(/[&*/:`<>?\\|"]/g, '_')
-        return `https://thumbnails.libretro.com/${encodeURIComponent(libretroSystems[system] ?? '')}/Named_Boxarts/${encodeURIComponent(name)}.png`
-    }
     return `/api/gaming/covers/${encodeURIComponent(system)}/${encodeURIComponent(game.name)}${game.cover ? '?own=1' : ''}`
 }
 
@@ -773,12 +760,6 @@ async function restoreDataBackup(file: File, password: string, passphrase: strin
 
 // A string body is sent as it is, for example YAML. Anything else is sent as JSON.
 async function request<T>(method: string, path: string, body?: unknown, contentType = 'application/json'): Promise<T> {
-    // The demo build answers from sample data. Other builds leave this branch and the data out.
-    if (import.meta.env.VITE_DEMO === '1') {
-        const { demoRequest } = await import('@/demo/demo-api')
-        return demoRequest<T>(method, path)
-    }
-
     const response = await fetch(`/api${path}`, {
         method,
         credentials: 'same-origin',

@@ -15,7 +15,6 @@ and memory choices for people.
   manager binary, so the Go tests need `make web` first.
 - **Installers** (`deploy/`): Bash, run by the agent with checked answers.
 - **Dev mock** (`dev/mock`): a fake Proxmox, agent, Jellyfin and Immich.
-- **Demo** (`web/src/demo/fixtures.json`): the web app on sample data.
 
 ## Checks
 
@@ -41,7 +40,6 @@ and memory choices for people.
 
 - Each new agent route gets a fake in `dev/mock` in the same change, or dev
   mode logs errors and the feature can't be tried.
-- Each new API answer that a page reads gets a fixture in the demo.
 - The mock checks for changes once a second where the real system pushes.
   Timings on the mock are an upper bound, not a measurement.
 
