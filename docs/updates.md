@@ -12,11 +12,7 @@ The Updates page checks the Proxmox host and all running containers for updates.
 
 ## Notifications
 
-Iglo-OS tells you when an update ran, a backup failed, a health check failed or a console opened. It sends each message to Telegram and to ntfy, as far as you set them up on the Updates page. Both are optional. Alerts are saved locally before delivery. Failed destinations retry from 30 seconds up to 30 minutes apart, including after a restart. A successful destination is not retried because another failed. The queue holds up to 128 message parts of 3000 bytes, with no provider credentials. An empty queue makes no network requests or file writes. Changing or disabling a destination discards its pending deliveries rather than forwarding old alerts elsewhere. A full queue or a disk error is logged for attention.
-
-### Telegram
-
-Create a bot with @BotFather, send it a message, and get your chat ID from @userinfobot. Then enter both on the Updates page.
+Iglo-OS tells you when an update ran, a backup failed, a health check failed or a console opened. It sends each message to ntfy, if you set it up on the Updates page. It is optional. Alerts are saved locally before delivery. A failed delivery retries from 30 seconds up to 30 minutes apart, including after a restart. The queue holds up to 128 message parts of 3000 bytes, with no credentials. An empty queue makes no network requests or file writes. Changing the ntfy server or topic, or turning ntfy off, discards pending deliveries rather than sending old alerts to the new place. A full queue or a disk error is logged for attention.
 
 ### ntfy
 
@@ -28,7 +24,7 @@ Create a bot with @BotFather, send it a message, and get your chat ID from @user
 
 On ntfy.sh, anyone who knows a topic can read it and send to it. **New topic** makes a random name of 25 characters, so treat it like a password. The messages are short lines like "✅ jellyfin (101): updated", without passwords or keys.
 
-To keep the messages off ntfy.sh, run your own ntfy server and enter its address. With logins on, make an access token with `ntfy token add <user>` and enter it too. The manager keeps the token like the Telegram bot token: it never goes to the browser or to the settings file, and it only goes to the server it was entered for. Your phone has to reach that server, at home or through Tailscale.
+To keep the messages off ntfy.sh, run your own ntfy server and enter its address. With logins on, make an access token with `ntfy token add <user>` and enter it too. The manager keeps the token. It never goes to the browser or to the settings file, and it only goes to the server it was entered for. Your phone has to reach that server, at home or through Tailscale.
 
 Seerr can send its own messages to ntfy, for requests and new media: set it up in Seerr under **Settings > Notifications**.
 

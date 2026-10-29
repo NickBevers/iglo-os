@@ -18,11 +18,6 @@ type Schedule struct {
 	Minute  int `json:"minute"`
 }
 
-type TelegramSettings struct {
-	BotToken string `json:"botToken"`
-	ChatID   string `json:"chatId"`
-}
-
 // NtfySettings is off when Topic is empty. Token is optional, for a server
 // with logins.
 type NtfySettings struct {
@@ -34,9 +29,8 @@ type NtfySettings struct {
 type Settings struct {
 	Schedule Schedule `json:"schedule"`
 	// Excluded containers are never updated by the schedule.
-	Excluded []int            `json:"excluded"`
-	Telegram TelegramSettings `json:"telegram"`
-	Ntfy     NtfySettings     `json:"ntfy,omitzero"`
+	Excluded []int        `json:"excluded"`
+	Ntfy     NtfySettings `json:"ntfy,omitzero"`
 }
 
 var defaultSettings = Settings{
@@ -136,7 +130,7 @@ func loadState(path string) (state, error) {
 	return loaded, nil
 }
 
-// save writes the file with 0600, because it holds the Telegram bot token and the ntfy token.
+// save writes the file with 0600, because it holds the ntfy token.
 func (s state) save(path string) error {
 	data, err := json.MarshalIndent(s, "", "  ")
 	if err != nil {

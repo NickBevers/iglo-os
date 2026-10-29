@@ -113,7 +113,7 @@ function BackupHistory({ runs }: { runs: BackupRun[] }) {
         return (
             <Card className="p-6 text-center text-sm text-muted-foreground">
                 Backups, restores, restore checks and deletes show up here, also the backups of the nightly job. Set up
-                Telegram or ntfy on the Updates page to hear when one fails.
+                ntfy on the Updates page to hear when one fails.
             </Card>
         )
     }

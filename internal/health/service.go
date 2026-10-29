@@ -48,7 +48,7 @@ type Options struct {
 	DataDir string
 	Proxmox Proxmox
 	Agent   Agent
-	// Notify sends an alert, for example to Telegram.
+	// Notify sends an alert, for example to ntfy.
 	Notify func(ctx context.Context, text string)
 	Logger *slog.Logger
 	Now    func() time.Time

@@ -62,7 +62,7 @@ type Options struct {
 	// failed manual update does not roll it back, because that would stop us mid-run.
 	SelfVMID int
 	Logger   *slog.Logger
-	// NewNotifier builds the notifier from the saved Telegram and ntfy settings. Tests replace it.
+	// NewNotifier builds the notifier from the saved ntfy settings. Tests replace it.
 	NewNotifier func(Settings) Notifier
 	Now         func() time.Time
 }
@@ -87,10 +87,7 @@ func New(options Options) (*Service, error) {
 	customNotifier := options.NewNotifier != nil
 	if options.NewNotifier == nil {
 		options.NewNotifier = func(settings Settings) Notifier {
-			return notify.All{
-				notify.Telegram{BotToken: settings.Telegram.BotToken, ChatID: settings.Telegram.ChatID},
-				notify.Ntfy{Server: settings.Ntfy.Server, Topic: settings.Ntfy.Topic, Token: settings.Ntfy.Token},
-			}
+			return notify.Ntfy{Server: settings.Ntfy.Server, Topic: settings.Ntfy.Topic, Token: settings.Ntfy.Token}
 		}
 	}
 	if options.Now == nil {
@@ -428,10 +425,6 @@ func (s *Service) notificationDestinations() []notify.Destination {
 		return []notify.Destination{{ID: "custom", Send: s.NewNotifier(settings).Send}}
 	}
 	var targets []notify.Destination
-	telegram := notify.Telegram{BotToken: settings.Telegram.BotToken, ChatID: settings.Telegram.ChatID}
-	if telegram.Configured() {
-		targets = append(targets, notify.Destination{ID: notify.DestinationID("telegram", telegram.ChatID), Send: telegram.Send})
-	}
 	ntfy := notify.Ntfy{Server: settings.Ntfy.Server, Topic: settings.Ntfy.Topic, Token: settings.Ntfy.Token}
 	if ntfy.Configured() {
 		targets = append(targets, notify.Destination{ID: notify.DestinationID("ntfy", ntfy.Server, ntfy.Topic), Send: ntfy.Send})
@@ -483,8 +476,6 @@ func runMessage(run Run) string {
 }
 
 var (
-	botTokenPattern = regexp.MustCompile(`^\d+:[A-Za-z0-9_-]{20,}$`)
-	chatIDPattern   = regexp.MustCompile(`^(-?\d+|@[A-Za-z0-9_]{5,})$`)
 	// The topic and token rules of ntfy v2.34.0 (server/server.go, user/manager.go).
 	ntfyTopicPattern = regexp.MustCompile(`^[-_A-Za-z0-9]{1,64}$`)
 	ntfyTokenPattern = regexp.MustCompile(`^tk_[A-Za-z0-9]{29}$`)
@@ -493,13 +484,12 @@ var (
 // DefaultNtfyServer is the public server of the ntfy project.
 const DefaultNtfyServer = "https://ntfy.sh"
 
-// SettingsInput is what the dashboard sends. An empty bot token keeps the
-// saved one, and so does an empty ntfy token while the server stays the same.
+// SettingsInput is what the dashboard sends. An empty ntfy token keeps the
+// saved one while the server stays the same.
 type SettingsInput struct {
-	Schedule Schedule         `json:"schedule"`
-	Excluded []int            `json:"excluded"`
-	Telegram TelegramSettings `json:"telegram"`
-	Ntfy     NtfySettings     `json:"ntfy"`
+	Schedule Schedule     `json:"schedule"`
+	Excluded []int        `json:"excluded"`
+	Ntfy     NtfySettings `json:"ntfy"`
 }
 
 func (s *Service) SaveSettings(input SettingsInput) error {
@@ -512,18 +502,6 @@ func (s *Service) SaveSettings(input SettingsInput) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	telegram := input.Telegram
-	if telegram.BotToken == "" {
-		telegram.BotToken = s.state.Settings.Telegram.BotToken
-	}
-	// No chat ID turns Telegram off.
-	if telegram.ChatID == "" {
-		telegram = TelegramSettings{}
-	}
-	if telegram.ChatID != "" && (!botTokenPattern.MatchString(telegram.BotToken) || !chatIDPattern.MatchString(telegram.ChatID)) {
-		return fmt.Errorf("%w: the Telegram bot token or chat ID has the wrong format", ErrInvalidSettings)
-	}
-
 	ntfy, err := s.ntfySettings(input.Ntfy)
 	if err != nil {
 		return err
@@ -534,7 +512,7 @@ func (s *Service) SaveSettings(input SettingsInput) error {
 		excluded = []int{}
 	}
 
-	s.state.Settings = Settings{Schedule: schedule, Excluded: excluded, Telegram: telegram, Ntfy: ntfy}
+	s.state.Settings = Settings{Schedule: schedule, Excluded: excluded, Ntfy: ntfy}
 
 	return s.state.save(s.path)
 }
@@ -589,11 +567,7 @@ func (s Schedule) Validate() error {
 	return nil
 }
 
-func ValidChatID(chatID string) bool {
-	return chatIDPattern.MatchString(chatID)
-}
-
-// Settings returns the saved settings, with the bot token.
+// Settings returns the saved settings, with the ntfy token.
 func (s *Service) Settings() Settings {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -609,8 +583,8 @@ func (s *Service) SendTestNotification(ctx context.Context) error {
 	settings := s.state.Settings
 	s.mu.Unlock()
 
-	if settings.Telegram.ChatID == "" && settings.Ntfy.Topic == "" {
-		return fmt.Errorf("%w: Telegram and ntfy are not set up", ErrInvalidSettings)
+	if settings.Ntfy.Topic == "" {
+		return fmt.Errorf("%w: ntfy is not set up", ErrInvalidSettings)
 	}
 
 	return s.NewNotifier(settings).Send(ctx, "👋 Test message from your iglo.")
@@ -627,7 +601,7 @@ func (s *Service) publishChanged() {
 	}
 	settings := s.state.Settings
 	shown := fmt.Sprint(s.busy, host, guests, settings.Schedule, settings.Excluded,
-		settings.Telegram.ChatID, settings.Ntfy.Server, settings.Ntfy.Topic, settings.Ntfy.Token != "", s.state.History)
+		settings.Ntfy.Server, settings.Ntfy.Topic, settings.Ntfy.Token != "", s.state.History)
 	changed := shown != s.shown
 	s.shown = shown
 	s.mu.Unlock()

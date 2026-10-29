@@ -332,27 +332,11 @@ func TestNtfySettings(t *testing.T) {
 	}
 }
 
-func TestSettingsKeepBotTokenAndRejectBadValues(t *testing.T) {
+func TestSettingsRejectBadSchedule(t *testing.T) {
 	service, _, _, _ := newTestService(t)
-	token := "123456:ABCDEFGHIJKLMNOPQRSTUVWXYZ"
 
-	if err := service.SaveSettings(SettingsInput{Schedule: defaultSettings.Schedule, Telegram: TelegramSettings{BotToken: token, ChatID: "42"}}); err != nil {
-		t.Fatal(err)
-	}
-	if err := service.SaveSettings(SettingsInput{Schedule: defaultSettings.Schedule, Telegram: TelegramSettings{ChatID: "42"}}); err != nil {
-		t.Fatal(err)
-	}
-	if service.state.Settings.Telegram.BotToken != token {
-		t.Fatal("an empty token should keep the saved one")
-	}
-
-	for _, input := range []SettingsInput{
-		{Schedule: Schedule{Hour: 24}},
-		{Schedule: defaultSettings.Schedule, Telegram: TelegramSettings{BotToken: "nope", ChatID: "42"}},
-	} {
-		if err := service.SaveSettings(input); !errors.Is(err, ErrInvalidSettings) {
-			t.Errorf("%+v: expected ErrInvalidSettings, got %v", input, err)
-		}
+	if err := service.SaveSettings(SettingsInput{Schedule: Schedule{Hour: 24}}); !errors.Is(err, ErrInvalidSettings) {
+		t.Fatalf("expected ErrInvalidSettings, got %v", err)
 	}
 }
 

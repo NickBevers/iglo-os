@@ -46,7 +46,6 @@ type File struct {
 }
 
 type Notifications struct {
-	Telegram Telegram `yaml:"telegram"`
 	// Ntfy is left as it is when the file has no ntfy key.
 	Ntfy *Ntfy `yaml:"ntfy,omitempty"`
 }
@@ -55,11 +54,6 @@ type Notifications struct {
 type Ntfy struct {
 	Server string `yaml:"server,omitempty"`
 	Topic  string `yaml:"topic"`
-}
-
-// Telegram is off when ChatID is empty. The bot token stays on the manager.
-type Telegram struct {
-	ChatID string `yaml:"chatId"`
 }
 
 type Updates struct {
@@ -192,9 +186,6 @@ func (f File) Validate() error {
 		return fmt.Errorf("%w: %s: %v", ErrInvalidFile, section, err)
 	}
 
-	if f.Notifications != nil && f.Notifications.Telegram.ChatID != "" && !updates.ValidChatID(f.Notifications.Telegram.ChatID) {
-		return invalid("notifications", errors.New("the Telegram chat ID must be a number or @channel"))
-	}
 	if ntfy := f.Notifications; ntfy != nil && ntfy.Ntfy != nil && ntfy.Ntfy.Topic != "" {
 		if !updates.ValidNtfyTopic(ntfy.Ntfy.Topic) {
 			return invalid("notifications", errors.New("an ntfy topic has 1 to 64 letters, digits, - and _"))

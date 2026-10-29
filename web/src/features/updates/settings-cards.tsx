@@ -98,78 +98,6 @@ export function ScheduleCard({ updates }: { updates: Updates }) {
     )
 }
 
-export function TelegramCard({ updates }: { updates: Updates }) {
-    const save = useSaveUpdateSettings()
-    const [botToken, setBotToken] = useState('')
-    const [chatId, setChatId] = useState(updates.telegram.chatId)
-
-    const test = useMutation({
-        mutationFn: api.testNotification,
-        onSuccess: () => toast.success('Test message sent'),
-        onError: (error) => toast.error(error.message),
-    })
-
-    function handleSubmit(event: SubmitEvent) {
-        event.preventDefault()
-
-        save.mutate(settingsFrom(updates, { telegram: { botToken, chatId } }), {
-            onSuccess() {
-                setBotToken('')
-                toast.success(chatId ? 'Telegram saved' : 'Telegram turned off')
-            },
-        })
-    }
-
-    return (
-        <Card>
-            <form onSubmit={handleSubmit} className="flex flex-col gap-6">
-                <CardHeader>
-                    <CardTitle>Telegram</CardTitle>
-                    <CardDescription>
-                        Get a message after each update and for every alert. Create a bot with @BotFather, send it a
-                        message, and get your chat ID from @userinfobot.
-                    </CardDescription>
-                </CardHeader>
-                <CardContent className="flex flex-col gap-4">
-                    <div className="flex flex-col gap-2">
-                        <Label htmlFor="bot-token">Bot token</Label>
-                        <Input
-                            id="bot-token"
-                            type="password"
-                            autoComplete="off"
-                            placeholder={updates.telegram.configured ? 'Saved. Type to replace it.' : '123456:ABC-DEF…'}
-                            value={botToken}
-                            onChange={(event) => setBotToken(event.target.value)}
-                        />
-                    </div>
-                    <div className="flex flex-col gap-2">
-                        <Label htmlFor="chat-id">Chat ID</Label>
-                        <Input
-                            id="chat-id"
-                            placeholder="Leave empty to turn Telegram off"
-                            value={chatId}
-                            onChange={(event) => setChatId(event.target.value)}
-                        />
-                    </div>
-                </CardContent>
-                <CardFooter className="gap-2">
-                    <Button type="submit" disabled={save.isPending}>
-                        Save
-                    </Button>
-                    <Button
-                        type="button"
-                        variant="outline"
-                        disabled={!updates.telegram.configured || test.isPending}
-                        onClick={() => test.mutate()}
-                    >
-                        Send test
-                    </Button>
-                </CardFooter>
-            </form>
-        </Card>
-    )
-}
-
 const defaultNtfyServer = 'https://ntfy.sh'
 
 // newTopic is hard to guess: on a server without logins, like ntfy.sh, anyone
@@ -212,8 +140,8 @@ export function NtfyCard({ updates }: { updates: Updates }) {
                 <CardHeader>
                     <CardTitle>ntfy</CardTitle>
                     <CardDescription>
-                        Push notifications without Google or Apple: install ntfy from F-Droid and subscribe to the
-                        topic. Iglo-OS sends the same messages as to Telegram.
+                        Get a message after each update and for every alert, without Google or Apple. Install ntfy from
+                        F-Droid and subscribe to the topic.
                     </CardDescription>
                 </CardHeader>
                 <CardContent className="flex flex-col gap-4">

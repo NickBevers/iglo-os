@@ -818,7 +818,7 @@ func (s *Service) Wake() {
 }
 
 // monitor waits for the operation to end, rolls back a failed update, and
-// sends the result to Telegram.
+// sends the result to ntfy.
 func (s *Service) monitor(ctx context.Context, op operation, generation int) {
 	ticker := time.NewTicker(s.PollInterval)
 	defer ticker.Stop()

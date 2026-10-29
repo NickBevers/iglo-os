@@ -7,7 +7,7 @@ The Backups page makes a normal Proxmox backup job (`iglo-backup`), so it also r
 - Back up one guest now, restore a backup or delete it. A restore shuts the guest down, restores it to the storage of its current disk, and starts it again. The host agent restores containers, as root: Proxmox lets only `root@pam` restore a bind mount, and every app container has one, for a NAS share or its secrets (pve-container `7d99e49`).
 - **Test** a container backup without touching the container: see below.
 - Iglo-OS can't restore its own container. Use `iglo-restore` on the host (see below).
-- Failed scheduled backups are sent to Telegram and ntfy.
+- Failed scheduled backups are sent to ntfy.
 
 The host agent creates the job with checked settings, so the API token needs no `Sys.Modify`. The token only has `VM.Backup` and `Datastore.AllocateSpace` for backups.
 
@@ -20,7 +20,7 @@ A backup only proves that it was written. A restore check proves that it restore
 3. It starts once. Its apps fail without their shares, so a "degraded" system counts as booted.
 4. The copy is removed, also when a step failed.
 
-At 05:00, Iglo-OS checks the newest backup of one overdue container. Each container is due 30 days after its last successful check, with at most one attempt per night. A failed check stays overdue; rotation gives other containers their turn before retrying. It waits while a game runs or another backup operation runs. **Test** next to a backup on the Backups page runs one now. The result shows on the Backups page and goes to Telegram.
+At 05:00, Iglo-OS checks the newest backup of one overdue container. Each container is due 30 days after its last successful check, with at most one attempt per night. A failed check stays overdue; rotation gives other containers their turn before retrying. It waits while a game runs or another backup operation runs. **Test** next to a backup on the Backups page runs one now. The result shows on the Backups page and goes to ntfy.
 
 The copy needs room on the storage of the container: about three times the size of the backup, plus 2 GiB. With less, the check fails and says so. A restore check is not tested on Proxmox yet.
 

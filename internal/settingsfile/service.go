@@ -98,7 +98,7 @@ func (s *Service) current(ctx context.Context) (File, []string) {
 	notes := []string{}
 
 	settings := s.Updates.Settings()
-	file.Notifications = &Notifications{Telegram: Telegram{ChatID: settings.Telegram.ChatID}}
+	file.Notifications = &Notifications{}
 	if settings.Ntfy.Topic != "" {
 		file.Notifications.Ntfy = &Ntfy{Server: settings.Ntfy.Server, Topic: settings.Ntfy.Topic}
 	}
@@ -234,7 +234,7 @@ type (
 func (s *Service) importUpdates(file, current File, add addFunc, finish finishFunc, run runFunc) {
 	settings := s.Updates.Settings()
 	// The saved ntfy token stays while the server stays the same.
-	input := updates.SettingsInput{Schedule: settings.Schedule, Excluded: settings.Excluded, Telegram: settings.Telegram,
+	input := updates.SettingsInput{Schedule: settings.Schedule, Excluded: settings.Excluded,
 		Ntfy: updates.NtfySettings{Server: settings.Ntfy.Server, Topic: settings.Ntfy.Topic}}
 	changed := []string{}
 
@@ -250,14 +250,9 @@ func (s *Service) importUpdates(file, current File, add addFunc, finish finishFu
 			server, _ := updates.NormalizeNtfyServer(wanted.Ntfy.Server)
 			wanted.Ntfy = &Ntfy{Server: server, Topic: wanted.Ntfy.Topic}
 		}
-		chatID := wanted.Telegram.ChatID
-		switch {
-		case reflect.DeepEqual(&wanted, current.Notifications):
+		if reflect.DeepEqual(&wanted, current.Notifications) {
 			add("notifications", StatusUnchanged, "")
-		case chatID != "" && settings.Telegram.BotToken == "":
-			add("notifications", StatusSkipped, "Add the Telegram bot token on the Updates page first.")
-		default:
-			input.Telegram = updates.TelegramSettings{ChatID: chatID}
+		} else {
 			input.Ntfy = updates.NtfySettings{}
 			if wanted.Ntfy != nil {
 				input.Ntfy = updates.NtfySettings{Server: wanted.Ntfy.Server, Topic: wanted.Ntfy.Topic}
