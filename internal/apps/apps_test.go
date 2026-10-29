@@ -151,6 +151,10 @@ func (f *fakeProxmox) Resources(context.Context) ([]proxmox.Resource, error) {
 	return f.resources, nil
 }
 
+func (f *fakeProxmox) Bridges(context.Context, string) ([]proxmox.Bridge, error) {
+	return []proxmox.Bridge{{Iface: "vmbr1", CIDR: "10.0.0.1/24"}, {Iface: "vmbr0", CIDR: "192.168.1.10/24", Gateway: "192.168.1.1"}}, nil
+}
+
 func (f *fakeProxmox) ContainerStorages(context.Context, string) ([]proxmox.BackupStorage, error) {
 	return []proxmox.BackupStorage{
 		{Storage: "local-lvm", Active: true},
@@ -206,6 +210,10 @@ func TestStatusBeforeInstall(t *testing.T) {
 	defaults := view.Defaults
 	if defaults.Storage != "local-lvm" || len(defaults.Storages) != 2 || defaults.JellyfinVMID != 110 {
 		t.Fatalf("defaults = %+v", defaults)
+	}
+	// The Headscale form starts from the host's own network on vmbr0.
+	if defaults.LANAddress != "192.168.1.10/24" || defaults.LANGateway != "192.168.1.1" {
+		t.Fatalf("network = %q %q", defaults.LANAddress, defaults.LANGateway)
 	}
 }
 
