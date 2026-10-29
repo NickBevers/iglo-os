@@ -213,6 +213,7 @@ func New(options Options) http.Handler {
 	mux.Handle("PUT /api/jellyfin/theme", s.requireSession(http.HandlerFunc(s.jellyfinTheme)))
 	mux.Handle("GET /api/jellyfin/items/{id}/image", s.requireSession(http.HandlerFunc(s.jellyfinImage)))
 	mux.Handle("GET /api/health", s.requireSession(http.HandlerFunc(s.healthStatus)))
+	mux.HandleFunc("GET /api/ready", s.ready)
 	mux.Handle("POST /api/health/refresh", s.requireSession(http.HandlerFunc(s.healthRefresh)))
 	mux.Handle("POST /api/health/checks", s.requireSession(http.HandlerFunc(s.healthAddCheck)))
 	mux.Handle("PUT /api/health/checks/{id}", s.requireSession(http.HandlerFunc(s.healthUpdateCheck)))

@@ -36,7 +36,7 @@ Seerr can send its own messages to ntfy, for requests and new media: set it up i
 
 The manager checks the GitHub releases every 6 hours. When there is a new version, the header shows "Update available" and you get a Telegram message. Install it from the Updates page. You can also turn on automatic installs there.
 
-The host agent only installs a bundle that is signed with the release key. It keeps the previous version, and brings it back when the new version does not start within a minute.
+The host agent only installs a bundle that is signed with the release key. It keeps the previous version. The new version has to start and reach the host agent and Proxmox (`iglo ready`) within about a minute, or the previous version comes back. When even the previous version doesn't come back, the update says so: run `iglo-restore` on the host to restore the manager from its last backup. To do that from away from home, see [reach the host when the manager is down](tailscale.md#reach-the-host-when-the-manager-is-down).
 
 For a private repo, create a fine-grained token with read-only access to Contents of this repo only, and enter it on the Updates page.
 

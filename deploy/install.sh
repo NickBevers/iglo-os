@@ -361,15 +361,17 @@ write_upgrade_status() {
         "$state" "$VERSION" "$message" "$(date -Is)" >"$UPGRADE_DIR/status.json"
 }
 
-# manager_healthy is true when both services stay up and the manager listens
-# on port 443, three checks in a row. With a version, the manager must run it.
+# manager_healthy is true when both services stay up and the manager answers,
+# three checks in a row. With a version, the manager must run it. With "ready",
+# the manager must also reach the agent and Proxmox ("iglo ready"); otherwise
+# it only has to listen on port 443, which an older manager also does.
 manager_healthy() {
-    local version="${1:-}" passed=0
+    local version="${1:-}" check="${2:-port}" passed=0
     for _ in $(seq 1 30); do
         sleep 2
         if systemctl is-active --quiet iglo-agent &&
             pct exec "$CT_ID" -- systemctl is-active --quiet iglo &&
-            pct exec "$CT_ID" -- bash -c 'exec 3<>/dev/tcp/127.0.0.1/443' 2>/dev/null &&
+            manager_answers "$check" &&
             [[ -z "$version" || "$(pct exec "$CT_ID" -- /usr/local/bin/iglo version)" == "$version" ]]; then
             passed=$((passed + 1))
             ((passed >= 3)) && return 0
@@ -381,23 +383,32 @@ manager_healthy() {
     return 1
 }
 
+manager_answers() {
+    if [[ "$1" == ready ]]; then
+        pct exec "$CT_ID" -- /usr/local/bin/iglo ready >/dev/null 2>&1
+    else
+        pct exec "$CT_ID" -- bash -c 'exec 3<>/dev/tcp/127.0.0.1/443' 2>/dev/null
+    fi
+}
+
 # replace_files installs the agent and the manager from a folder that has
-# iglo, iglo-agent and both service files.
+# iglo, iglo-agent and both service files. It stops at the first step that
+# fails, also in a rollback, where set -e doesn't apply.
 replace_files() {
     local from="$1"
 
-    install -m 0755 "$from/iglo-agent" /usr/local/bin/iglo-agent.new
-    mv -f /usr/local/bin/iglo-agent.new /usr/local/bin/iglo-agent
-    sed "s/@SOCKET_GID@/$HOST_SOCKET_GID/" "$from/iglo-agent.service" >/etc/systemd/system/iglo-agent.service
+    install -m 0755 "$from/iglo-agent" /usr/local/bin/iglo-agent.new || return 1
+    mv -f /usr/local/bin/iglo-agent.new /usr/local/bin/iglo-agent || return 1
+    sed "s/@SOCKET_GID@/$HOST_SOCKET_GID/" "$from/iglo-agent.service" >/etc/systemd/system/iglo-agent.service || return 1
 
     # Push next to the running binary and rename, because a running binary can't be overwritten.
-    pct push "$CT_ID" "$from/iglo" /usr/local/bin/iglo.new --perms 0755
-    pct exec "$CT_ID" -- mv -f /usr/local/bin/iglo.new /usr/local/bin/iglo
-    pct push "$CT_ID" "$from/iglo.service" /etc/systemd/system/iglo.service --perms 0644
+    pct push "$CT_ID" "$from/iglo" /usr/local/bin/iglo.new --perms 0755 || return 1
+    pct exec "$CT_ID" -- mv -f /usr/local/bin/iglo.new /usr/local/bin/iglo || return 1
+    pct push "$CT_ID" "$from/iglo.service" /etc/systemd/system/iglo.service --perms 0644 || return 1
 
-    systemctl daemon-reload
-    pct exec "$CT_ID" -- systemctl daemon-reload
-    pct exec "$CT_ID" -- systemctl restart iglo
+    systemctl daemon-reload || return 1
+    pct exec "$CT_ID" -- systemctl daemon-reload || return 1
+    pct exec "$CT_ID" -- systemctl restart iglo || return 1
     systemctl restart iglo-agent
 }
 
@@ -433,7 +444,7 @@ upgrade() {
     replace_files "$BUNDLE_DIR"
 
     log "Waiting for the new version to start"
-    manager_healthy "$VERSION" || die "the new version did not start"
+    manager_healthy "$VERSION" ready || die "the new version did not start, or can't reach the agent or Proxmox"
 
     UPGRADE_STEP="done"
     install_scripts || log "Could not update iglo-restore"
@@ -447,8 +458,12 @@ on_upgrade_exit() {
         done) ;;
         replaced)
             log "Upgrade failed, restoring the previous version"
-            replace_files "$UPGRADE_BACKUP" || true
-            write_upgrade_status failed "the new version did not work, so the previous version is back"
+            if replace_files "$UPGRADE_BACKUP" && manager_healthy; then
+                write_upgrade_status failed "the new version did not work, so the previous version is back"
+            else
+                log "The previous version did not come back either"
+                write_upgrade_status failed "the new version did not work, and the previous version did not come back either. On the Proxmox host, run iglo-restore to restore the manager from its last backup"
+            fi
             ;;
         *) write_upgrade_status failed "the upgrade stopped before anything changed" ;;
     esac
