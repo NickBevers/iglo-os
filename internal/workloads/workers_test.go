@@ -55,3 +55,32 @@ func TestWorkerLeasesIndependentOfImmich(t *testing.T) {
 		t.Fatal("did not return to native controls")
 	}
 }
+
+func TestBackupsHoldNewWork(t *testing.T) {
+	now := time.Date(2026, 10, 22, 3, 0, 0, 0, time.UTC)
+	host := &fakeHost{free: 8 << 30}
+	lease := int64(-99)
+	s, err := New(Options{DataDir: t.TempDir(), Proxmox: host, HostMemory: host.HostMemory, Now: func() time.Time { return now }, WorkerAdmission: func(_ context.Context, _ string, until int64) error { lease = until; return nil }})
+	if err != nil {
+		t.Fatal(err)
+	}
+	settings := DefaultSettings()
+	settings.Workers, settings.Node, settings.Window = true, "pve", true
+	if err = s.SaveSettings(settings); err != nil {
+		t.Fatal(err)
+	}
+
+	hold := "Backups are running"
+	s.SetHold(func(context.Context) string { return hold })
+	s.Reconcile(context.Background())
+	if lease != 0 || s.Status().WorkerReason != "Backups are running" {
+		t.Fatalf("lease = %d, reason = %q", lease, s.Status().WorkerReason)
+	}
+
+	// When the backup ends, work goes on.
+	hold = ""
+	s.Reconcile(context.Background())
+	if lease != now.Add(time.Minute).Unix() {
+		t.Fatalf("lease = %d after the backup", lease)
+	}
+}

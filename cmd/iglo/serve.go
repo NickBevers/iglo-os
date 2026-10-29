@@ -146,6 +146,18 @@ func serve() error {
 		return err
 	}
 	go backupService.RunMonitor(ctx)
+	// Heavy background work waits while backups or updates run. The window
+	// of background work overlaps the nightly backups (03:00), the weekly
+	// updates (04:00) and the restore check (05:00).
+	workloadService.SetHold(func(ctx context.Context) string {
+		switch {
+		case backupService.Running(ctx):
+			return "Backups are running"
+		case updateService.Running():
+			return "Updates are running"
+		}
+		return ""
+	})
 
 	tailscaleService, err := tailscale.New(tailscale.Options{
 		DataDir:  cfg.DataDir,

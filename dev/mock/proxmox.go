@@ -277,6 +277,13 @@ func (p *fakeProxmox) node(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Query().Get("typefilter") == "vzdump" {
 			tasks = tasks[:1]
 		}
+		// With .dev/backup-running, the nightly job runs now.
+		if r.URL.Query().Get("source") == "active" {
+			tasks = []map[string]any{}
+			if _, err := os.Stat(statePath("backup-running")); err == nil {
+				tasks = append(tasks, map[string]any{"upid": "UPID:pve:0003:vzdump::root@pam:", "type": "vzdump", "id": "", "user": "root@pam", "status": "RUNNING", "starttime": time.Now().Unix() - 600})
+			}
+		}
 		writeData(w, tasks)
 	case strings.HasPrefix(path, "tasks/") && strings.HasSuffix(path, "/log"):
 		writeData(w, []map[string]any{

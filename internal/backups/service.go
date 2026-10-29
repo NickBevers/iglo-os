@@ -38,6 +38,7 @@ var (
 
 type Proxmox interface {
 	Resources(ctx context.Context) ([]proxmox.Resource, error)
+	RunningBackupTasks(ctx context.Context, node string) ([]proxmox.Task, error)
 	BackupJobs(ctx context.Context) ([]proxmox.BackupJob, error)
 	BackupStorages(ctx context.Context, node string) ([]proxmox.BackupStorage, error)
 	Backups(ctx context.Context, node, storage string) ([]proxmox.Backup, error)
@@ -180,6 +181,29 @@ func (s *Service) SaveJob(ctx context.Context, job agent.BackupJob) error {
 		s.Changed(events.Backups)
 	}
 	return nil
+}
+
+// Running says whether a backup, a restore or a restore check runs now:
+// one that Iglo-OS started, or a vzdump task of Proxmox, like the nightly
+// job. Heavy background work waits for it. When Proxmox doesn't answer, it
+// says no, so a broken API doesn't hold all work.
+func (s *Service) Running(ctx context.Context) bool {
+	s.mu.Lock()
+	busy := s.busy != ""
+	s.mu.Unlock()
+	if busy {
+		return true
+	}
+	nodes, err := s.onlineNodes(ctx)
+	if err != nil {
+		return false
+	}
+	for _, node := range nodes {
+		if tasks, err := s.Proxmox.RunningBackupTasks(ctx, node); err == nil && len(tasks) > 0 {
+			return true
+		}
+	}
+	return false
 }
 
 // start runs an operation in the background, one at a time.

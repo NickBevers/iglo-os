@@ -38,6 +38,11 @@ func (s *Service) reconcileWorkers(ctx context.Context, view *View) {
 		case reading.pressure >= pressureLimit:
 			view.WorkerReason = "Waiting for memory pressure to ease"
 		default:
+			// A backup or an update keeps new work back, like a game does.
+			if reason := s.holdReason(ctx); reason != "" {
+				view.WorkerReason = reason
+				break
+			}
 			until = s.now().Add(time.Minute).Unix()
 			// The lease lasts a minute, so renew it at the busy pace.
 			s.busy = true
