@@ -6,6 +6,7 @@ import { Skeleton } from '@/components/ui/skeleton'
 import type { Health } from '@/lib/api'
 import { formatBytes, percentage } from '@/lib/format'
 import { healthQuery } from '@/lib/queries'
+import { PanelError } from './panel-error'
 
 // Iglo-OS mounts each share of the Storage page in a folder of its own here.
 const sharesRoot = '/mnt/iglo/shares/'
@@ -54,10 +55,14 @@ function spaces(health: Health): Space[] {
 }
 
 export function StoragePanel() {
-    const { data } = useQuery(healthQuery)
+    const { data, error, refetch } = useQuery(healthQuery)
 
     if (!data) {
-        return <Skeleton className="h-60 rounded-lg" />
+        return error ? (
+            <PanelError title="Storage" error={error} retry={() => void refetch()} className="h-60" />
+        ) : (
+            <Skeleton className="h-60 rounded-lg" />
+        )
     }
 
     const list = spaces(data)

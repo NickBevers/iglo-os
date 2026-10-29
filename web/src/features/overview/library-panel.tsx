@@ -7,15 +7,20 @@ import { Card } from '@/components/ui/card'
 import { Skeleton } from '@/components/ui/skeleton'
 import type { Jellyfin } from '@/lib/api'
 import { jellyfinQuery } from '@/lib/queries'
+import { PanelError } from './panel-error'
 
 const numbers = new Intl.NumberFormat()
 
 // LibraryPanel is what Jellyfin holds and plays: videos and music.
 export function LibraryPanel() {
-    const { data } = useQuery(jellyfinQuery)
+    const { data, error, refetch } = useQuery(jellyfinQuery)
 
     if (!data) {
-        return <Skeleton className="h-48 rounded-lg" />
+        return error ? (
+            <PanelError title="Library" error={error} retry={() => void refetch()} className="h-48" />
+        ) : (
+            <Skeleton className="h-48 rounded-lg" />
+        )
     }
 
     if (!data.configured || data.error) {
