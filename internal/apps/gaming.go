@@ -252,6 +252,51 @@ func (s *Service) setGamingSessions(sessions []agent.GamingSession, owner string
 	}
 }
 
+type gamingPairingAgent interface {
+	GamingPairings(ctx context.Context, vmid int) ([]agent.GamingPairing, error)
+	PairGamingDevice(ctx context.Context, vmid int, id, pin string) error
+}
+
+// GamingPairings lists the Moonlight devices that wait to pair. Wolf runs
+// only while you play, so a stopped container has none.
+func (s *Service) GamingPairings(ctx context.Context) ([]agent.GamingPairing, error) {
+	_, guest, err := s.managedGuest(ctx, agent.GamingApp)
+	if err != nil {
+		return nil, err
+	}
+	if guest.Status != "running" {
+		return []agent.GamingPairing{}, nil
+	}
+	a, ok := s.Agent.(gamingPairingAgent)
+	if !ok {
+		return nil, agent.ErrAppNotAvailable
+	}
+	return a.GamingPairings(ctx, guest.VMID)
+}
+
+// PairGamingDevice pairs a waiting Moonlight device with the PIN it shows.
+func (s *Service) PairGamingDevice(ctx context.Context, id, pin string) error {
+	if err := agent.CheckPairingAnswers(id, pin); err != nil {
+		return err
+	}
+	_, guest, err := s.managedGuest(ctx, agent.GamingApp)
+	if err != nil {
+		return err
+	}
+	if guest.Status != "running" {
+		return ErrNotRunning
+	}
+	a, ok := s.Agent.(gamingPairingAgent)
+	if !ok {
+		return agent.ErrAppNotAvailable
+	}
+	if err := a.PairGamingDevice(ctx, guest.VMID, id, pin); err != nil {
+		return err
+	}
+	s.Changed(events.Gaming)
+	return nil
+}
+
 // StopGamingSession ends a Moonlight session, like one that a device left
 // running when it disconnected without quitting.
 func (s *Service) StopGamingSession(ctx context.Context, id string) error {

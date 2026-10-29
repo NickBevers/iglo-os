@@ -92,12 +92,16 @@ Save in the game first: ending a session stops its emulator.
 ## Pair and configure on a PC first
 
 1. Install the official Moonlight client on a PC. Add the gaming guest's IP.
-2. Click the host in Moonlight to display its PIN. Read Wolf's logs on the Logs
-   page (Docker tab, gaming container), or inside the guest with
-   `cd /opt/gaming && docker compose logs --tail 100`. Open the
-   indicated local pairing URL, replacing localhost with the guest IP, and enter
-   that PIN. Pair only clients you recognize. Do not expose Wolf's control API
-   or pairing endpoint to the internet.
+2. Press **Play**, then click the host in Moonlight to display its PIN. The
+   Gaming page lists the device under **Pair a device**, by its address. Type
+   the PIN there and press **Pair**. Pair only clients you recognize. Do not
+   expose Wolf's control API or pairing endpoint to the internet.
+
+   Wolf keeps a pair secret for each waiting device. It stays on the host: the
+   page gets a hash of it, and the agent looks the secret up again to pair.
+   Without the Gaming page, Wolf's log (Logs page, Docker tab, gaming
+   container) still has the pairing link. Replace localhost in it with the
+   guest IP.
 3. Start at **1080p, 60 FPS, SDR, H.264**, with hardware decoding enabled and a
    wired connection. Press **Play** on the Gaming page and verify that new
    background work stops. Once the stream runs, the page shows it as playing.

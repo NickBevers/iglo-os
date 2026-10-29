@@ -153,9 +153,11 @@ func relayGuestStream(w http.ResponseWriter, r *http.Request, vmid int, curl []s
 	}
 }
 
-// wolfSessionEvents are the events of Wolf that change its session list. Wolf
-// names an event by its C++ type, like wolf::core::events::StopStreamEvent.
-var wolfSessionEvents = map[string]bool{"StreamSession": true, "StopStreamEvent": true, "PauseStreamEvent": true, "ResumeStreamEvent": true}
+// wolfSessionEvents are the events of Wolf that change its session list, and
+// PairSignal, a device that waits to pair, so the Gaming page shows it at
+// once. Wolf names an event by its C++ type, like
+// wolf::core::events::StopStreamEvent.
+var wolfSessionEvents = map[string]bool{"StreamSession": true, "StopStreamEvent": true, "PauseStreamEvent": true, "ResumeStreamEvent": true, "PairSignal": true}
 
 func wolfSessionEvent(name string) bool {
 	return wolfSessionEvents[name[strings.LastIndex(name, ":")+1:]]

@@ -98,6 +98,48 @@ func (s *server) gamingStopSession(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusNoContent)
 }
 
+type gamingPairing interface {
+	GamingPairings(context.Context) ([]agent.GamingPairing, error)
+	PairGamingDevice(ctx context.Context, id, pin string) error
+}
+
+// gamingPairings lists the Moonlight devices that wait to pair, without
+// their pair secrets, which stay in the agent.
+func (s *server) gamingPairings(w http.ResponseWriter, r *http.Request) {
+	a, ok := s.Apps.(gamingPairing)
+	if !ok {
+		writeError(w, http.StatusServiceUnavailable, "update Iglo-OS to manage gaming")
+		return
+	}
+	pairings, err := a.GamingPairings(r.Context())
+	if err != nil {
+		s.writeAppsResult(w, err, 0)
+		return
+	}
+	writeJSON(w, http.StatusOK, pairings)
+}
+
+func (s *server) gamingPair(w http.ResponseWriter, r *http.Request) {
+	a, ok := s.Apps.(gamingPairing)
+	if !ok {
+		writeError(w, http.StatusServiceUnavailable, "update Iglo-OS to manage gaming")
+		return
+	}
+	var input struct {
+		PIN string `json:"pin"`
+	}
+	if json.NewDecoder(http.MaxBytesReader(w, r.Body, 128)).Decode(&input) != nil {
+		writeError(w, http.StatusBadRequest, "give the PIN that Moonlight shows")
+		return
+	}
+	if err := a.PairGamingDevice(r.Context(), r.PathValue("id"), input.PIN); err != nil {
+		s.writeAppsResult(w, err, 0)
+		return
+	}
+	s.Logger.Info("gaming device paired from the Gaming page")
+	w.WriteHeader(http.StatusNoContent)
+}
+
 type gamingLibrary interface {
 	GamingGames(context.Context) ([]agent.GameSystem, error)
 	GamingOwnCover(ctx context.Context, system, name string) ([]byte, string, error)

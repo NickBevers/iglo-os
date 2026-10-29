@@ -314,6 +314,7 @@ func gamingCover(covers, system, name string) ([]byte, string, error) {
 
 // RegisterGaming adds the game list and the covers of the Games share.
 func RegisterGaming(mux *http.ServeMux) {
+	registerGamingPairing(mux)
 	mux.HandleFunc("GET /v1/gaming/ready", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		json.NewEncoder(w).Encode(checkGamingReady("/"))

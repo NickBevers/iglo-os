@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/json"
 	"fmt"
 	"net/http"
 	"os"
@@ -55,7 +56,26 @@ func registerGaming(mux *http.ServeMux) {
 		http.Error(w, agent.ErrNoCover.Error(), http.StatusNotFound)
 	})
 	mux.HandleFunc("GET /v1/gaming/{vmid}/events", func(w http.ResponseWriter, r *http.Request) {
-		streamChanges(w, r, "sessions", func() string { return fmt.Sprint(fakeSessions()) })
+		streamChanges(w, r, "sessions", func() string { return fmt.Sprint(fakeSessions(), fakePairings()) })
+	})
+	mux.HandleFunc("GET /v1/gaming/{vmid}/pairing", func(w http.ResponseWriter, r *http.Request) {
+		writeJSON(w, fakePairings())
+	})
+	mux.HandleFunc("POST /v1/gaming/{vmid}/pairing/{id}", func(w http.ResponseWriter, r *http.Request) {
+		var input struct {
+			PIN string `json:"pin"`
+		}
+		json.NewDecoder(http.MaxBytesReader(w, r.Body, 128)).Decode(&input)
+		if err := agent.CheckPairingAnswers(r.PathValue("id"), input.PIN); err != nil {
+			http.Error(w, "give the PIN of four digits that Moonlight shows", http.StatusBadRequest)
+			return
+		}
+		if len(fakePairings()) == 0 || r.PathValue("id") != fakePairingID {
+			http.Error(w, agent.ErrNoGamingPairing.Error(), http.StatusConflict)
+			return
+		}
+		os.WriteFile(statePath("gaming-paired"), nil, 0o600)
+		w.WriteHeader(http.StatusNoContent)
 	})
 	mux.HandleFunc("GET /v1/gaming/{vmid}/sessions", func(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, fakeSessions())
@@ -72,6 +92,22 @@ func registerGaming(mux *http.ServeMux) {
 		}
 		w.WriteHeader(http.StatusNoContent)
 	})
+}
+
+// fakePairingID stands for the pair secret of the fake TV, as the agent's ID.
+const fakePairingID = "5a1d0c3e9b7f2a64"
+
+// fakePairings has a TV that waits to pair while the container runs, until
+// it is paired (.dev/gaming-paired).
+func fakePairings() []agent.GamingPairing {
+	pairings := []agent.GamingPairing{}
+	if _, err := os.Stat(statePath("gaming-running")); err != nil {
+		return pairings
+	}
+	if _, err := os.Stat(statePath("gaming-paired")); err != nil {
+		pairings = append(pairings, agent.GamingPairing{ID: fakePairingID, ClientIP: "192.168.1.70"})
+	}
+	return pairings
 }
 
 // fakeSessions plays a PC on Moonlight while the container runs. With
