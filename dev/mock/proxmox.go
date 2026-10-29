@@ -25,6 +25,9 @@ type backup struct {
 	Format    string `json:"format"`
 }
 
+// mockStart is when the mock started. Its past tasks keep their times.
+var mockStart = time.Now()
+
 // fakeProxmox answers the Proxmox API calls of the manager with a small,
 // fixed iglo: one node, the manager, Jellyfin, a media stack and a VM.
 type fakeProxmox struct {
@@ -260,7 +263,8 @@ func (p *fakeProxmox) node(w http.ResponseWriter, r *http.Request) {
 	case path == "disks/zfs":
 		writeData(w, []map[string]any{{"name": "tank", "health": "DEGRADED", "size": 3_985_729_650_688, "alloc": 1_200_000_000_000, "free": 2_785_729_650_688, "frag": 3, "dedup": 1.0}})
 	case path == "tasks":
-		now := time.Now().Unix()
+		// Fixed times, so the manager sees each task once, as on Proxmox.
+		now := mockStart.Unix()
 		tasks := []map[string]any{
 			{"upid": "UPID:pve:0001:vzdump::root@pam:", "type": "vzdump", "id": "", "user": "root@pam", "status": "job errors", "starttime": now - 7200, "endtime": now - 6900},
 			{"upid": "UPID:pve:0002:vzsnapshot:101:iglo@pve!manager:", "type": "vzsnapshot", "id": "101", "user": "iglo@pve!manager", "status": "OK", "starttime": now - 3600, "endtime": now - 3590},

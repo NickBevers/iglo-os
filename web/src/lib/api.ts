@@ -518,6 +518,8 @@ export type BackupRun = {
     message: string
     startedAt: string
     finishedAt: string
+    // A backup that the Proxmox job ran, not Iglo-OS.
+    scheduled?: boolean
 }
 
 export type Backups = {

@@ -112,8 +112,8 @@ function BackupHistory({ runs }: { runs: BackupRun[] }) {
     if (runs.length === 0) {
         return (
             <Card className="p-6 text-center text-sm text-muted-foreground">
-                Backups, restores, restore checks and deletes from Iglo-OS show up here. Failed scheduled backups are
-                sent to Telegram and ntfy.
+                Backups, restores, restore checks and deletes show up here, also the backups of the nightly job. Set up
+                Telegram or ntfy on the Updates page to hear when one fails.
             </Card>
         )
     }
@@ -130,6 +130,7 @@ function BackupHistory({ runs }: { runs: BackupRun[] }) {
                         )}
                         <div className="min-w-0 flex-1">
                             <span className="font-medium">{run.target}</span>
+                            {run.scheduled && <span className="ml-2 text-xs text-muted-foreground">Scheduled</span>}
                             <p className="text-muted-foreground">{run.message}</p>
                         </div>
                         <span className="hidden text-muted-foreground sm:inline">{formatRelative(run.finishedAt)}</span>

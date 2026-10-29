@@ -520,6 +520,17 @@
     ],
     "history": [
       {
+        "id": "nightly1",
+        "kind": "backup",
+        "vmid": 0,
+        "target": "All guests",
+        "succeeded": true,
+        "message": "Scheduled backup finished",
+        "startedAt": "2026-10-28T03:00:01+01:00",
+        "finishedAt": "2026-10-28T03:14:22+01:00",
+        "scheduled": true
+      },
+      {
         "id": "check1",
         "kind": "check",
         "vmid": 101,
