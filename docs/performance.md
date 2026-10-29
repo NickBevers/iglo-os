@@ -384,11 +384,33 @@ fallback request per minute; disconnected pages make two idle requests or
 twelve while work waits/runs. Each request uses one `pct exec curl`. Mutations
 refresh immediately. Streams relay names only.
 
-Guest scans are bounded to 5000 entries every five minutes, at startup or on
-request. Each scan checks its two mounts once, not per file. A 10-second
+Guest scans are bounded to 5000 entries. Each scan checks its two mounts once
+(two `findmnt`), not per file, then lists the Inbox share over SMB. A 10-second
 admission tick returns before mount checks when no work waits. Queue state is
 written only on change. Original-codec jobs avoid full software decoding.
 Inbox runs without Docker. Hardware savings have not been measured.
+
+Timed scans per day, counted from the code on 29 October 2026. On-demand scans
+come on top in both cases.
+
+| Setup | Before | After |
+| --- | --- | --- |
+| Admission control on, default window 02:00 to 07:00 | 288, all day | about 10, all inside the window |
+| Admission control on, window off | 288 | at most 48 |
+| Admission control off | 288 | 4 |
+| Queue paused | 288 | 0 |
+
+Before, the worker scanned every five minutes and at startup, so the NAS
+disks got a listing every five minutes, day and night. Now a scan runs when the
+lease first lets work start and then at most every 30 minutes while it holds.
+A held lease (outside the window, gaming, low memory, a backup or an update)
+means no timed scan. The last lease of a window can run up to a minute past
+its end. Without admission control the worker scans every 6 hours. A manual
+scan restarts the timer. There is no startup scan. A restarted or resumed
+worker scans the first moment it may work, unless it scanned recently.
+
+The price is one read of the small local lease file every 10 seconds, on the
+guest SSD and not over SMB. Before, the tick read it only while a job waited.
 
 ## Managed Headscale
 

@@ -57,9 +57,21 @@ The loopback API on port 8789 reaches clients only through the manager/agent.
 Open **Services → Inbox work**, review the profile and resume the initially
 paused queue. Sources are read only at `/data/inbox`. Output goes to
 `/data/videos/home-videos`. SSD staging and state live in
-`/var/lib/iglo-inbox/worker`. Scans run at startup, on demand and every five
-minutes, accepting files unchanged for 30 seconds. Remote SMB writes do not
-reliably generate local inotify events.
+`/var/lib/iglo-inbox/worker`. Scans accept files unchanged for 30 seconds.
+Remote SMB writes do not reliably generate local inotify events, so the worker
+lists the share itself. Each listing can wake the NAS disks, so timed scans
+follow admission:
+
+- With **Control Music and Inbox admission** on, a scan runs when the lease
+  first lets work start, then at most every 30 minutes while it holds. A held
+  lease means no timed scan, so nothing outside the processing window. Gaming,
+  low memory, a backup or an update hold scans like they hold jobs.
+- With it off (lease `-1`), a scan runs every 6 hours.
+- A paused queue gets no timed scans. **Scan Inbox now** always works and
+  restarts the timer.
+
+There is no separate startup scan. A restarted worker scans the first moment it
+may work, so in a window that is the next lease.
 
 - **Original codecs**, the default, copies primary video, audio and subtitles,
   metadata and chapters without re-encoding. MOV/MP4 keeps that container family;

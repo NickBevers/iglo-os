@@ -66,9 +66,10 @@ export function InboxPage() {
                         </CardHeader>
                         <CardContent className="flex flex-col gap-4">
                             <p className="text-sm text-muted-foreground">
-                                Scans run at startup, on demand and every five minutes. New files must be unchanged for
-                                30 seconds. Pause holds new jobs; active work finishes. Gaming, the work window and host
-                                memory can also hold admission.
+                                With Background work in control, scans run only while work may start, at most every 30
+                                minutes. Without it, they run every 6 hours. A paused queue is not scanned on a timer.
+                                Scan now always works. New files must be unchanged for 30 seconds. Pause holds new jobs;
+                                active work finishes. Gaming, the work window and host memory can also hold admission.
                             </p>
                             <div className="flex flex-wrap gap-3">
                                 <Button
