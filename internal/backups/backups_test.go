@@ -318,7 +318,7 @@ func TestMonitorAlertsForeignFailures(t *testing.T) {
 	h.pve.tasks = []proxmox.Task{
 		{UPID: "UPID:old", Status: "job errors", EndTime: 900},
 		{UPID: "UPID:ours", Status: "job errors", EndTime: 1100},
-		{UPID: "UPID:ok", Status: "OK", EndTime: 1200},
+		{UPID: "UPID:ok", ID: "101", Status: "OK", EndTime: 1200},
 		{UPID: "UPID:warn", Status: "WARNINGS: 1", EndTime: 1250},
 		{UPID: "UPID:failed", Status: "job errors", EndTime: 1300},
 	}
@@ -330,10 +330,19 @@ func TestMonitorAlertsForeignFailures(t *testing.T) {
 	if h.service.state.LastTask != 1300 {
 		t.Fatalf("last task = %d", h.service.state.LastTask)
 	}
+	// The history shows the backups of the job, newest first, so the overview
+	// sees a failed night. A backup of Iglo-OS is in it already.
+	history := h.service.state.History
+	if len(history) != 3 || !history[0].Scheduled || history[0].Succeeded || history[0].Target != "All guests" || history[0].Message != "Scheduled backup: job errors" {
+		t.Fatalf("history = %+v", history)
+	}
+	if !history[1].Succeeded || history[2].Target != "jellyfin (101)" || history[2].VMID != 101 || history[2].Message != "Scheduled backup finished" {
+		t.Fatalf("history = %+v", history)
+	}
 
 	h.service.checkTasks(context.Background())
-	if len(h.messages) != 1 {
-		t.Fatalf("alerted twice: %v", h.messages)
+	if len(h.messages) != 1 || len(h.service.state.History) != 3 {
+		t.Fatalf("alerted or added twice: %v, %d runs", h.messages, len(h.service.state.History))
 	}
 }
 

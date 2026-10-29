@@ -93,6 +93,8 @@ type Run struct {
 	Message    string    `json:"message"`
 	StartedAt  time.Time `json:"startedAt"`
 	FinishedAt time.Time `json:"finishedAt"`
+	// Scheduled is a backup that the Proxmox job ran, not Iglo-OS.
+	Scheduled bool `json:"scheduled,omitempty"`
 }
 
 type state struct {
@@ -538,6 +540,8 @@ func (s *Service) checkTasks(ctx context.Context) {
 
 	newest := since
 	messages := []string{}
+	runs := []Run{}
+	var names map[int]string
 	for _, node := range nodes {
 		tasks, err := s.Proxmox.BackupTasks(ctx, node, 50)
 		if err != nil {
@@ -555,8 +559,17 @@ func (s *Service) checkTasks(ctx context.Context) {
 			ours := s.ours[task.UPID]
 			delete(s.ours, task.UPID)
 			s.mu.Unlock()
+			// A backup that Iglo-OS started is in the history already.
+			if ours {
+				continue
+			}
 
-			if !ours && task.Status != "OK" && !strings.HasPrefix(task.Status, "WARNINGS") {
+			if names == nil {
+				names = s.guestNames(ctx)
+			}
+			run := scheduledRun(task, names)
+			runs = append(runs, run)
+			if !run.Succeeded {
 				target := "all guests"
 				if task.ID != "" {
 					target = "guest " + task.ID
@@ -575,6 +588,7 @@ func (s *Service) checkTasks(ctx context.Context) {
 	s.mu.Lock()
 	if newest != s.state.LastTask {
 		s.state.LastTask = newest
+		s.addRuns(runs)
 		err = s.save()
 	} else {
 		err = nil
@@ -587,6 +601,59 @@ func (s *Service) checkTasks(ctx context.Context) {
 	if len(messages) > 0 {
 		s.Notify(ctx, strings.Join(messages, "\n"))
 	}
+}
+
+// addRuns puts runs in the history, newest first. It needs s.mu.
+func (s *Service) addRuns(runs []Run) {
+	if len(runs) == 0 {
+		return
+	}
+	s.state.History = append(s.state.History, runs...)
+	slices.SortStableFunc(s.state.History, func(a, b Run) int { return b.FinishedAt.Compare(a.FinishedAt) })
+	if len(s.state.History) > maxHistory {
+		s.state.History = s.state.History[:maxHistory]
+	}
+}
+
+// guestNames are the names of the guests by ID, for the history. Without
+// them a run shows the ID only.
+func (s *Service) guestNames(ctx context.Context) map[int]string {
+	names := map[int]string{}
+	resources, err := s.Proxmox.Resources(ctx)
+	if err != nil {
+		return names
+	}
+	for _, resource := range resources {
+		if resource.VMID > 0 {
+			names[resource.VMID] = resource.Name
+		}
+	}
+	return names
+}
+
+// scheduledRun is the history entry of a backup task that Iglo-OS didn't
+// start, like the nightly job. Proxmox counts WARNINGS as a finished backup.
+func scheduledRun(task proxmox.Task, names map[int]string) Run {
+	run := Run{
+		ID:         newID(),
+		Kind:       RunBackup,
+		Target:     "All guests",
+		StartedAt:  time.Unix(task.StartTime, 0),
+		FinishedAt: time.Unix(task.EndTime, 0),
+		Scheduled:  true,
+		Succeeded:  task.Status == "OK" || strings.HasPrefix(task.Status, "WARNINGS"),
+		Message:    "Scheduled backup finished",
+	}
+	if vmid, err := strconv.Atoi(task.ID); err == nil {
+		run.VMID, run.Target = vmid, fmt.Sprintf("guest %d", vmid)
+		if name := names[vmid]; name != "" {
+			run.Target = fmt.Sprintf("%s (%d)", name, vmid)
+		}
+	}
+	if task.Status != "OK" {
+		run.Message = "Scheduled backup: " + task.Status
+	}
+	return run
 }
 
 // save writes the state. It needs s.mu.
