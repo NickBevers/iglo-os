@@ -568,6 +568,9 @@ export type JellyfinAnswers = {
     // the series and movies folders.
     animeFolder: string
     animeMoviesFolder: string
+    // musicBinding is the Music share from Storage, or empty for none. Saved
+    // answers from before it have none.
+    musicBinding?: string
     adminUsername: string
     adminPassword: string
     theme: boolean

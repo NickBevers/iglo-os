@@ -225,10 +225,13 @@ type JellyfinAnswers struct {
 	// AnimeFolder and AnimeMoviesFolder are optional, as for the media stack.
 	AnimeFolder       string `json:"animeFolder"`
 	AnimeMoviesFolder string `json:"animeMoviesFolder"`
-	AdminUsername     string `json:"adminUsername"`
-	AdminPassword     string `json:"adminPassword"`
-	Theme             bool   `json:"theme"`
-	Storage           string `json:"storage"`
+	// MusicBinding is the Music share from Storage, optional. Jellyfin only
+	// reads it, and gets the Music and Music Videos libraries from it.
+	MusicBinding  string `json:"musicBinding"`
+	AdminUsername string `json:"adminUsername"`
+	AdminPassword string `json:"adminPassword"`
+	Theme         bool   `json:"theme"`
+	Storage       string `json:"storage"`
 }
 
 func (a JellyfinAnswers) Validate() error {
@@ -237,6 +240,10 @@ func (a JellyfinAnswers) Validate() error {
 	switch {
 	case !bindingID.MatchString(a.VideosBinding):
 		return invalid("select a Videos share from Storage")
+	case a.MusicBinding != "" && !bindingID.MatchString(a.MusicBinding):
+		return invalid("select a Music share from Storage, or none")
+	case a.MusicBinding != "" && a.MusicBinding == a.VideosBinding:
+		return invalid("the Music share must be another share than the Videos share")
 	case !validFolders(a.MoviesFolder, a.SeriesFolder, a.AnimeFolder, a.AnimeMoviesFolder):
 		return invalid(foldersMessage)
 	case !jellyfinUserPattern.MatchString(a.AdminUsername):
@@ -261,6 +268,7 @@ func (a JellyfinAnswers) file() string {
 		"SERIES_FOLDER="+a.SeriesFolder,
 		"ANIME_FOLDER="+a.AnimeFolder,
 		"ANIME_MOVIES_FOLDER="+a.AnimeMoviesFolder,
+		"MUSIC_BINDING="+a.MusicBinding,
 		"JELLYFIN_ADMIN_USERNAME="+a.AdminUsername,
 		"JELLYFIN_ADMIN_PASSWORD="+a.AdminPassword,
 		"THEME="+theme,
@@ -502,9 +510,37 @@ func (i *AppInstaller) installLocked(app string, saved savedFile) error {
 }
 
 // Update updates the packages, the stack and the images of an installed app.
-// The installer checks that the container is the app of Iglo-OS.
-func (i *AppInstaller) Update(app string, vmid int) error {
-	return i.runOnContainer(app, ActionUpdate, vmid)
+// The installer checks that the container is the app of Iglo-OS. With the
+// API key of Jellyfin, the update of Jellyfin adds the libraries that are
+// missing. The key goes to the installer in an answers file that only root
+// reads, never on the command line.
+func (i *AppInstaller) Update(app string, request AppUpdateRequest) error {
+	if request.JellyfinAPIKey == "" {
+		return i.runOnContainer(app, ActionUpdate, request.VMID)
+	}
+	if app != JellyfinApp {
+		return fmt.Errorf("%w: only Jellyfin takes an API key on update", ErrInvalidAnswers)
+	}
+	if !apiKeyPattern.MatchString(request.JellyfinAPIKey) {
+		return fmt.Errorf("%w: the Jellyfin API key must be 32 characters (0-9 and a-f)", ErrInvalidAnswers)
+	}
+	if request.VMID < 100 || request.VMID > 999999999 {
+		return ErrInvalidContainer
+	}
+
+	i.mu.Lock()
+	defer i.mu.Unlock()
+
+	script, err := i.prepare(app)
+	if err != nil {
+		return err
+	}
+	answersPath := filepath.Join(i.Dir, app+".update.answers")
+	if err := os.WriteFile(answersPath, []byte("JELLYFIN_API_KEY="+request.JellyfinAPIKey+"\n"), 0o600); err != nil {
+		return err
+	}
+
+	return i.run(app, ActionUpdate, script, []string{"--update", "--ctid", strconv.Itoa(request.VMID), "--answers", answersPath}, answersPath)
 }
 
 // Remove removes the container of an installed app. Its backups stay.

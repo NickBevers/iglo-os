@@ -171,14 +171,14 @@ func TestAppInstall(t *testing.T) {
 func TestAppUpdateAndRemove(t *testing.T) {
 	installer, unit := newTestInstaller(t)
 
-	if err := installer.Update(MediaStackApp, 99); !errors.Is(err, ErrInvalidContainer) {
+	if err := installer.Update(MediaStackApp, AppUpdateRequest{VMID: 99}); !errors.Is(err, ErrInvalidContainer) {
 		t.Fatalf("vmid 99: %v", err)
 	}
 	if err := installer.Remove("nextcloud", 130); !errors.Is(err, ErrUnknownApp) {
 		t.Fatalf("unknown app: %v", err)
 	}
 
-	if err := installer.Update(MediaStackApp, 130); err != nil {
+	if err := installer.Update(MediaStackApp, AppUpdateRequest{VMID: 130}); err != nil {
 		t.Fatal(err)
 	}
 	if !slices.Equal(unit.args, []string{"--update", "--ctid", "130"}) || unit.started[1] != "" {
@@ -384,6 +384,9 @@ func TestJellyfinAnswersValidate(t *testing.T) {
 
 	for name, change := range map[string]func(*JellyfinAnswers){
 		"no videos share":  func(a *JellyfinAnswers) { a.VideosBinding = "" },
+		"music with slash": func(a *JellyfinAnswers) { a.MusicBinding = "../music" },
+		"music newline":    func(a *JellyfinAnswers) { a.MusicBinding = "music\nTHEME=y" },
+		"music is videos":  func(a *JellyfinAnswers) { a.MusicBinding = "videos" },
 		"no admin":         func(a *JellyfinAnswers) { a.AdminUsername = "" },
 		"no password":      func(a *JellyfinAnswers) { a.AdminPassword = "" },
 		"password newline": func(a *JellyfinAnswers) { a.AdminPassword = "a\nTHEME=y" },
@@ -405,14 +408,16 @@ func TestJellyfinInstall(t *testing.T) {
 	}
 	os.WriteFile(filepath.Join(installer.StacksDir, "jellyfin", "install.sh"), nil, 0o755)
 
-	if err := installer.Install(JellyfinApp, InstallRequest{Jellyfin: validJellyfin()}); err != nil {
+	jellyfin := validJellyfin()
+	jellyfin.MusicBinding = "music"
+	if err := installer.Install(JellyfinApp, InstallRequest{Jellyfin: jellyfin}); err != nil {
 		t.Fatal(err)
 	}
 	if !strings.HasSuffix(unit.started[0], "/jellyfin/install.sh") {
 		t.Fatalf("script = %s", unit.started[0])
 	}
 	answers, _ := os.ReadFile(unit.started[1])
-	for _, line := range []string{"JELLYFIN_ADMIN_PASSWORD=jelly pass\n", "THEME=y\n", "SERIES_FOLDER=series\n"} {
+	for _, line := range []string{"JELLYFIN_ADMIN_PASSWORD=jelly pass\n", "THEME=y\n", "SERIES_FOLDER=series\n", "MUSIC_BINDING=music\n"} {
 		if !strings.Contains(string(answers), line) {
 			t.Errorf("answers miss %q:\n%s", line, answers)
 		}
@@ -433,6 +438,49 @@ func TestJellyfinInstall(t *testing.T) {
 	}
 	if strings.Contains(status.Log, "jellyfin-key") || !strings.Contains(status.Log, "==> Done") {
 		t.Fatalf("the key is in the log:\n%s", status.Log)
+	}
+}
+
+func TestJellyfinUpdateWithAPIKey(t *testing.T) {
+	installer, unit := newTestInstaller(t)
+	if err := os.MkdirAll(filepath.Join(installer.StacksDir, "jellyfin"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	os.WriteFile(filepath.Join(installer.StacksDir, "jellyfin", "install.sh"), nil, 0o755)
+
+	for name, request := range map[string]struct {
+		app     string
+		request AppUpdateRequest
+	}{
+		"short key":       {JellyfinApp, AppUpdateRequest{VMID: 140, JellyfinAPIKey: "abc"}},
+		"key with a line": {JellyfinApp, AppUpdateRequest{VMID: 140, JellyfinAPIKey: "0123456789abcdef0123456789abcde\n"}},
+		"key for media":   {MediaStackApp, AppUpdateRequest{VMID: 130, JellyfinAPIKey: "0123456789abcdef0123456789abcdef"}},
+	} {
+		if err := installer.Update(request.app, request.request); !errors.Is(err, ErrInvalidAnswers) {
+			t.Errorf("%s: err = %v", name, err)
+		}
+	}
+	if len(unit.started) != 0 {
+		t.Fatalf("started = %v", unit.started)
+	}
+
+	if err := installer.Update(JellyfinApp, AppUpdateRequest{VMID: 140, JellyfinAPIKey: "0123456789abcdef0123456789abcdef"}); err != nil {
+		t.Fatal(err)
+	}
+	// The key is in a file that only root reads, which the unit removes, never an argument.
+	path := unit.started[1]
+	if !slices.Equal(unit.args, []string{"--update", "--ctid", "140", "--answers", path}) {
+		t.Fatalf("args = %v", unit.args)
+	}
+	info, err := os.Stat(path)
+	if err != nil || info.Mode().Perm() != 0o600 {
+		t.Fatalf("answers file: %v %v", info, err)
+	}
+	if answers, _ := os.ReadFile(path); string(answers) != "JELLYFIN_API_KEY=0123456789abcdef0123456789abcdef\n" {
+		t.Fatalf("answers = %q", answers)
+	}
+	if status := installer.Status(); status.Action != ActionUpdate || status.APIKey != "" {
+		t.Fatalf("status = %+v", status)
 	}
 }
 
