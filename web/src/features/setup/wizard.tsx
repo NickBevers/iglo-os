@@ -1,4 +1,4 @@
-import { useState, type SubmitEvent, type ReactNode } from 'react'
+import { useEffect, useRef, useState, type SubmitEvent, type ReactNode } from 'react'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
 
@@ -22,6 +22,17 @@ type Page = (typeof pages)[number]
 export function Wizard({ setup }: { setup: Setup }) {
     const [draft, setDraft] = useState<Draft>(() => newDraft(setup))
     const [page, setPage] = useState<Page>('Apps')
+    // A new page takes the focus, so keyboard and screen reader users start at
+    // its top instead of on the button they pressed. The first page doesn't.
+    const region = useRef<HTMLElement>(null)
+    const moved = useRef(false)
+    useEffect(() => {
+        if (moved.current) region.current?.focus()
+    }, [page])
+    const go = (to: Page) => {
+        moved.current = true
+        setPage(to)
+    }
     const client = useQueryClient()
     const start = useMutation({
         mutationFn: () => api.startSetup(planOf(draft)),
@@ -41,7 +52,7 @@ export function Wizard({ setup }: { setup: Setup }) {
             start.mutate()
             return
         }
-        setPage(pages[pages.indexOf(page) + 1])
+        go(pages[pages.indexOf(page) + 1])
     }
 
     return (
@@ -61,14 +72,21 @@ export function Wizard({ setup }: { setup: Setup }) {
                 ))}
             </ol>
 
-            {page === 'Apps' && <AppsPage setup={setup} draft={draft} setDraft={setDraft} />}
-            {page === 'NAS' && <NASPage setup={setup} draft={draft} setDraft={setDraft} roles={roles} />}
-            {page === 'Accounts' && <AccountsPage draft={draft} setDraft={setDraft} wants={wants} />}
-            {page === 'Review' && <ReviewPage setup={setup} draft={draft} roles={roles} />}
+            <section
+                ref={region}
+                tabIndex={-1}
+                aria-label={`Step ${pages.indexOf(page) + 1} of ${pages.length}: ${page}`}
+                className="outline-none"
+            >
+                {page === 'Apps' && <AppsPage setup={setup} draft={draft} setDraft={setDraft} />}
+                {page === 'NAS' && <NASPage setup={setup} draft={draft} setDraft={setDraft} roles={roles} />}
+                {page === 'Accounts' && <AccountsPage draft={draft} setDraft={setDraft} wants={wants} />}
+                {page === 'Review' && <ReviewPage setup={setup} draft={draft} roles={roles} />}
+            </section>
 
             <div className="flex gap-2">
                 {page !== 'Apps' && (
-                    <Button type="button" variant="outline" onClick={() => setPage(pages[pages.indexOf(page) - 1])}>
+                    <Button type="button" variant="outline" onClick={() => go(pages[pages.indexOf(page) - 1])}>
                         Back
                     </Button>
                 )}
