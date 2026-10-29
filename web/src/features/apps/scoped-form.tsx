@@ -4,7 +4,7 @@ import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Input } from '@/components/ui/input'
-import { api, type Apps, type SavedAnswers, type ScopedAnswers } from '@/lib/api'
+import { api, type Apps, type ImmichAdmin, type SavedAnswers, type ScopedAnswers } from '@/lib/api'
 import { Field } from './form-parts'
 import { FormError } from './form-error'
 
@@ -48,8 +48,11 @@ export function ScopedForm({
                     : [512, 2048],
         diskGB: [id === 'gaming' ? 64 : 32, 2048],
     }
+    // Photos: Iglo-OS makes the first Immich admin, then connects Background work.
+    const [makeAdmin, setMakeAdmin] = useState(true)
+    const [admin, setAdmin] = useState<ImmichAdmin>({ email: '', name: '', password: '', faceModels: false })
     const install = useMutation({
-        mutationFn: () => api.installScopedApp(id, answers),
+        mutationFn: () => api.installScopedApp(id, answers, id === 'photos' && makeAdmin ? admin : undefined),
         onSuccess: () => {
             client.invalidateQueries({ queryKey: ['apps'] })
             toast.success('Installation started')
@@ -142,13 +145,81 @@ export function ScopedForm({
                 ))}
             </div>
             {id === 'photos' && (
-                <p className="text-sm text-muted-foreground">
-                    After installation, open Immich to create the first admin account. Create a key with queue
-                    read/update permissions and connect it in Background work. Backups include originals and the
-                    database; snapshots alone do not. With a GPU, face detection and smart search use it by themselves;
-                    for video, turn on Administration &gt; Settings &gt; Video transcoding &gt; Hardware acceleration
-                    &gt; Quick Sync.
-                </p>
+                <>
+                    <label className="flex items-start gap-3 text-sm">
+                        <Checkbox
+                            className="mt-0.5"
+                            checked={makeAdmin}
+                            onCheckedChange={(checked) => setMakeAdmin(checked === true)}
+                        />
+                        <span>
+                            <span className="font-medium">Make the first Immich admin</span>
+                            <span className="mt-1 block text-muted-foreground">
+                                When Background work has no Immich yet, Iglo-OS connects it too, with a key that can
+                                only read and pause the queues. Leave this off to restore a library from a backup when
+                                Immich first starts.
+                            </span>
+                        </span>
+                    </label>
+                    {makeAdmin && (
+                        <div className="grid gap-4 sm:grid-cols-3">
+                            <Field id="immich-email" label="Email" help="Immich logs in with an email address.">
+                                <Input
+                                    id="immich-email"
+                                    type="email"
+                                    required
+                                    autoComplete="email"
+                                    value={admin.email}
+                                    onChange={(e) => setAdmin({ ...admin, email: e.target.value.trim() })}
+                                />
+                            </Field>
+                            <Field id="immich-name" label="Name">
+                                <Input
+                                    id="immich-name"
+                                    required
+                                    pattern="[A-Za-z0-9._ \-]{1,32}"
+                                    autoComplete="name"
+                                    value={admin.name}
+                                    onChange={(e) => setAdmin({ ...admin, name: e.target.value })}
+                                />
+                            </Field>
+                            <Field id="immich-password" label="Password" help="At least 12 characters.">
+                                <Input
+                                    id="immich-password"
+                                    type="password"
+                                    required
+                                    minLength={12}
+                                    maxLength={128}
+                                    autoComplete="new-password"
+                                    value={admin.password}
+                                    onChange={(e) => setAdmin({ ...admin, password: e.target.value })}
+                                />
+                            </Field>
+                            <label className="flex items-start gap-3 text-sm sm:col-span-3">
+                                <Checkbox
+                                    className="mt-0.5"
+                                    checked={admin.faceModels}
+                                    onCheckedChange={(checked) => setAdmin({ ...admin, faceModels: checked === true })}
+                                />
+                                <span>
+                                    <span className="font-medium">Enable face grouping</span>
+                                    <span className="mt-1 block text-muted-foreground">
+                                        Immich's default face model has non-commercial research terms for its weights.
+                                        Leave this off for FOSS defaults.
+                                    </span>
+                                </span>
+                            </label>
+                        </div>
+                    )}
+                    <p className="text-sm text-muted-foreground">
+                        {makeAdmin
+                            ? 'Iglo-OS keeps the password in memory until the install ends, and never saves it.'
+                            : 'After installation, open Immich to create the first admin account. Create a key with queue read/update permissions and connect it in Background work.'}{' '}
+                        Backups include originals and the database; snapshots alone do not. With a GPU, face detection
+                        and smart search use it by themselves; for video, turn on Administration &gt; Settings &gt;
+                        Video transcoding &gt; Hardware acceleration &gt; Quick Sync.
+                    </p>
+                </>
             )}
             {id === 'inbox' && (
                 <p className="text-sm text-muted-foreground">

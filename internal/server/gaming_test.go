@@ -46,7 +46,7 @@ func (f *fakeGamingApps) SetGamingPower(_ context.Context, on bool) error {
 }
 
 func TestPlayStartsGamingWithProtection(t *testing.T) {
-	control, err := workloads.New(workloads.Options{DataDir: t.TempDir(), Proxmox: &fakeProxmox{}})
+	control, err := workloads.New(workloads.Options{DataDir: t.TempDir()})
 	if err != nil {
 		t.Fatal(err)
 	}

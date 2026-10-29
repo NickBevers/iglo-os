@@ -546,6 +546,17 @@ func (s *Service) guestIP(ctx context.Context, guest proxmox.Resource) string {
 }
 
 func (s *Service) Install(ctx context.Context, background context.Context, id string, request agent.InstallRequest) error {
+	return s.InstallThen(ctx, background, id, request, nil)
+}
+
+// AfterInstall runs once an install worked, after OnInstalled.
+type AfterInstall func(ctx context.Context, status agent.AppInstallStatus) error
+
+// InstallThen starts an install like Install, and runs then after it worked.
+// then lives with the operation in memory only, so a secret that it holds,
+// like the password of the first Immich admin, is gone when the install
+// ends, fails or the manager restarts. A retry runs without it.
+func (s *Service) InstallThen(ctx context.Context, background context.Context, id string, request agent.InstallRequest, then AfterInstall) error {
 	if id == agent.HeadscaleApp {
 		if err := request.Headscale.Validate(); err != nil {
 			return err
@@ -553,7 +564,7 @@ func (s *Service) Install(ctx context.Context, background context.Context, id st
 		if err := s.headscaleBudget(ctx); err != nil {
 			return err
 		}
-		return s.start(ctx, background, id, func(app App) error { return s.Agent.InstallApp(ctx, id, request) })
+		return s.start(ctx, background, id, then, func(app App) error { return s.Agent.InstallApp(ctx, id, request) })
 	}
 	if index := slices.IndexFunc(Catalog, func(app App) bool { return app.ID == id }); index >= 0 && Catalog[index].Planned {
 		return ErrPlanned
@@ -562,7 +573,7 @@ func (s *Service) Install(ctx context.Context, background context.Context, id st
 		if err := request.Scoped.ValidateFor(id); err != nil {
 			return err
 		}
-		return s.start(ctx, background, id, func(app App) error { return s.Agent.InstallApp(ctx, app.ID, request) })
+		return s.start(ctx, background, id, then, func(app App) error { return s.Agent.InstallApp(ctx, app.ID, request) })
 	}
 	// With KeepSecrets, the agent checks the answers after it adds the saved secrets.
 	if !request.KeepSecrets {
@@ -575,7 +586,7 @@ func (s *Service) Install(ctx context.Context, background context.Context, id st
 		}
 	}
 
-	return s.start(ctx, background, id, func(app App) error {
+	return s.start(ctx, background, id, then, func(app App) error {
 		return s.Agent.InstallApp(ctx, app.ID, request)
 	})
 }
@@ -587,7 +598,7 @@ func (s *Service) Retry(ctx context.Context, background context.Context, id stri
 			return err
 		}
 	}
-	return s.start(ctx, background, id, func(app App) error {
+	return s.start(ctx, background, id, nil, func(app App) error {
 		return s.Agent.RetryApp(ctx, app.ID)
 	})
 }
@@ -795,7 +806,7 @@ func (s *Service) checkIdle(ctx context.Context) error {
 }
 
 // start checks that the app can be installed, runs install, and watches it.
-func (s *Service) start(ctx context.Context, background context.Context, id string, install func(App) error) error {
+func (s *Service) start(ctx context.Context, background context.Context, id string, then AfterInstall, install func(App) error) error {
 	index := slices.IndexFunc(Catalog, func(app App) bool { return app.ID == id })
 	if index < 0 {
 		return ErrUnknownApp
@@ -820,7 +831,7 @@ func (s *Service) start(ctx context.Context, background context.Context, id stri
 		return err
 	}
 	s.Logger.Info("app install started", "app", id)
-	s.watch(background, operation{app: app, action: agent.ActionInstall})
+	s.watch(background, operation{app: app, action: agent.ActionInstall, then: then})
 
 	return nil
 }
@@ -837,6 +848,8 @@ type operation struct {
 	ip string
 	// flareSolverr is what a FlareSolverr change turns it to.
 	flareSolverr bool
+	// then runs after an install worked.
+	then AfterInstall
 }
 
 // watch starts a monitor for op. A monitor of an older operation stops.
@@ -912,13 +925,14 @@ func (s *Service) monitor(ctx context.Context, op operation, generation int) {
 		case agent.ActionFlareSolverr:
 			s.finishFlareSolverr(ctx, op, status)
 		default:
-			s.finishInstall(ctx, op.app, status)
+			s.finishInstall(ctx, op, status)
 		}
 		return
 	}
 }
 
-func (s *Service) finishInstall(ctx context.Context, app App, status agent.AppInstallStatus) {
+func (s *Service) finishInstall(ctx context.Context, op operation, status agent.AppInstallStatus) {
+	app := op.app
 	if status.State != agent.UpgradeSucceeded {
 		s.Logger.Warn("app install failed", "app", app.ID, "message", status.Message)
 		s.Notify(ctx, fmt.Sprintf("❌ Installing %s failed: %s", app.Name, status.Message))
@@ -930,6 +944,15 @@ func (s *Service) finishInstall(ctx context.Context, app App, status agent.AppIn
 		if err := s.OnInstalled(ctx, app.ID, status); err != nil {
 			s.Logger.Warn("after the install", "app", app.ID, "error", err)
 		}
+	}
+	// It can wait minutes for the app to answer, so the Apps page and the
+	// next operation don't wait for it.
+	if op.then != nil {
+		go func() {
+			if err := op.then(ctx, status); err != nil {
+				s.Logger.Warn("after the install", "app", app.ID, "error", err)
+			}
+		}()
 	}
 	s.Notify(ctx, fmt.Sprintf("✅ %s is installed in container %d.", app.Name, status.VMID))
 }

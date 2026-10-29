@@ -49,7 +49,7 @@ func (s *Service) reconcileWorkers(ctx context.Context, view *View) {
 			view.WorkerReason = "Worker admission allowed"
 		}
 	}
-	if err := s.workers(ctx, settings.Node, until); err != nil {
+	if err := s.workers(ctx, until); err != nil {
 		view.WorkerError = err.Error()
 	}
 }

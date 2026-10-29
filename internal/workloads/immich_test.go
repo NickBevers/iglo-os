@@ -2,86 +2,153 @@ package workloads
 
 import (
 	"context"
+	"encoding/json"
+	"errors"
+	"net/http"
+	"net/http/httptest"
+	"os"
+	"path/filepath"
+	"strings"
+	"sync"
 	"testing"
-	"time"
 
-	"iglo/internal/proxmox"
+	"iglo/internal/immich"
 )
 
-// guestHost has a Photos container at 192.168.1.30 on node pve2.
-type guestHost struct {
-	fakeHost
-	lookups int
+// newImmich is a new Immich without an admin. It counts the keys it makes.
+type newImmich struct {
+	mu          sync.Mutex
+	initialized bool
+	keys        int
 }
 
-func (h *guestHost) Resources(context.Context) ([]proxmox.Resource, error) {
-	return []proxmox.Resource{
-		{Type: "node", Node: "pve", Status: "online", MaxMem: 32 << 30, Mem: 8 << 30},
-		{Type: "node", Node: "pve2", Status: "online", MaxMem: 32 << 30, Mem: 8 << 30},
-		{Type: "lxc", Node: "pve", VMID: 101, Name: "jellyfin", Status: "running"},
-		{Type: "lxc", Node: "pve2", VMID: 170, Name: "photos", Status: "running"},
-		{Type: "lxc", Node: "pve2", VMID: 171, Name: "old-photos", Status: "stopped"},
-	}, nil
+func (n *newImmich) server(t *testing.T) *httptest.Server {
+	t.Helper()
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		n.mu.Lock()
+		defer n.mu.Unlock()
+		switch r.Method + " " + r.URL.Path {
+		case "GET /api/server/config":
+			json.NewEncoder(w).Encode(map[string]bool{"isInitialized": n.initialized})
+		case "POST /api/auth/admin-sign-up":
+			n.initialized = true
+			w.WriteHeader(http.StatusCreated)
+		case "POST /api/auth/login":
+			w.Write([]byte(`{"accessToken":"session"}`))
+		case "GET /api/admin/config", "PUT /api/admin/config":
+			w.Write([]byte(`{"job":{"videoConversion":{},"faceDetection":{},"smartSearch":{},"ocr":{}},"ffmpeg":{},"machineLearning":{"facialRecognition":{}}}`))
+		case "POST /api/api-keys":
+			n.keys++
+			w.Write([]byte(`{"secret":"queue-secret"}`))
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	t.Cleanup(server.Close)
+	return server
 }
 
-func (h *guestHost) ContainerInterfaces(_ context.Context, node string, vmid int) ([]proxmox.Interface, error) {
-	h.lookups++
-	if vmid == 171 {
-		panic("looked inside a stopped container")
-	}
-	address := map[int]string{101: "192.168.1.20/24", 170: "192.168.1.30/24"}[vmid]
-	return []proxmox.Interface{{Name: "lo", Inet: "127.0.0.1/8"}, {Name: "eth0", Inet: address}}, nil
+var admin = adminFor("nick@example.org")
+
+func adminFor(email string) immich.Admin {
+	return immich.Admin{Email: email, Name: "Nick", Password: "a long password"}
 }
 
-func TestImmichNodeIsFoundAndChecked(t *testing.T) {
-	now := time.Date(2026, 10, 27, 12, 0, 0, 0, time.UTC)
-	host := &guestHost{}
-	s, err := New(Options{DataDir: t.TempDir(), Proxmox: host, Now: func() time.Time { return now }})
+func TestPhotosInstallConnectsItself(t *testing.T) {
+	fake := &newImmich{}
+	server := fake.server(t)
+	host := &fakeHost{free: 8 << 30}
+	s, err := New(Options{DataDir: t.TempDir(), HostMemory: host.HostMemory})
 	if err != nil {
 		t.Fatal(err)
 	}
-
-	// After a Photos install, the URL is known and the node is found.
-	if err := s.Discover("http://192.168.1.30:2283"); err != nil {
+	// The install fills the URL first, then makes the admin and the key.
+	if err := s.Discover(server.URL); err != nil {
 		t.Fatal(err)
 	}
-	s.Reconcile(context.Background())
+	if err := s.ConnectInstalled(context.Background(), server.URL, admin); err != nil {
+		t.Fatal(err)
+	}
 	view := s.Status()
-	if view.Settings.Node != "pve2" || view.ImmichGuest != "photos (170) on pve2" || view.NodeWarning != "" {
-		t.Fatalf("view = %+v", view)
+	if !view.Configured || !view.Settings.Enabled || view.Settings.Node != "pve" || view.Settings.URL != server.URL || fake.keys != 1 {
+		t.Fatalf("view = %+v, keys = %d", view, fake.keys)
 	}
+	// The key never reaches the page.
+	if view.Settings.APIKey != "" {
+		t.Fatal("the status has the key")
+	}
+	// The key is in the 0600 state file, and nowhere in the settings that pages read.
+	data, err := os.ReadFile(s.path)
+	if err != nil || !strings.Contains(string(data), "queue-secret") {
+		t.Fatal("key not saved", err)
+	}
+	if info, _ := os.Stat(s.path); info.Mode().Perm() != 0o600 {
+		t.Fatalf("mode = %v", info.Mode())
+	}
+}
 
-	// A chosen node is never changed, but the page warns.
-	settings := view.Settings
-	settings.Node = "pve"
+func TestPhotosInstallNeverReplacesAConnection(t *testing.T) {
+	fake := &newImmich{}
+	server := fake.server(t)
+	host := &fakeHost{free: 8 << 30}
+	s, err := New(Options{DataDir: t.TempDir(), HostMemory: host.HostMemory})
+	if err != nil {
+		t.Fatal(err)
+	}
+	settings := DefaultSettings()
+	settings.URL, settings.APIKey, settings.Node = "http://nas:2283", "nicks-key", "pve"
 	if err := s.SaveSettings(settings); err != nil {
 		t.Fatal(err)
 	}
-	s.Reconcile(context.Background())
-	if view := s.Status(); view.Settings.Node != "pve" || view.NodeWarning == "" {
-		t.Fatalf("view = %+v", view)
-	}
-
-	// The search runs again only after a while, or for a new URL.
-	lookups := host.lookups
-	s.Reconcile(context.Background())
-	if host.lookups != lookups {
-		t.Fatal("looked again right away")
-	}
-	now = now.Add(31 * time.Minute)
-	s.Reconcile(context.Background())
-	if host.lookups == lookups {
-		t.Fatal("never looked again")
-	}
-
-	// Immich outside Proxmox, like on a NAS: no guest and no warning.
-	settings = s.Status().Settings
-	settings.URL = "http://192.168.1.40:2283"
-	if err := s.SaveSettings(settings); err != nil {
+	if err := s.ConnectInstalled(context.Background(), server.URL, admin); err != nil {
 		t.Fatal(err)
 	}
-	s.Reconcile(context.Background())
-	if view := s.Status(); view.ImmichGuest != "" || view.NodeWarning != "" || view.Settings.Node != "pve" {
+	// The admin is made, as asked, but no key, and the connection stays.
+	if !fake.initialized || fake.keys != 0 {
+		t.Fatalf("initialized = %v, keys = %d", fake.initialized, fake.keys)
+	}
+	data, _ := os.ReadFile(filepath.Join(filepath.Dir(s.path), "workloads.json"))
+	if got := s.Status().Settings; got.URL != "http://nas:2283" || got.Enabled || !strings.Contains(string(data), "nicks-key") {
+		t.Fatalf("settings = %+v", got)
+	}
+}
+
+func TestPhotosInstallLeavesAnExistingAdmin(t *testing.T) {
+	fake := &newImmich{initialized: true}
+	server := fake.server(t)
+	s, err := New(Options{DataDir: t.TempDir()})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := s.ConnectInstalled(context.Background(), server.URL, admin); !errors.Is(err, immich.ErrHasAdmin) || fake.keys != 0 || s.Status().Configured {
+		t.Fatal(err)
+	}
+}
+
+func TestPhotosInstallWithoutAgentKeepsControlOff(t *testing.T) {
+	fake := &newImmich{}
+	server := fake.server(t)
+	host := &fakeHost{err: errors.New("no agent")}
+	s, err := New(Options{DataDir: t.TempDir(), HostMemory: host.HostMemory})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := s.ConnectInstalled(context.Background(), server.URL, admin); err == nil {
+		t.Fatal("said nothing about the node")
+	}
+	// The key is saved, so Nick only chooses the node and turns control on.
+	if view := s.Status(); !view.Configured || view.Settings.Enabled || view.Settings.Node != "" {
 		t.Fatalf("view = %+v", view)
+	}
+}
+
+func TestPhotosInstallChecksTheAdmin(t *testing.T) {
+	s, err := New(Options{DataDir: t.TempDir()})
+	if err != nil {
+		t.Fatal(err)
+	}
+	// Nothing is sent for a bad admin.
+	if err := s.ConnectInstalled(context.Background(), "http://127.0.0.1:1", adminFor("nick")); err == nil {
+		t.Fatal("took a bad email")
 	}
 }

@@ -9,7 +9,7 @@ import (
 )
 
 func TestWorkloadEndpointsAuthenticateAndPersist(t *testing.T) {
-	service, err := workloads.New(workloads.Options{DataDir: t.TempDir(), Proxmox: &fakeProxmox{}})
+	service, err := workloads.New(workloads.Options{DataDir: t.TempDir()})
 	if err != nil {
 		t.Fatal(err)
 	}

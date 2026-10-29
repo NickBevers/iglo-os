@@ -2,11 +2,15 @@
 
 The Background work page controls optional Immich queues through its queue API and admission leases for the Music/Inbox workers. It keeps the API server and database running while deferring new analysis and video-conversion jobs. Connect an existing compatible Immich server or install [Photos](photos.md) from Apps. The independent Music/Inbox setting needs no Immich key; see [worker setup](workers.md) for its controls.
 
+A Photos that Iglo-OS installs connects by itself, from the Apps page as well as from the guided setup. Iglo-OS makes the first Immich admin, then a key with only `queue.read` and `queue.update`, and saves it with the node of the host. It only does this while Background work has no key, owns no paused queues and has no other server. A connection you made is never replaced. See [the first admin and Background work](photos.md#the-first-admin-and-background-work).
+
 ## Connect and enable
+
+For an Immich that Iglo-OS did not install, like one on a NAS:
 
 1. Open **Server → Background work**.
 2. Enter the Immich server URL and an admin API key with queue read and update access. Both the server root and an `/api` base URL work. The manager must be able to reach it and trust its HTTPS certificate.
-3. Select the Proxmox node that runs Immich. The memory checks read that node. On the node of the host agent, they use what the kernel can give to new work (`MemAvailable`, page cache included) and how long tasks waited for memory over the last 10 seconds (PSI, `/proc/pressure/memory`). New heavy work waits when either runs low or high: less free memory than the headroom, or more than 10% of the time spent waiting. The headroom is at least 4 GiB. When the agent doesn't answer, or Immich runs on another node, new heavy work waits: Proxmox's own figure counts page cache as used and knows nothing about pressure, so it is no stand-in. When Immich runs in a container, Iglo-OS finds it by the address in the URL, every 30 minutes and after the URL changes. It fills in an empty node, for example after a Photos install, and a server with one node needs no choice. It never changes a node you chose. When Immich runs on another node, the page says which one. For Immich outside Proxmox, like on a NAS, choose the node by hand.
+3. Check the Proxmox node. Iglo-OS runs on one host, so with one online node the page fills it in and shows it without a choice. The memory checks read the host of the host agent, and the node must be that host. They use what the kernel can give to new work (`MemAvailable`, page cache included) and how long tasks waited for memory over the last 10 seconds (PSI, `/proc/pressure/memory`). New heavy work waits when either runs low or high: less free memory than the headroom, or more than 10% of the time spent waiting. The headroom is at least 4 GiB. When the agent doesn't answer, or says another node, new heavy work waits: Proxmox's own figure counts page cache as used and knows nothing about pressure, so it is no stand-in.
 4. Choose the heavy queues, host headroom and maximum queues accepting work. Enable control and save.
 
 Control is disabled by default. Upload metadata, thumbnails, database backups and other essential queues are outside the allowlist. Existing operator-paused queues stay paused; Iglo only resumes pauses it owns. While enabled, use Iglo for the selected queues: an operator pause on a queue already paused by Iglo cannot be distinguished from Iglo's existing pause.
@@ -23,7 +27,9 @@ Every 15 seconds while work is admitted, once a minute while nothing may run, an
 - Limits how many selected queues accept new work. Queues with active work count toward the budget; excess existing queues are paused until enough jobs finish. Selection follows the configured queue order, so a continuously busy earlier queue can delay later ones.
 - Pauses before resuming other queues. New jobs remain queued; the controller never deletes work or force-stops active jobs.
 
-This limits **queues accepting work**, not individual worker processes. Set each queue's worker concurrency in Immich itself. Already-running tasks may continue consuming CPU, RAM or GPU until they finish. Proxmox memory accounting is a conservative admission signal, not Linux `MemAvailable`, a RAM reservation or an out-of-memory guarantee.
+This limits **queues accepting work**, not individual worker processes. Set each queue's worker concurrency in Immich itself. Already-running tasks may continue consuming CPU, RAM or GPU until they finish. The host reading is an admission signal, not a RAM reservation or an out-of-memory guarantee.
+
+Music and Inbox admission goes to every running Music and Inbox container of the host. Iglo-OS runs on one host, so it doesn't pick containers by node.
 
 The daily window uses its explicit IANA timezone, supports crossing midnight and follows local daylight-saving changes. Its start is inclusive and its end exclusive. Turn the window off for all-day processing.
 

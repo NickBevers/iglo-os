@@ -26,7 +26,7 @@ func TestAdmissionSenderSkipsUnchangedAnswers(t *testing.T) {
 	step := func(until int64, want int) {
 		t.Helper()
 		calls = 0
-		if err := send(context.Background(), "pve", until); err != nil {
+		if err := send(context.Background(), until); err != nil {
 			t.Fatal(err)
 		}
 		if calls != want {

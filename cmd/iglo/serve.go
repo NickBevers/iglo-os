@@ -30,6 +30,7 @@ import (
 	"iglo/internal/databackup"
 	"iglo/internal/events"
 	"iglo/internal/health"
+	"iglo/internal/immich"
 	"iglo/internal/jellyfin"
 	"iglo/internal/proxmox"
 	"iglo/internal/selfupdate"
@@ -85,7 +86,7 @@ func serve() error {
 	agentClient := agent.NewClient(cfg.AgentSocket)
 	// hub tells the open pages what changed, so they don't wait for their poll.
 	hub := events.NewHub()
-	workloadService, err := workloads.New(workloads.Options{DataDir: cfg.DataDir, Proxmox: pve, WorkerAdmission: admissionSender(pve.Resources, agentClient.WorkerAdmission, time.Now), Changed: hub.Publish, HostMemory: hostMemory(agentClient)})
+	workloadService, err := workloads.New(workloads.Options{DataDir: cfg.DataDir, WorkerAdmission: admissionSender(pve.Resources, agentClient.WorkerAdmission, time.Now), Changed: hub.Publish, HostMemory: hostMemory(agentClient)})
 	if err != nil {
 		return err
 	}
@@ -183,7 +184,7 @@ func serve() error {
 		// A Jellyfin that Iglo-OS installed is connected to the Jellyfin page at once.
 		OnInstalled: func(ctx context.Context, app string, status agent.AppInstallStatus) error {
 			if app == agent.PhotosApp {
-				return workloadService.Discover("http://" + status.IP + ":2283")
+				return workloadService.Discover(photosAddress(status))
 			}
 			if app != agent.JellyfinApp || status.APIKey == "" {
 				return nil
@@ -242,8 +243,12 @@ func serve() error {
 		Console:    agentClient,
 		Apps:       appsService,
 		Workloads:  workloadService,
-		Events:     hub,
-		Setup:      setupService,
+		// A Photos from the Apps page connects Background work by itself, like the setup.
+		ConnectPhotos: func(ctx context.Context, status agent.AppInstallStatus, admin immich.Admin) error {
+			return workloadService.ConnectInstalled(ctx, photosAddress(status), admin)
+		},
+		Events: hub,
+		Setup:  setupService,
 		// The box art copies start with a dot, so data backups skip them.
 		Covers: covers.New(filepath.Join(cfg.DataDir, ".covers")),
 		SettingsFile: &settingsfile.Service{
@@ -291,6 +296,11 @@ func serve() error {
 	logger.Info("listening", "https", cfg.HTTPSAddr, "http", cfg.HTTPAddr, "hostname", cfg.Hostname, "version", version)
 
 	return stopReason(restartCtx, runAll(ctx, append(servers, httpsServer, httpServer)))
+}
+
+// photosAddress is the Immich of a Photos that Iglo-OS installed.
+func photosAddress(status agent.AppInstallStatus) string {
+	return "http://" + status.IP + ":2283"
 }
 
 // hostMemory reads the memory of the host from the host agent, for the
@@ -342,13 +352,13 @@ const leaseMargin = 40
 // new work. Each answer is a pct call on the host, so a fixed answer (-1 or 0)
 // only goes out when it changes. A lease always goes out, because it expires.
 // Only the workloads loop calls it, one call at a time.
-func admissionSender(resources func(context.Context) ([]proxmox.Resource, error), send func(context.Context, string, int, int64) error, now func() time.Time) func(context.Context, string, int64) error {
+func admissionSender(resources func(context.Context) ([]proxmox.Resource, error), send func(context.Context, string, int, int64) error, now func() time.Time) func(context.Context, int64) error {
 	type answer struct {
 		until  int64
 		sentAt time.Time
 	}
 	sent := map[string]answer{}
-	return func(ctx context.Context, node string, until int64) error {
+	return func(ctx context.Context, until int64) error {
 		all, err := resources(ctx)
 		if err != nil {
 			return err
@@ -356,7 +366,8 @@ func admissionSender(resources func(context.Context) ([]proxmox.Resource, error)
 		seen := map[string]bool{}
 		var failures []error
 		for _, r := range all {
-			if r.Type != "lxc" || r.Status != "running" || (until != -1 && r.Node != node) {
+			// Iglo-OS runs on one host, so every running worker is on it.
+			if r.Type != "lxc" || r.Status != "running" {
 				continue
 			}
 			tags := strings.Split(r.Tags, ";")

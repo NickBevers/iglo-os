@@ -2,102 +2,83 @@ package workloads
 
 import (
 	"context"
-	"fmt"
-	"net"
-	"net/netip"
-	"net/url"
+	"errors"
 	"time"
 
-	"iglo/internal/proxmox"
+	"iglo/internal/immich"
 )
 
-// locateInterval is how often the manager looks for the container of Immich
-// again. A change of the URL looks right away.
-const locateInterval = 30 * time.Minute
-
-// immichGuest is the container whose address the Immich URL has.
-type immichGuest struct {
-	url     string
-	checked time.Time
-	// node, vmid and name are empty when no running container has the address.
-	node string
-	vmid int
-	name string
-}
-
-func (g immichGuest) describe(settings Settings) (guest, warning string) {
-	if g.url != settings.URL || g.node == "" {
-		return "", ""
+// ConnectInstalled connects a Photos that Iglo-OS just installed at address.
+// It makes the first Immich admin, then a key that may only read and pause
+// the queues, and saves it with the node of the host. It turns control on;
+// the other settings stay as they are.
+//
+// A connection that Nick made is never replaced. When Background work has a
+// key or pause ownership, or another server, only the admin is made.
+func (s *Service) ConnectInstalled(ctx context.Context, address string, admin immich.Admin) error {
+	if err := admin.Validate(); err != nil {
+		return err
 	}
-	guest = fmt.Sprintf("%s (%d) on %s", g.name, g.vmid, g.node)
-	if settings.Node != "" && settings.Node != g.node {
-		warning = fmt.Sprintf("Immich runs in %s, but the memory checks read node %s. Select %s.", guest, settings.Node, g.node)
+	client := immich.Client{HTTP: s.http, Server: address}
+	token, err := client.CreateAdmin(ctx, admin)
+	if err != nil {
+		return err
 	}
-	return guest, warning
+	if !s.free(address) {
+		return nil
+	}
+	key, err := client.QueueKey(ctx, token)
+	if err != nil {
+		return err
+	}
+	// The memory checks read the host of the agent, so that is the node.
+	// Without its answer the key is saved and control stays off, so Nick only
+	// has to choose the node.
+	node := ""
+	if s.hostMemory != nil {
+		memoryCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
+		if memory, err := s.hostMemory(memoryCtx); err == nil {
+			node = memory.Node
+		}
+		cancel()
+	}
+
+	s.op.Lock()
+	defer s.op.Unlock()
+	if !s.freeLocked(address) {
+		return nil
+	}
+	old := s.state.Settings
+	settings := old
+	settings.Queues = append([]string(nil), old.Queues...)
+	settings.URL, settings.APIKey, settings.Node, settings.Enabled = address, key, node, node != ""
+	if err := settings.Validate(); err != nil {
+		return err
+	}
+	s.state.Settings = settings
+	if err := s.save(); err != nil {
+		s.state.Settings = old
+		return err
+	}
+	view := s.Status()
+	view.Reason, view.Error = "Applying settings", ""
+	s.publish(view)
+	s.signal()
+	if node == "" {
+		return errors.New("connected Immich, but the host agent did not say its node, so control is off")
+	}
+	return nil
 }
 
-type containerInterfaces interface {
-	ContainerInterfaces(ctx context.Context, node string, vmid int) ([]proxmox.Interface, error)
+// free says whether Background work may still connect to address: it has no
+// key, owns no pauses, and has no other server.
+func (s *Service) free(address string) bool {
+	s.op.Lock()
+	defer s.op.Unlock()
+	return s.freeLocked(address)
 }
 
-// locateImmich finds the running container with the address of the Immich
-// URL. When no node is chosen yet, like after a Photos install, it saves the
-// node of that container. A chosen node is never changed; the view warns.
-func (s *Service) locateImmich(ctx context.Context) {
+func (s *Service) freeLocked(address string) bool {
 	settings := s.state.Settings
-	if settings.URL == "" || (s.immich.url == settings.URL && s.now().Sub(s.immich.checked) < locateInterval) {
-		return
-	}
-	pve, ok := s.pve.(containerInterfaces)
-	if !ok {
-		return
-	}
-	address, err := immichAddress(ctx, settings.URL)
-	if err != nil {
-		return
-	}
-	resources, err := s.pve.Resources(ctx)
-	if err != nil {
-		return
-	}
-	found := immichGuest{url: settings.URL, checked: s.now()}
-	for _, resource := range resources {
-		if resource.Type != "lxc" || resource.Status != "running" {
-			continue
-		}
-		interfaces, err := pve.ContainerInterfaces(ctx, resource.Node, resource.VMID)
-		if err != nil {
-			continue
-		}
-		for _, iface := range interfaces {
-			if prefix, err := netip.ParsePrefix(iface.Inet); err == nil && prefix.Addr() == address {
-				found.node, found.vmid, found.name = resource.Node, resource.VMID, resource.Name
-			}
-		}
-	}
-	s.immich = found
-	if settings.Node == "" && found.node != "" {
-		s.state.Settings.Node = found.node
-		if err := s.save(); err != nil {
-			s.state.Settings.Node = ""
-		}
-	}
-}
-
-// immichAddress is the IPv4 address of the host in the Immich URL.
-func immichAddress(ctx context.Context, server string) (netip.Addr, error) {
-	u, err := url.Parse(server)
-	if err != nil {
-		return netip.Addr{}, err
-	}
-	if address, err := netip.ParseAddr(u.Hostname()); err == nil {
-		return address.Unmap(), nil
-	}
-	ctx, cancel := context.WithTimeout(ctx, 3*time.Second)
-	defer cancel()
-	addresses, err := net.DefaultResolver.LookupNetIP(ctx, "ip4", u.Hostname())
-	if err != nil || len(addresses) == 0 {
-		return netip.Addr{}, fmt.Errorf("could not resolve %s", u.Hostname())
-	}
-	return addresses[0].Unmap(), nil
+	return settings.APIKey == "" && len(s.state.Owned) == 0 && (settings.URL == "" || settings.URL == address)
 }
