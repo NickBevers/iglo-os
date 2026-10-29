@@ -18,6 +18,8 @@ type AppChoice struct {
 	Shares []string `json:"shares"`
 	// MemoryMiB is the memory limit of the app, for the review.
 	MemoryMiB int `json:"memoryMiB"`
+	// DiskGiB is the local disk the app takes, for the review.
+	DiskGiB int `json:"diskGiB"`
 	// Ready is false when the host isn't prepared yet, with what is Missing.
 	Ready   bool     `json:"ready"`
 	Missing []string `json:"missing"`
@@ -34,6 +36,8 @@ type View struct {
 	Bindings []agent.Binding `json:"bindings"`
 	Storage  string          `json:"storage"`
 	Storages []string        `json:"storages"`
+	// StorageSpace is the size of each storage, for the disk budget.
+	StorageSpace map[string]apps.StorageSpace `json:"storageSpace"`
 }
 
 func (s *Service) View(ctx context.Context) View {
@@ -45,13 +49,16 @@ func (s *Service) View(ctx context.Context) View {
 	s.mu.Unlock()
 
 	status, _ := s.Apps.Status(ctx)
-	view.Storage, view.Storages = status.Defaults.Storage, status.Defaults.Storages
+	view.Storage, view.Storages, view.StorageSpace = status.Defaults.Storage, status.Defaults.Storages, status.Defaults.StorageSpace
+	if view.StorageSpace == nil {
+		view.StorageSpace = map[string]apps.StorageSpace{}
+	}
 	gaming, err := s.Agent.GamingReady(ctx)
 	if err != nil {
 		gaming = agent.GamingReadiness{Missing: []string{"an answer from the host agent"}}
 	}
 	for _, id := range Apps {
-		choice := AppChoice{ID: id, Shares: shareRoles[id], MemoryMiB: memoryMiB[id], Ready: true, Missing: []string{}}
+		choice := AppChoice{ID: id, Shares: shareRoles[id], MemoryMiB: memoryMiB[id], DiskGiB: diskGiB(id), Ready: true, Missing: []string{}}
 		if index := slices.IndexFunc(status.Apps, func(app apps.AppView) bool { return app.ID == id }); index >= 0 {
 			app := status.Apps[index]
 			choice.Name, choice.Description, choice.Installed = app.Name, app.Description, app.Installed

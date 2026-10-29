@@ -10,7 +10,7 @@ func TestWorkerLeasesIndependentOfImmich(t *testing.T) {
 	now := time.Date(2026, 10, 22, 3, 0, 0, 0, time.UTC)
 	host := &fakeHost{free: 8 << 30}
 	lease := int64(-99)
-	s, err := New(Options{DataDir: t.TempDir(), Proxmox: host, Now: func() time.Time { return now }, WorkerAdmission: func(_ context.Context, _ string, until int64) error { lease = until; return nil }})
+	s, err := New(Options{DataDir: t.TempDir(), Proxmox: host, HostMemory: host.HostMemory, Now: func() time.Time { return now }, WorkerAdmission: func(_ context.Context, _ string, until int64) error { lease = until; return nil }})
 	if err != nil {
 		t.Fatal(err)
 	}

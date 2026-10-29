@@ -41,6 +41,10 @@ type Settings struct {
 	Timezone   string   `json:"timezone"`
 }
 
+// MinReserveGiB is the least host memory that new heavy work leaves free:
+// the host keeps 4 GiB for Proxmox, the page cache and peaks of the apps.
+const MinReserveGiB = 4
+
 func DefaultSettings() Settings {
 	return Settings{ReserveGiB: 4, MaxQueues: 1, Queues: []string{"videoConversion", "faceDetection", "facialRecognition", "smartSearch"}, Start: "02:00", End: "07:00", Timezone: "UTC"}
 }
@@ -59,8 +63,8 @@ func (s Settings) Validate() error {
 	if s.Enabled && (s.URL == "" || s.APIKey == "" || strings.TrimSpace(s.Node) == "") {
 		return invalid("connect Immich and select its Proxmox node first")
 	}
-	if s.ReserveGiB < 1 || s.ReserveGiB > 128 || s.MaxQueues < 1 || s.MaxQueues > 4 || len(s.Queues) == 0 || len(s.Queues) > len(HeavyQueues) {
-		return invalid("choose 1–128 GiB headroom, 1–4 queues and at least one heavy queue")
+	if s.ReserveGiB < MinReserveGiB || s.ReserveGiB > 128 || s.MaxQueues < 1 || s.MaxQueues > 4 || len(s.Queues) == 0 || len(s.Queues) > len(HeavyQueues) {
+		return invalid("choose 4–128 GiB headroom, 1–4 queues and at least one heavy queue")
 	}
 	seen := map[string]bool{}
 	for _, name := range s.Queues {
@@ -162,8 +166,8 @@ type Resources interface {
 
 type Options struct {
 	WorkerAdmission func(context.Context, string, int64) error
-	// HostMemory reads the memory of the host from the host agent. Without it,
-	// or for another node, the checks use what Proxmox says is used.
+	// HostMemory reads the memory of the host from the host agent. Without an
+	// answer, or for another node, new heavy work waits.
 	HostMemory func(context.Context) (HostMemory, error)
 	// Changed tells the open pages that a topic changed, like events.Workloads.
 	Changed func(topic string)
@@ -216,6 +220,8 @@ func New(opts Options) (*Service, error) {
 		if err := json.Unmarshal(data, &s.state); err != nil {
 			return nil, err
 		}
+		// Settings from before the 4 GiB floor come up to it.
+		s.state.Settings.ReserveGiB = max(s.state.Settings.ReserveGiB, MinReserveGiB)
 		if err := s.state.Settings.Validate(); err != nil {
 			return nil, err
 		}

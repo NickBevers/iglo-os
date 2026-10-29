@@ -264,7 +264,7 @@ function SettingsForm({ data }: { data: Workloads }) {
                             <Input
                                 id="workload-ram"
                                 type="number"
-                                min={1}
+                                min={4}
                                 max={128}
                                 required
                                 value={settings.reserveGiB}

@@ -175,8 +175,9 @@ func (p *fakeProxmox) node(w http.ResponseWriter, r *http.Request) {
 	switch {
 	case path == "storage" && content == "rootdir":
 		writeData(w, []map[string]any{
-			{"storage": "local-lvm", "type": "lvmthin", "active": 1},
-			{"storage": "fast-zfs", "type": "zfspool", "active": 1},
+			// A 512 GB NVMe, like the Mini PC: Proxmox keeps about 100 GB of it.
+			{"storage": "local-lvm", "type": "lvmthin", "active": 1, "total": 400_000_000_000, "used": 30_000_000_000, "avail": 370_000_000_000},
+			{"storage": "fast-zfs", "type": "zfspool", "active": 1, "total": 900_000_000_000, "used": 100_000_000_000, "avail": 800_000_000_000},
 		})
 	case path == "storage" && content == "backup":
 		storages := []map[string]any{

@@ -188,6 +188,8 @@ export type SetupApp = {
     // shares are the roles of the NAS shares that the app needs.
     shares: string[]
     memoryMiB: number
+    // diskGiB is the local disk the app takes, for the review.
+    diskGiB: number
     // ready is false when the host isn't prepared yet, with what is missing.
     ready: boolean
     missing: string[]
@@ -210,7 +212,12 @@ export type Setup = {
     bindings: StorageBinding[]
     storage: string
     storages: string[]
+    // storageSpace is the size of each storage, for the disk budget.
+    storageSpace: Record<string, StorageSpace>
 }
+
+// StorageSpace is the size of a storage for container disks, and what is free.
+export type StorageSpace = { totalBytes: number; freeBytes: number }
 
 export type SetupAccount = { username: string; password: string }
 
