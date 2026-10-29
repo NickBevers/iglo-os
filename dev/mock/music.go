@@ -61,9 +61,10 @@ func addMusicRoutes(mux *http.ServeMux) error {
 			http.Error(w, "invalid lease", 400)
 			return
 		}
-		if r.PathValue("app") == "music" {
+		target := map[string]string{"music": lease, "inbox": inboxLease}[r.PathValue("app")]
+		if target != "" {
 			data, _ := json.Marshal(in.Until)
-			if err := os.WriteFile(lease, data, 0600); err != nil {
+			if err := os.WriteFile(target, data, 0600); err != nil {
 				http.Error(w, err.Error(), 500)
 				return
 			}

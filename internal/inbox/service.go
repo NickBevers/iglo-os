@@ -80,6 +80,7 @@ type Service struct {
 	wake                chan struct{}
 	subscribers         map[chan struct{}]struct{}
 	scanWake            chan struct{}
+	lastScan            time.Time
 	AdmissionDir        string
 }
 
@@ -305,6 +306,10 @@ func (s *Service) enqueue(in Input, info fs.FileInfo) (Job, error) {
 func (s *Service) Scan() (int, error) {
 	s.scan.Lock()
 	defer s.scan.Unlock()
+	// A failed scan counts too, so missing shares are not retried every tick.
+	s.mu.Lock()
+	s.lastScan = time.Now()
+	s.mu.Unlock()
 	if !s.MountOK() {
 		return 0, errors.New("Inbox or output share is unavailable")
 	}
@@ -390,11 +395,36 @@ func (s *Service) Scan() (int, error) {
 	}
 	return added, nil
 }
+
+// SMB changes made on another client do not give reliable inotify signals,
+// so the worker lists the share itself. Each listing can wake the NAS disks,
+// so timed scans follow admission. Under a manager lease they run only while
+// work may start, so never outside the processing window, and at most every
+// 30 minutes. Without manager control (-1) they run every 6 hours. A paused
+// queue gets no timed scans. "Scan now" always works. There is no separate
+// startup scan. A restarted worker scans the first moment it may work.
+const (
+	leaseScanEvery  = 30 * time.Minute
+	nativeScanEvery = 6 * time.Hour
+)
+
+func (s *Service) scanDue(now time.Time) bool {
+	s.mu.Lock()
+	paused, last := s.state.Paused, s.lastScan
+	s.mu.Unlock()
+	if paused {
+		return false
+	}
+	every := leaseScanEvery
+	switch worker.ReadAdmission(s.AdmissionDir) {
+	case worker.Held:
+		return false
+	case worker.Native:
+		every = nativeScanEvery
+	}
+	return last.IsZero() || now.Sub(last) >= every
+}
 func (s *Service) Run(ctx context.Context) {
-	// SMB changes made on another client do not provide reliable inotify
-	// signals. Scan at startup, on demand and every five minutes as fallback.
-	scan := time.NewTicker(5 * time.Minute)
-	defer scan.Stop()
 	admission := time.NewTicker(10 * time.Second)
 	defer admission.Stop()
 	scanNow := func() {
@@ -410,9 +440,20 @@ func (s *Service) Run(ctx context.Context) {
 		}
 		s.mu.Unlock()
 	}
-	scanNow()
+	requested := false
 	for {
-		for ctx.Err() == nil && s.step(ctx) {
+		if requested || s.scanDue(time.Now()) {
+			scanNow()
+		}
+		requested = false
+		if ctx.Err() == nil && s.step(ctx) {
+			// A job can take hours. Take a waiting scan request between jobs.
+			select {
+			case <-s.scanWake:
+				requested = true
+			default:
+			}
+			continue
 		}
 		select {
 		case <-ctx.Done():
@@ -420,9 +461,7 @@ func (s *Service) Run(ctx context.Context) {
 		case <-s.wake:
 		case <-admission.C:
 		case <-s.scanWake:
-			scanNow()
-		case <-scan.C:
-			scanNow()
+			requested = true
 		}
 	}
 }

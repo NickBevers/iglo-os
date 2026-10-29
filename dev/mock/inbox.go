@@ -10,6 +10,9 @@ import (
 	"time"
 )
 
+// inboxLease is the Inbox worker's admit-until file.
+var inboxLease string
+
 func addInboxRoutes(mux *http.ServeMux) error {
 	source, output := statePath("inbox-source"), statePath("inbox-output")
 	for _, p := range []string{source, output} {
@@ -24,7 +27,13 @@ func addInboxRoutes(mux *http.ServeMux) error {
 	s.MountOK = func() bool { return true }
 	s.FreeBytes = func() (uint64, error) { return 1 << 40, nil }
 	os.MkdirAll(s.AdmissionDir, 0700)
-	os.WriteFile(filepath.Join(s.AdmissionDir, "admit-until"), []byte("-1"), 0600)
+	// The shared admission route in music.go writes this lease too, so the
+	// mock scans by the same rules as the real worker. Like the installer,
+	// start at -1 only when there is no lease yet.
+	inboxLease = filepath.Join(s.AdmissionDir, "admit-until")
+	if _, err = os.Stat(inboxLease); os.IsNotExist(err) {
+		os.WriteFile(inboxLease, []byte("-1"), 0600)
+	}
 	s.Execute = func(ctx context.Context, source, stage, _ string) (string, error) {
 		select {
 		case <-ctx.Done():

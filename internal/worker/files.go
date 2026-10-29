@@ -40,14 +40,39 @@ func Save(dir string, state any) error {
 	return os.Rename(f.Name(), filepath.Join(dir, "queue.json"))
 }
 
-func Admitted(dir string) bool {
+// Admission says who decides when a worker may start new work.
+type Admission int
+
+const (
+	// Held is a manager lease of 0, an expired lease, or a missing or
+	// unreadable file. New work waits.
+	Held Admission = iota
+	// Leased is a manager lease that still runs. New work may start.
+	Leased
+	// Native is -1: the manager does not control the worker, so native and
+	// manual controls decide.
+	Native
+)
+
+// ReadAdmission reads the lease file the manager writes through the agent.
+func ReadAdmission(dir string) Admission {
 	data, err := os.ReadFile(filepath.Join(dir, "admit-until"))
 	if err != nil {
-		return false
+		return Held
 	}
 	deadline, err := strconv.ParseInt(strings.TrimSpace(string(data)), 10, 64)
-	return err == nil && (deadline == -1 || time.Now().Unix() < deadline)
+	switch {
+	case err != nil:
+		return Held
+	case deadline == -1:
+		return Native
+	case time.Now().Unix() < deadline:
+		return Leased
+	}
+	return Held
 }
+
+func Admitted(dir string) bool { return ReadAdmission(dir) != Held }
 
 type contextReader struct {
 	ctx context.Context
