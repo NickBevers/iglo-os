@@ -131,7 +131,9 @@ function AppCard({ app, defaults }: { app: CatalogApp; defaults: Apps['defaults'
             </CardHeader>
 
             <CardContent className="flex flex-col gap-4">
-                {operation && <OperationProgress operation={operation} rollback={app.rollback} />}
+                {operation && (
+                    <OperationProgress operation={operation} rollback={app.rollback} flareSolverr={app.flareSolverr} />
+                )}
                 {app.id === 'headscale' && app.installed && <HeadscaleDetails app={app} />}
                 {app.planned && (
                     <p className="text-xs text-muted-foreground">
@@ -199,6 +201,13 @@ function AppCard({ app, defaults }: { app: CatalogApp; defaults: Apps['defaults'
                         subtitle languages of your user in Jellyfin.
                     </p>
                 )}
+                {app.id === 'media' && app.flareSolverr !== undefined && (
+                    <p className="text-xs text-muted-foreground">
+                        {app.flareSolverr
+                            ? 'FlareSolverr runs. Give indexers behind Cloudflare the flaresolverr tag in Prowlarr.'
+                            : 'FlareSolverr is off. Turn it on under FlareSolverr when an indexer is behind Cloudflare.'}
+                    </p>
+                )}
             </CardContent>
 
             <InstallDialog
@@ -249,14 +258,24 @@ const operationText = {
         failed: 'The new VPN settings did not connect',
         succeeded: 'The new VPN settings connect',
     },
+    flaresolverr: {
+        running: 'Changing FlareSolverr…',
+        runningDetail:
+            'The other apps keep running. Prowlarr gets or loses its FlareSolverr proxy. You can leave this page.',
+        failed: 'The FlareSolverr change failed',
+        succeeded: 'FlareSolverr is changed',
+    },
 }
 
 function OperationProgress({
     operation,
     rollback,
+    flareSolverr,
 }: {
     operation: NonNullable<CatalogApp['operation']>
     rollback?: string
+    // flareSolverr is the switch of the media stack, for a FlareSolverr change that worked.
+    flareSolverr?: boolean
 }) {
     const log = useRef<HTMLPreElement>(null)
     // An agent from before updates and removals sends no action.
@@ -299,6 +318,7 @@ function OperationProgress({
                         {operation.message}.
                         {operation.action === 'install' && ' If the install made a container, it removed it again.'}
                         {operation.action === 'vpn' && ' The old settings are back.'}
+                        {operation.action === 'flaresolverr' && ' FlareSolverr stays as it was.'}
                         {rollback && ` ${rollback}`}
                     </span>
                     {logView && (
@@ -319,7 +339,9 @@ function OperationProgress({
             <Alert role="status">
                 <CircleCheckIcon className="text-success" />
                 <AlertTitle>
-                    {text.succeeded}
+                    {operation.action === 'flaresolverr' && flareSolverr !== undefined
+                        ? `FlareSolverr is ${flareSolverr ? 'on' : 'off'}`
+                        : text.succeeded}
                     {operation.finishedAt && ` ${formatRelative(operation.finishedAt)}`}
                 </AlertTitle>
                 {operation.message && <AlertDescription>{operation.message}</AlertDescription>}

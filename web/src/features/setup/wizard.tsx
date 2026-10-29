@@ -445,7 +445,7 @@ function AccountsPage({ draft, setDraft, wants }: Omit<PageProps, 'setup'> & { w
                         />
                         <Toggle
                             label="FlareSolverr"
-                            help="For indexers behind Cloudflare. It runs a browser of a few hundred MB."
+                            help="For indexers behind Cloudflare. It runs a browser that can take up to 1 GB. You can turn it on or off later on the Apps page."
                             checked={draft.flareSolverr}
                             onChange={(on) => setDraft((d) => ({ ...d, flareSolverr: on }))}
                         />

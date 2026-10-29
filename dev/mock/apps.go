@@ -63,6 +63,9 @@ func (f *fakeInstalls) start(script string, args []string, cleanup, logPath, exi
 		os.Remove(cleanup)
 		play = func() { f.playVPN(string(answers), logPath, exitPath) }
 	}
+	if args[0] == "--flaresolverr" {
+		play = func() { f.playFlareSolverr(args[1] == "on", logPath, exitPath) }
+	}
 	if args[0] == "--answers" {
 		answers, err := os.ReadFile(cleanup)
 		if err != nil {
@@ -155,6 +158,69 @@ func (f *fakeInstalls) playVPN(answers, logPath, exitPath string) {
 	os.WriteFile(statePath("vpn.json"), data, 0o600)
 	write("==> Done")
 	os.WriteFile(exitPath, []byte("0\n"), 0o600)
+}
+
+// playFlareSolverr plays install.sh --flaresolverr on or off with iglo-arr.
+// With .dev/fail-flaresolverr, Prowlarr does not take FlareSolverr, and the
+// switch stays as it was.
+func (f *fakeInstalls) playFlareSolverr(on bool, logPath, exitPath string) {
+	defer func() {
+		f.mu.Lock()
+		f.running = false
+		f.mu.Unlock()
+	}()
+
+	logFile, err := os.OpenFile(logPath, os.O_APPEND|os.O_WRONLY, 0o600)
+	if err != nil {
+		return
+	}
+	defer logFile.Close()
+	write := func(line string) {
+		fmt.Fprintln(logFile, line)
+		time.Sleep(time.Second)
+	}
+
+	_, fail := os.Stat(statePath("fail-flaresolverr"))
+	if on {
+		write("==> Starting FlareSolverr")
+		write("==> Waiting for Prowlarr")
+		write("==> Adding FlareSolverr to Prowlarr")
+		if fail == nil {
+			write("error: prowlarr POST /indexerProxy: HTTP 400: Unable to connect to indexer proxy, because .dev/fail-flaresolverr exists")
+			write("error: Prowlarr did not take FlareSolverr, read the error above")
+			os.WriteFile(exitPath, []byte("1\n"), 0o600)
+			return
+		}
+	} else {
+		write("==> Waiting for Prowlarr")
+		write("==> Removing FlareSolverr from Prowlarr")
+		if fail == nil {
+			write("error: prowlarr: connection refused, because .dev/fail-flaresolverr exists")
+			write("error: could not remove FlareSolverr from Prowlarr, so it keeps running. Read the error above")
+			os.WriteFile(exitPath, []byte("1\n"), 0o600)
+			return
+		}
+		write("==> Stopping FlareSolverr")
+	}
+
+	saveFlareSolverr(on)
+	write("==> Done")
+	os.WriteFile(exitPath, []byte("0\n"), 0o600)
+}
+
+// loadFlareSolverr is the FlareSolverr switch of the fake media stack: what
+// the install or the last change chose, and on for a stack from before.
+func loadFlareSolverr() agent.FlareSolverrView {
+	data, err := os.ReadFile(statePath("flaresolverr"))
+	return agent.FlareSolverrView{Enabled: err != nil || strings.TrimSpace(string(data)) != "n"}
+}
+
+func saveFlareSolverr(on bool) {
+	answer := "n"
+	if on {
+		answer = "y"
+	}
+	os.WriteFile(statePath("flaresolverr"), []byte(answer+"\n"), 0o600)
 }
 
 // playOnContainer plays an update or a removal. With .dev/fail-update, an update fails.
@@ -315,6 +381,7 @@ func (f *fakeInstalls) play(stack, answers, logPath, exitPath string) {
 		write("IGLO app jellyfin 140 192.168.1.160")
 		os.WriteFile(statePath("jellyfin-installed"), nil, 0o600)
 	default:
+		saveFlareSolverr(strings.Contains(answers, "FLARESOLVERR=y\n"))
 		write("==> Done")
 		write("IGLO app media 130 192.168.1.150")
 		os.WriteFile(statePath("media-installed"), nil, 0o600)
@@ -412,6 +479,21 @@ func addAppRoutes(mux *http.ServeMux, installer *agent.AppInstaller) {
 			return
 		}
 		if err := installer.ChangeVPN(request.VMID, request.VPNSettings); err != nil {
+			fail(w, err)
+			return
+		}
+		w.WriteHeader(http.StatusAccepted)
+	})
+	mux.HandleFunc("GET /v1/apps/media/flaresolverr", func(w http.ResponseWriter, r *http.Request) {
+		writeJSON(w, loadFlareSolverr())
+	})
+	mux.HandleFunc("PUT /v1/apps/media/flaresolverr", func(w http.ResponseWriter, r *http.Request) {
+		var request agent.FlareSolverrRequest
+		if err := json.NewDecoder(r.Body).Decode(&request); err != nil {
+			http.Error(w, "invalid request body", http.StatusBadRequest)
+			return
+		}
+		if err := installer.ChangeFlareSolverr(request.VMID, request.Enabled); err != nil {
 			fail(w, err)
 			return
 		}

@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
-import { ArrowUpCircleIcon, Loader2Icon, ShieldIcon, Trash2Icon } from 'lucide-react'
+import { ArrowUpCircleIcon, CloudIcon, Loader2Icon, ShieldIcon, Trash2Icon } from 'lucide-react'
 import { toast } from 'sonner'
 
 import {
@@ -18,6 +18,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { api, type CatalogApp } from '@/lib/api'
 import { appsQuery } from '@/lib/queries'
+import { FlareSolverrDialog } from './flaresolverr-dialog'
 import { VpnDialog } from './vpn-dialog'
 
 const updateText: Record<string, string> = {
@@ -42,11 +43,13 @@ const removeText: Record<string, string> = {
         'Its settings, users and watch history go with it, and the Jellyfin page disconnects. Your movies and series stay on the Videos share.',
 }
 
-// AppActions are the buttons of an app that Iglo-OS installed: VPN (media stack only), Update and Remove.
+// AppActions are the buttons of an app that Iglo-OS installed: VPN and FlareSolverr (media stack only),
+// Update and Remove.
 export function AppActions({ app }: { app: CatalogApp }) {
     const queryClient = useQueryClient()
     const [confirm, setConfirm] = useState<'update' | 'remove' | null>(null)
     const [vpnOpen, setVpnOpen] = useState(false)
+    const [flareSolverrOpen, setFlareSolverrOpen] = useState(false)
     const [hostname, setHostname] = useState('')
 
     const refresh = () => queryClient.invalidateQueries({ queryKey: appsQuery.queryKey })
@@ -101,6 +104,16 @@ export function AppActions({ app }: { app: CatalogApp }) {
                     VPN
                 </Button>
             )}
+            {app.id === 'media' && app.flareSolverr !== undefined && (
+                <Button
+                    variant="outline"
+                    disabled={busy || app.status !== 'running'}
+                    onClick={() => setFlareSolverrOpen(true)}
+                >
+                    <CloudIcon />
+                    FlareSolverr
+                </Button>
+            )}
             <Button
                 variant={app.updateAvailable ? 'default' : 'outline'}
                 disabled={busy || app.status !== 'running'}
@@ -115,6 +128,7 @@ export function AppActions({ app }: { app: CatalogApp }) {
             </Button>
 
             <VpnDialog app={app} open={vpnOpen} onOpenChange={setVpnOpen} />
+            <FlareSolverrDialog app={app} open={flareSolverrOpen} onOpenChange={setFlareSolverrOpen} />
 
             <AlertDialog open={confirm === 'update'} onOpenChange={(open) => !open && setConfirm(null)}>
                 <AlertDialogContent>

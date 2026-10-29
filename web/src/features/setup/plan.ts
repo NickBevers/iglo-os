@@ -35,7 +35,7 @@ export function newDraft(setup: Setup): Draft {
             piaPassword: '',
             piaDedicatedToken: '',
         },
-        flareSolverr: true,
+        flareSolverr: false,
         animeIndexers: true,
         proxmoxBackups: true,
         allowRestrictedFaceModels: false,

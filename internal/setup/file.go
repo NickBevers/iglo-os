@@ -138,12 +138,16 @@ func (s *Service) ExportPlan(ctx context.Context) ([]byte, error) {
 // without the setup. The accounts on the NAS aren't known, so they stay empty.
 func (s *Service) currentPlan(ctx context.Context) Plan {
 	plan := Plan{Apps: []string{}, NAS: NAS{Shares: map[string]Share{}}, VPN: VPN{Provider: vpn.ProtonVPN, Locations: "Netherlands"},
-		FlareSolverr: true, AnimeIndexers: true}
+		AnimeIndexers: true}
 	status, _ := s.Apps.Status(ctx)
 	plan.Storage = status.Defaults.Storage
 	for _, app := range status.Apps {
 		if app.Installed && slices.Contains(Apps, app.ID) {
 			plan.Apps = append(plan.Apps, app.ID)
+		}
+		// FlareSolverr is off unless the media stack runs it.
+		if app.ID == agent.MediaStackApp && app.FlareSolverr != nil {
+			plan.FlareSolverr = *app.FlareSolverr
 		}
 	}
 	view, err := s.Agent.StorageBindings(ctx)

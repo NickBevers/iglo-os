@@ -22,6 +22,25 @@ type fakeAgent struct {
 	requests  []agent.InstallRequest
 	actions   []string
 	stats     int
+	// flareSolverr is the switch of the fake media stack, and
+	// flareSolverrReads counts how often it was read.
+	flareSolverr      bool
+	flareSolverrReads int
+}
+
+func (f *fakeAgent) FlareSolverr(_ context.Context, vmid int) (agent.FlareSolverrView, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.flareSolverrReads++
+	return agent.FlareSolverrView{Enabled: f.flareSolverr}, nil
+}
+
+func (f *fakeAgent) ChangeFlareSolverr(_ context.Context, vmid int, enabled bool) error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.actions = append(f.actions, fmt.Sprintf("flaresolverr %d %v", vmid, enabled))
+	f.status = agent.AppInstallStatus{App: "media", Action: agent.ActionFlareSolverr, State: agent.UpgradeRunning}
+	return nil
 }
 
 func (f *fakeAgent) UpdateApp(_ context.Context, app string, vmid int) error {
@@ -572,6 +591,65 @@ func TestChangeVPN(t *testing.T) {
 		}
 	case <-time.After(2 * time.Second):
 		t.Fatal("no message")
+	}
+}
+
+func TestChangeFlareSolverr(t *testing.T) {
+	ctx := context.Background()
+	fake := &fakeAgent{flareSolverr: true, status: agent.AppInstallStatus{State: agent.UpgradeIdle}}
+	messages := make(chan string, 1)
+	service := New(Options{
+		Agent: fake, Proxmox: &fakeProxmox{resources: mediaResources("iglo;media")}, SelfVMID: 100, PollInterval: 10 * time.Millisecond,
+		Notify: func(_ context.Context, text string) { messages <- text },
+	})
+	flareSolverr := func() (*bool, int) {
+		view, err := service.Status(ctx)
+		if err != nil {
+			t.Fatal(err)
+		}
+		fake.mu.Lock()
+		defer fake.mu.Unlock()
+		return appByID(t, view, "media").FlareSolverr, fake.flareSolverrReads
+	}
+
+	// The card says whether it runs, and the Apps view keeps that.
+	flareSolverr()
+	if on, reads := flareSolverr(); on == nil || !*on || reads != 1 {
+		t.Fatalf("flareSolverr = %v, reads = %d", on, reads)
+	}
+	if err := service.ChangeFlareSolverr(ctx, ctx, "jellyfin", false); !errors.Is(err, ErrUnknownApp) {
+		t.Fatalf("jellyfin has no FlareSolverr: %v", err)
+	}
+
+	if err := service.ChangeFlareSolverr(ctx, ctx, "media", false); err != nil {
+		t.Fatal(err)
+	}
+	if fake.actions[0] != "flaresolverr 130 false" {
+		t.Fatalf("actions = %v", fake.actions)
+	}
+	if err := service.ChangeFlareSolverr(ctx, ctx, "media", true); !errors.Is(err, ErrBusy) {
+		t.Fatalf("a second change while one runs: %v", err)
+	}
+	// While it runs, the view doesn't read the switch.
+	if on, reads := flareSolverr(); on != nil || reads != 1 {
+		t.Fatalf("while running: flareSolverr = %v, reads = %d", on, reads)
+	}
+
+	fake.mu.Lock()
+	fake.flareSolverr = false
+	fake.mu.Unlock()
+	fake.set(agent.AppInstallStatus{App: "media", Action: agent.ActionFlareSolverr, State: agent.UpgradeSucceeded, FinishedAt: time.Now()})
+	select {
+	case message := <-messages:
+		if message != "✅ FlareSolverr is off in the media stack." {
+			t.Fatalf("message = %q", message)
+		}
+	case <-time.After(2 * time.Second):
+		t.Fatal("no message")
+	}
+	// The finished operation forgot the old answer.
+	if on, reads := flareSolverr(); on == nil || *on || reads != 2 {
+		t.Fatalf("after the change: flareSolverr = %v, reads = %d", on, reads)
 	}
 }
 

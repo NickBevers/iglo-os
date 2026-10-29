@@ -2,6 +2,7 @@
 //
 //	iglo-arr configure --env /opt/arr/.env < passwords
 //	iglo-arr vpn --env /opt/arr/.env < settings
+//	iglo-arr flaresolverr --env /opt/arr/.env on|off
 //
 // For configure, the first line on stdin is the password for the apps.
 // Optional next lines are the password of the Jellyfin admin, for the setup
@@ -12,6 +13,10 @@
 // PIA_DEDICATED_TOKEN. It writes the settings without secrets in .env, and
 // prints the secret files for Gluetun as name=value lines, for the host to
 // seal. The secrets never land on the disk of the container.
+//
+// flaresolverr adds the FlareSolverr proxy to Prowlarr or removes it, and
+// writes the choice in .env. It needs no password: Prowlarr's API key is in
+// .env. The installer starts or stops the service itself.
 package main
 
 import (
@@ -31,10 +36,11 @@ import (
 )
 
 func main() {
-	commands := map[string]func([]string) error{"configure": configure, "vpn": applyVPN}
+	commands := map[string]func([]string) error{"configure": configure, "vpn": applyVPN, "flaresolverr": setFlareSolverr}
 	if len(os.Args) < 2 || commands[os.Args[1]] == nil {
 		fmt.Fprintln(os.Stderr, "usage: iglo-arr configure [--env FILE] [--data-dir DIR] [--bazarr-config FILE] < passwords")
 		fmt.Fprintln(os.Stderr, "       iglo-arr vpn [--env FILE] [--gluetun-dir DIR] < settings")
+		fmt.Fprintln(os.Stderr, "       iglo-arr flaresolverr [--env FILE] on|off")
 		os.Exit(2)
 	}
 
@@ -86,6 +92,23 @@ func applyVPN(args []string) error {
 	}
 
 	return nil
+}
+
+// setFlareSolverr turns FlareSolverr on or off in Prowlarr and .env.
+func setFlareSolverr(args []string) error {
+	flags := flag.NewFlagSet("flaresolverr", flag.ExitOnError)
+	envPath := flags.String("env", "/opt/arr/.env", "stack .env file")
+	flags.Parse(args)
+	if flags.NArg() != 1 || (flags.Arg(0) != "on" && flags.Arg(0) != "off") {
+		return errors.New("say on or off")
+	}
+
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer stop()
+
+	return arr.SetFlareSolverr(ctx, flags.Arg(0) == "on", *envPath, arr.DefaultEndpoints.Prowlarr, func(format string, args ...any) {
+		fmt.Printf("==> "+format+"\n", args...)
+	})
 }
 
 func configure(args []string) error {

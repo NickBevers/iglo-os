@@ -140,7 +140,7 @@ function MediaStackForm({
                 openSubtitlesUsername: '',
                 openSubtitlesPassword: '',
                 restartJellyfin: true,
-                flareSolverr: true,
+                flareSolverr: false,
                 animeIndexers: true,
                 storage: defaults.storage,
                 downloadsSize: defaults.downloadsSize,
@@ -242,8 +242,8 @@ function MediaStackForm({
                     <span>
                         FlareSolverr
                         <span className="block text-xs text-muted-foreground">
-                            For indexers behind Cloudflare. It runs a browser of a few hundred MB, so leave it off when
-                            your indexers don't need it.
+                            For indexers behind Cloudflare. It runs a browser that can take up to 1 GB, so leave it off
+                            when your indexers don't need it. You can turn it on or off later.
                         </span>
                     </span>
                     <Switch

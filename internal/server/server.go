@@ -115,6 +115,7 @@ type Apps interface {
 	Remove(ctx context.Context, background context.Context, id string) error
 	VPN(ctx context.Context, id string) (agent.VPNView, error)
 	ChangeVPN(ctx context.Context, background context.Context, id string, settings agent.VPNSettings) error
+	ChangeFlareSolverr(ctx context.Context, background context.Context, id string, enabled bool) error
 }
 
 type SettingsFile interface {
@@ -254,6 +255,7 @@ func New(options Options) http.Handler {
 	mux.Handle("POST /api/apps/{id}/remove", s.requireSession(http.HandlerFunc(s.appsRemove)))
 	mux.Handle("GET /api/apps/{id}/vpn", s.requireSession(http.HandlerFunc(s.appsVPN)))
 	mux.Handle("PUT /api/apps/{id}/vpn", s.requireSession(http.HandlerFunc(s.appsChangeVPN)))
+	mux.Handle("PUT /api/apps/{id}/flaresolverr", s.requireSession(http.HandlerFunc(s.appsChangeFlareSolverr)))
 	mux.Handle("GET /api/settings/export", s.requireSession(http.HandlerFunc(s.settingsExport)))
 	mux.Handle("POST /api/settings/import", s.requireSession(http.HandlerFunc(s.settingsImport)))
 	mux.Handle("POST /api/data-backup/download", s.requireSession(http.HandlerFunc(s.dataBackupDownload)))

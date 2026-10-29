@@ -45,6 +45,8 @@ type Agent interface {
 	RemoveApp(ctx context.Context, app string, vmid int) error
 	VPN(ctx context.Context, vmid int) (agent.VPNView, error)
 	ChangeVPN(ctx context.Context, vmid int, settings agent.VPNSettings) error
+	FlareSolverr(ctx context.Context, vmid int) (agent.FlareSolverrView, error)
+	ChangeFlareSolverr(ctx context.Context, vmid int, enabled bool) error
 	AppStats(ctx context.Context, app string, vmid int) (agent.AppStats, error)
 	AppInstallStatus(ctx context.Context) (agent.AppInstallStatus, error)
 }
@@ -171,6 +173,9 @@ type AppView struct {
 	Rollback string `json:"rollback,omitempty"`
 	// Saved are the answers of a failed install, without secrets, for a retry.
 	Saved *agent.SavedAnswers `json:"saved"`
+	// FlareSolverr says whether the media stack runs FlareSolverr. It is
+	// only set for a media stack that runs and answered.
+	FlareSolverr *bool `json:"flareSolverr,omitempty"`
 }
 
 // StorageSpace is the size of a storage for container disks, and what is free.
@@ -260,6 +265,10 @@ type Service struct {
 	// stats are kept for 30 seconds. During an install the Apps view is built
 	// about once a second, and stats can cost a pct exec or reads on a share.
 	stats ttlCache[agent.AppStats]
+	// flareSolverr is the FlareSolverr switch of the media stack. Reading it
+	// costs a pct exec, and only an operation changes it, so it is kept for
+	// 10 minutes and forgotten when an operation finishes.
+	flareSolverr ttlCache[bool]
 
 	gamingMu sync.Mutex
 	// gamingSessions are the Moonlight sessions that WatchGaming saw last.
@@ -358,6 +367,18 @@ func (s *Service) appView(ctx context.Context, app App, resources []proxmox.Reso
 			s.mu.Lock()
 			appView.Rollback = s.rollbacks[app.ID]
 			s.mu.Unlock()
+		}
+	}
+	// Not while an operation on the stack runs: an install has no .env yet,
+	// and errors aren't kept, so it would cost a pct exec every second.
+	idle := appView.Operation == nil || appView.Operation.State != agent.UpgradeRunning
+	if app.ID == agent.MediaStackApp && appView.Managed && appView.Status == "running" && idle {
+		enabled, err := s.flareSolverr.get(fmt.Sprint(appView.VMID), 10*time.Minute, func() (bool, error) {
+			view, err := s.Agent.FlareSolverr(ctx, appView.VMID)
+			return view.Enabled, err
+		})
+		if err == nil {
+			appView.FlareSolverr = &enabled
 		}
 	}
 	// Stats are best effort: the dashboard shows the app without them.
@@ -676,6 +697,26 @@ func (s *Service) ChangeVPN(ctx context.Context, background context.Context, id 
 	return nil
 }
 
+// ChangeFlareSolverr turns FlareSolverr of the media stack on or off, with
+// its proxy in Prowlarr. It needs no password and no reinstall.
+func (s *Service) ChangeFlareSolverr(ctx context.Context, background context.Context, id string, enabled bool) error {
+	app, guest, err := s.mediaStack(ctx, id)
+	if err != nil {
+		return err
+	}
+	if err := s.checkIdle(ctx); err != nil {
+		return err
+	}
+
+	if err := s.Agent.ChangeFlareSolverr(ctx, guest.VMID, enabled); err != nil {
+		return err
+	}
+	s.Logger.Info("flaresolverr change started", "vmid", guest.VMID, "enabled", enabled)
+	s.watch(background, operation{app: app, action: agent.ActionFlareSolverr, guest: guest, flareSolverr: enabled})
+
+	return nil
+}
+
 func (s *Service) RecoverPhotos(ctx context.Context, background context.Context, action agent.AppAction) error {
 	if action != agent.ActionBackup && action != agent.ActionVerify {
 		return agent.ErrInvalidAnswers
@@ -794,6 +835,8 @@ type operation struct {
 	snapshot string
 	// ip is the address of a container before its removal.
 	ip string
+	// flareSolverr is what a FlareSolverr change turns it to.
+	flareSolverr bool
 }
 
 // watch starts a monitor for op. A monitor of an older operation stops.
@@ -854,6 +897,7 @@ func (s *Service) monitor(ctx context.Context, op operation, generation int) {
 		s.descriptions.forget()
 		s.addresses.forget()
 		s.stats.forget()
+		s.flareSolverr.forget()
 
 		switch op.action {
 		case agent.ActionBackup, agent.ActionVerify:
@@ -865,6 +909,8 @@ func (s *Service) monitor(ctx context.Context, op operation, generation int) {
 			s.finishRemove(ctx, op, status)
 		case agent.ActionVPN:
 			s.finishVPN(ctx, op, status)
+		case agent.ActionFlareSolverr:
+			s.finishFlareSolverr(ctx, op, status)
 		default:
 			s.finishInstall(ctx, op.app, status)
 		}
@@ -947,4 +993,16 @@ func (s *Service) finishVPN(ctx context.Context, op operation, status agent.AppI
 
 	s.Logger.Info("vpn changed", "vmid", op.guest.VMID)
 	s.Notify(ctx, fmt.Sprintf("✅ The %s uses the new VPN settings.", strings.ToLower(op.app.Name)))
+}
+
+func (s *Service) finishFlareSolverr(ctx context.Context, op operation, status agent.AppInstallStatus) {
+	state := map[bool]string{true: "on", false: "off"}[op.flareSolverr]
+	if status.State != agent.UpgradeSucceeded {
+		s.Logger.Warn("flaresolverr change failed", "vmid", op.guest.VMID, "enabled", op.flareSolverr, "message", status.Message)
+		s.Notify(ctx, fmt.Sprintf("❌ Turning FlareSolverr %s in the %s failed: %s", state, strings.ToLower(op.app.Name), status.Message))
+		return
+	}
+
+	s.Logger.Info("flaresolverr changed", "vmid", op.guest.VMID, "enabled", op.flareSolverr)
+	s.Notify(ctx, fmt.Sprintf("✅ FlareSolverr is %s in the %s.", state, strings.ToLower(op.app.Name)))
 }

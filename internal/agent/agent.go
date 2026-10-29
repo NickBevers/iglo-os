@@ -296,6 +296,18 @@ func (c *Client) ChangeVPN(ctx context.Context, vmid int, settings VPNSettings) 
 	return c.do(ctx, http.MethodPut, "/v1/apps/media/vpn", VPNRequest{VMID: vmid, VPNSettings: settings}, nil)
 }
 
+// FlareSolverr says whether the media stack in container vmid runs FlareSolverr.
+func (c *Client) FlareSolverr(ctx context.Context, vmid int) (FlareSolverrView, error) {
+	var view FlareSolverrView
+	err := c.do(ctx, http.MethodGet, "/v1/apps/media/flaresolverr?vmid="+strconv.Itoa(vmid), nil, &view)
+
+	return view, err
+}
+
+func (c *Client) ChangeFlareSolverr(ctx context.Context, vmid int, enabled bool) error {
+	return c.do(ctx, http.MethodPut, "/v1/apps/media/flaresolverr", FlareSolverrRequest{VMID: vmid, Enabled: enabled}, nil)
+}
+
 // SavedAppAnswers returns the answers of the last failed install without secrets, or nil.
 func (c *Client) SavedAppAnswers(ctx context.Context, app string) (*SavedAnswers, error) {
 	var saved *SavedAnswers

@@ -85,6 +85,19 @@ func (s *server) appsChangeVPN(w http.ResponseWriter, r *http.Request) {
 	s.writeAppsResult(w, s.Apps.ChangeVPN(r.Context(), s.Background, r.PathValue("id"), settings), http.StatusAccepted)
 }
 
+// appsChangeFlareSolverr turns FlareSolverr of the media stack on or off.
+func (s *server) appsChangeFlareSolverr(w http.ResponseWriter, r *http.Request) {
+	var request struct {
+		Enabled *bool `json:"enabled"`
+	}
+	if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, 1024)).Decode(&request); err != nil || request.Enabled == nil {
+		writeError(w, http.StatusBadRequest, "invalid request body")
+		return
+	}
+
+	s.writeAppsResult(w, s.Apps.ChangeFlareSolverr(r.Context(), s.Background, r.PathValue("id"), *request.Enabled), http.StatusAccepted)
+}
+
 func (s *server) writeAppsResult(w http.ResponseWriter, err error, success int) {
 	switch {
 	case errors.Is(err, agent.ErrInvalidAnswers):
