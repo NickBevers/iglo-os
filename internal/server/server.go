@@ -160,7 +160,7 @@ type Options struct {
 	DataDir string
 	// Restart stops the manager, so systemd starts it again with restored data.
 	Restart func()
-	// Notify sends a message with the Telegram settings, for example when a console opens.
+	// Notify sends a message with the ntfy settings, for example when a console opens.
 	Notify func(ctx context.Context, text string)
 	// Background is the context for work that outlives a request, like updates.
 	Background context.Context

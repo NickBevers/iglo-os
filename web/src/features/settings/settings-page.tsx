@@ -19,7 +19,7 @@ import { cn } from '@/lib/utils'
 import { DataBackupCard } from './data-backup-card'
 
 const sectionTitles: Record<SettingsChange['section'], string> = {
-    notifications: 'Telegram and ntfy',
+    notifications: 'ntfy',
     updates: 'Update schedule',
     health: 'Health checks',
     backups: 'Backup job',

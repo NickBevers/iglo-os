@@ -50,7 +50,7 @@ export function ConsolePage() {
 
             <p className="text-xs text-muted-foreground">
                 This is the console of the container, like the Console tab in Proxmox. Press Enter if it stays empty.
-                Opening a console sends a message to Telegram and ntfy.
+                Opening a console sends a message to ntfy.
             </p>
         </div>
     )

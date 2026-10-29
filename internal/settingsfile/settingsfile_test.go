@@ -117,7 +117,7 @@ func newService() (*Service, fakes) {
 		updates: &fakeUpdates{settings: updates.Settings{
 			Schedule: updates.Schedule{Enabled: true, Weekday: 0, Hour: 4},
 			Excluded: []int{105},
-			Telegram: updates.TelegramSettings{BotToken: "123:secret-token-abcdefghijklmnop", ChatID: "42"},
+			Ntfy:     updates.NtfySettings{Server: "https://ntfy.sh", Topic: "iglo-old", Token: "tk_secrettokenabcdefghijklmnopq"},
 		}},
 		health: &fakeHealth{checks: []health.Check{
 			{ID: "a", Name: "Jellyfin", Kind: health.HTTPCheck, Target: "http://192.168.1.20:8096"},
@@ -165,12 +165,12 @@ func TestExportLeavesSecretsOutAndImportsUnchanged(t *testing.T) {
 		t.Fatal(err)
 	}
 	text := string(data)
-	for _, secret := range []string{"secret-token", "apiKey", "key\n", "immich-secret"} {
+	for _, secret := range []string{"tk_", "apiKey", "key\n", "immich-secret"} {
 		if strings.Contains(text, secret) {
 			t.Fatalf("export has a secret %q:\n%s", secret, text)
 		}
 	}
-	for _, want := range []string{"day: sun", `time: "04:00"`, "chatId: \"42\"", "serve: true", "theme: true", "url: http://192.168.1.30:2283", "timezone: Europe/Brussels"} {
+	for _, want := range []string{"day: sun", `time: "04:00"`, "topic: iglo-old", "serve: true", "theme: true", "url: http://192.168.1.30:2283", "timezone: Europe/Brussels"} {
 		if !strings.Contains(text, want) {
 			t.Fatalf("export misses %q:\n%s", want, text)
 		}
@@ -239,7 +239,7 @@ func TestImportApplies(t *testing.T) {
 
 	result, err := service.Import(context.Background(), []byte(`
 version: 1
-notifications: {telegram: {chatId: "-1001"}, ntfy: {topic: iglo-k3v9}}
+notifications: {ntfy: {topic: iglo-k3v9}}
 updates: {enabled: false, day: mon, time: "5:30", exclude: [110, 105, 110]}
 backups:
   enabled: true
@@ -272,10 +272,6 @@ jellyfin: {url: "http://192.168.1.21:8096", theme: false}
 	if saved.Schedule != (updates.Schedule{Weekday: 1, Hour: 5, Minute: 30}) || len(saved.Excluded) != 2 {
 		t.Fatalf("updates = %+v", saved)
 	}
-	// An empty token keeps the saved one.
-	if saved.Telegram != (updates.TelegramSettings{ChatID: "-1001"}) {
-		t.Fatalf("telegram = %+v", saved.Telegram)
-	}
 	if saved.Ntfy != (updates.NtfySettings{Server: "https://ntfy.sh", Topic: "iglo-k3v9"}) {
 		t.Fatalf("ntfy = %+v", saved.Ntfy)
 	}
@@ -297,13 +293,11 @@ jellyfin: {url: "http://192.168.1.21:8096", theme: false}
 
 func TestImportSkipsWhatNeedsSecretsOrTailscale(t *testing.T) {
 	service, f := newService()
-	f.updates.settings.Telegram = updates.TelegramSettings{}
 	f.jellyfin.settings = jellyfin.Settings{}
 	f.tailscale.view = tailscale.View{State: "NeedsLogin"}
 
 	result, err := service.Import(context.Background(), []byte(`
 version: 1
-notifications: {telegram: {chatId: "42"}}
 tailscale: {serve: true, shareSubnet: false}
 jellyfin: {url: "http://192.168.1.20:8096"}
 `), true)
@@ -312,7 +306,7 @@ jellyfin: {url: "http://192.168.1.20:8096"}
 	}
 
 	got := statuses(result)
-	for _, section := range []string{"notifications", "tailscale", "jellyfin"} {
+	for _, section := range []string{"tailscale", "jellyfin"} {
 		if got[section] != StatusSkipped {
 			t.Fatalf("%s = %s", section, got[section])
 		}
@@ -335,7 +329,7 @@ func TestParseRejectsBadFiles(t *testing.T) {
 		"bad subnet":       "version: 1\ntailscale: {shareSubnet: true, subnet: 192.168.1.1/24}",
 		"bad url":          "version: 1\njellyfin: {url: ftp://nas}",
 		"removed section":  "version: 1\nselfUpdate: {repo: someone/fork}",
-		"bad chat":         "version: 1\nnotifications: {telegram: {chatId: hello}}",
+		"bad topic":        "version: 1\nnotifications: {ntfy: {topic: a/b}}",
 		"bad queue":        "version: 1\nbackgroundWork: {reserveGiB: 4, maxQueues: 1, queues: [nope], window: {start: \"02:00\", end: \"07:00\", timezone: UTC}}",
 		"bad zone":         "version: 1\nbackgroundWork: {reserveGiB: 4, maxQueues: 1, queues: [smartSearch], window: {start: \"02:00\", end: \"07:00\", timezone: Mars/Base}}",
 		"control, no node": "version: 1\nbackgroundWork: {immich: {control: true, url: \"http://immich:2283\"}, reserveGiB: 4, maxQueues: 1, queues: [smartSearch], window: {start: \"02:00\", end: \"07:00\", timezone: UTC}}",
@@ -440,8 +434,8 @@ func TestImportKeepsNtfy(t *testing.T) {
 
 	// A file without ntfy keeps it, and so does a file with the same ntfy.
 	for _, notifications := range []string{
-		`{telegram: {chatId: "42"}}`,
-		`{telegram: {chatId: "42"}, ntfy: {server: "https://ntfy.example.org/", topic: alerts}}`,
+		`{}`,
+		`{ntfy: {server: "https://ntfy.example.org/", topic: alerts}}`,
 	} {
 		result, err := service.Import(context.Background(), []byte("version: 1\nnotifications: "+notifications), true)
 		if err != nil {
@@ -453,7 +447,7 @@ func TestImportKeepsNtfy(t *testing.T) {
 	}
 
 	// An empty topic turns it off.
-	if _, err := service.Import(context.Background(), []byte("version: 1\nnotifications: {telegram: {chatId: \"42\"}, ntfy: {topic: \"\"}}"), true); err != nil {
+	if _, err := service.Import(context.Background(), []byte("version: 1\nnotifications: {ntfy: {topic: \"\"}}"), true); err != nil {
 		t.Fatal(err)
 	}
 	if len(f.updates.saved) != 1 || f.updates.saved[0].Ntfy != (updates.NtfySettings{}) {

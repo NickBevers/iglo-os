@@ -49,7 +49,7 @@ export function HealthPage() {
                     <h1 className="page-title">Health</h1>
                     <p className="text-sm text-muted-foreground">
                         {data.checkedAt ? `Disks checked ${formatRelative(data.checkedAt)}` : 'Checking disks…'}. Alerts
-                        go to Telegram and ntfy, set up on the Updates page.
+                        go to ntfy, set up on the Updates page.
                     </p>
                 </div>
                 <Button variant="outline" disabled={refresh.isPending} onClick={() => refresh.mutate()}>

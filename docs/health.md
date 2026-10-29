@@ -2,7 +2,7 @@
 
 The Health page shows the SMART status of each disk, the ZFS pools, the Proxmox storage and the shares (like the Videos share on the NAS). You can also add services to watch, by URL or by TCP port.
 
-The manager sends an alert to Telegram and ntfy when:
+The manager sends an alert to ntfy when:
 
 - a disk fails SMART or is 90% worn out;
 - a ZFS pool is not `ONLINE`;

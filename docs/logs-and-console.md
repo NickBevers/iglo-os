@@ -19,5 +19,5 @@ Open the console of a running container from its menu on the Overview. It is the
 
 - The host agent runs `pct console <id>` and nothing else, so a console has the same power as the Proxmox `VM.Console` privilege.
 - Only the Iglo-OS page itself can open a console (the websocket checks the origin).
-- Opening a console sends a message to Telegram and ntfy.
+- Opening a console sends a message to ntfy.
 - The agent allows 4 consoles at the same time.

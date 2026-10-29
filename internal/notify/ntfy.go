@@ -1,8 +1,8 @@
+// Package notify sends messages to the user.
 package notify
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -60,32 +60,4 @@ func (n Ntfy) Send(ctx context.Context, text string) error {
 	}
 
 	return nil
-}
-
-// Sender is one way to reach the user.
-type Sender interface {
-	Configured() bool
-	Send(ctx context.Context, text string) error
-}
-
-// All sends to every sender that is set up, and returns all errors.
-type All []Sender
-
-func (a All) Configured() bool {
-	for _, sender := range a {
-		if sender.Configured() {
-			return true
-		}
-	}
-	return false
-}
-
-func (a All) Send(ctx context.Context, text string) error {
-	var errs []error
-	for _, sender := range a {
-		if sender.Configured() {
-			errs = append(errs, sender.Send(ctx, text))
-		}
-	}
-	return errors.Join(errs...)
 }

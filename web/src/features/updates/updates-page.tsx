@@ -11,7 +11,7 @@ import { updatesQuery } from '@/lib/queries'
 import { SelfUpdateCard } from '@/features/self-update/self-update-card'
 import { ContainerUpdates } from './container-updates'
 import { HostUpdates } from './host-updates'
-import { NtfyCard, ScheduleCard, TelegramCard } from './settings-cards'
+import { NtfyCard, ScheduleCard } from './settings-cards'
 import { UpdateHistory } from './update-history'
 import { useStartUpdate } from './use-updates'
 
@@ -76,7 +76,6 @@ export function UpdatesPage() {
 
             <div className="grid gap-4 lg:grid-cols-2">
                 <ScheduleCard updates={data} />
-                <TelegramCard updates={data} />
                 <NtfyCard updates={data} />
             </div>
 
