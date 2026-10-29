@@ -230,6 +230,16 @@ func TestStatusAfterInstall(t *testing.T) {
 	if !media.Installed || media.VMID != 130 || media.Operation != nil || media.HostURL != "https://seerr.iglo.local" {
 		t.Fatalf("media = %+v", media)
 	}
+
+	// An install that finished lately shows, so the page can say it worked.
+	fake.status.FinishedAt = time.Now().Add(-5 * time.Minute)
+	if media := appByID(t, mustStatus(t, service), "media"); media.Operation == nil || media.Operation.State != agent.UpgradeSucceeded {
+		t.Fatalf("recent install = %+v", media.Operation)
+	}
+	fake.status.FinishedAt = time.Now().Add(-2 * time.Hour)
+	if media := appByID(t, mustStatus(t, service), "media"); media.Operation != nil {
+		t.Fatalf("old install = %+v", media.Operation)
+	}
 	if media.Links[0].URL != "http://192.168.1.50:5055" || media.Links[5].URL != "http://192.168.1.50:8080" {
 		t.Fatalf("links = %+v", media.Links)
 	}

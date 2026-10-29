@@ -238,6 +238,9 @@ type Options struct {
 	Changed func(topic string)
 }
 
+// recentOperation is how long the Apps page shows an operation that worked.
+const recentOperation = time.Hour
+
 type Service struct {
 	Options
 
@@ -353,7 +356,9 @@ func (s *Service) appView(ctx context.Context, app App, resources []proxmox.Reso
 	s.mu.Lock()
 	active := s.active == app.ID
 	s.mu.Unlock()
-	if install.App == app.ID && (install.State == agent.UpgradeRunning || install.State == agent.UpgradeFailed || active) {
+	// A finished operation shows for an hour, so the page can say that it worked.
+	recent := install.State == agent.UpgradeSucceeded && !install.FinishedAt.IsZero() && time.Since(install.FinishedAt) < recentOperation
+	if install.App == app.ID && (install.State == agent.UpgradeRunning || install.State == agent.UpgradeFailed || active || recent) {
 		// The API key of a new Jellyfin is for Iglo-OS only.
 		shown := install
 		shown.APIKey = ""

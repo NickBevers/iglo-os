@@ -3,6 +3,7 @@ import { Link } from '@tanstack/react-router'
 import { AlertTriangleIcon, CheckIcon, CircleDashedIcon, Loader2Icon, SkipForwardIcon, XIcon } from 'lucide-react'
 import { toast } from 'sonner'
 
+import { ConfirmButton } from '@/components/confirm-button'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { Button, buttonVariants } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card'
@@ -63,8 +64,9 @@ function Progress({ setup }: { setup: Setup }) {
         onSuccess: refresh,
         onError: (error) => toast.error(error.message),
     })
-    const running = setup.steps.find((step) => step.state === 'running')
-    const log = running?.app && apps.data?.apps.find((app) => app.id === running.app)?.operation?.log
+    // The log of the step that runs, or of the step that failed, so you see why.
+    const current = setup.steps.find((step) => step.state === 'running' || step.state === 'failed')
+    const log = current?.app && apps.data?.apps.find((app) => app.id === current.app)?.operation?.log
 
     return (
         <Card>
@@ -117,9 +119,20 @@ function Progress({ setup }: { setup: Setup }) {
                     ))}
                 </ol>
                 {log && (
-                    <pre className="max-h-64 overflow-auto rounded-md bg-muted p-3 font-mono text-xs whitespace-pre-wrap">
-                        {log}
-                    </pre>
+                    <div className="flex flex-col gap-1.5">
+                        {current?.state === 'failed' && (
+                            <p className="text-sm text-muted-foreground">
+                                The log of the failed step. The app also shows it on the{' '}
+                                <Link to="/apps" className="underline">
+                                    Apps
+                                </Link>{' '}
+                                page.
+                            </p>
+                        )}
+                        <pre className="max-h-64 overflow-auto rounded-md bg-muted p-3 font-mono text-xs whitespace-pre-wrap">
+                            {log}
+                        </pre>
+                    </div>
                 )}
             </CardContent>
             {setup.state !== 'running' && (
@@ -134,9 +147,21 @@ function Progress({ setup }: { setup: Setup }) {
                             </Button>
                         </>
                     )}
-                    <Button variant="outline" disabled={act.isPending} onClick={() => act.mutate('cancel')}>
-                        {setup.state === 'done' ? 'Start a new setup' : 'Stop the setup'}
-                    </Button>
+                    {setup.state === 'done' ? (
+                        <Button variant="outline" disabled={act.isPending} onClick={() => act.mutate('cancel')}>
+                            Start a new setup
+                        </Button>
+                    ) : (
+                        <ConfirmButton
+                            title="Stop the setup?"
+                            description="What is installed stays. The answers and passwords of this setup are dropped, so a new setup asks for them again."
+                            confirm="Stop the setup"
+                            disabled={act.isPending}
+                            onConfirm={() => act.mutate('cancel')}
+                        >
+                            Stop the setup
+                        </ConfirmButton>
+                    )}
                     <a
                         href={api.setupPlanUrl}
                         download="iglo-setup.yaml"

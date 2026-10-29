@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { CopyIcon, ExternalLinkIcon, Loader2Icon, RotateCwIcon, TriangleAlertIcon } from 'lucide-react'
+import { CircleCheckIcon, CopyIcon, ExternalLinkIcon, Loader2Icon, RotateCwIcon, TriangleAlertIcon } from 'lucide-react'
 import { toast } from 'sonner'
 
 import { GuestId } from '@/components/guest-id'
@@ -11,7 +11,7 @@ import { Card, CardAction, CardContent, CardDescription, CardHeader, CardTitle }
 import { Skeleton } from '@/components/ui/skeleton'
 import { api, type Apps, type CatalogApp } from '@/lib/api'
 import { appsQuery } from '@/lib/queries'
-import { formatDateTime } from '@/lib/format'
+import { formatDateTime, formatRelative } from '@/lib/format'
 import { AppActions } from './app-actions'
 import { HeadscaleDetails } from './headscale-details'
 import { InstallDialog } from './install-dialog'
@@ -230,32 +230,43 @@ const operationText = {
         running: 'Backing up Photos…',
         runningDetail: 'Photos is paused while originals and the database are copied. Large libraries can take hours.',
         failed: 'The Photos backup failed',
+        succeeded: 'Photos is backed up',
     },
     verify: {
         running: 'Checking Photos recovery…',
         runningDetail: 'Checksums are checked and a disposable database is restored. Live data stays in place.',
         failed: 'Recovery verification failed',
+        succeeded: 'Recovery verified',
     },
     install: {
         running: 'Installing…',
         runningDetail: 'This takes 5 to 15 minutes, mostly to download the images. You can leave this page.',
         failed: 'The install failed',
+        succeeded: 'Installed',
     },
     update: {
         running: 'Updating…',
         runningDetail: 'This takes a few minutes. The app is offline while it restarts. You can leave this page.',
         failed: 'The update failed',
+        succeeded: 'Updated',
     },
-    remove: { running: 'Removing…', runningDetail: 'You can leave this page.', failed: 'The removal failed' },
+    remove: {
+        running: 'Removing…',
+        runningDetail: 'You can leave this page.',
+        failed: 'The removal failed',
+        succeeded: 'Removed',
+    },
     players: {
         running: 'Changing the players…',
         runningDetail: 'The server applies the change at once, without a restart.',
         failed: 'The players did not change',
+        succeeded: 'The players changed',
     },
     vpn: {
         running: 'Changing the VPN…',
         runningDetail: 'Downloads stop for a minute while the VPN restarts. You can leave this page.',
         failed: 'The new VPN settings did not connect',
+        succeeded: 'The new VPN settings connect',
     },
 }
 
@@ -316,6 +327,21 @@ function OperationProgress({
                         </details>
                     )}
                 </AlertDescription>
+            </Alert>
+        )
+    }
+
+    // An operation that worked shows for an hour, so a long install doesn't
+    // just disappear. role="status" announces it without interrupting.
+    if (operation.state === 'succeeded') {
+        return (
+            <Alert role="status">
+                <CircleCheckIcon className="text-success" />
+                <AlertTitle>
+                    {text.succeeded}
+                    {operation.finishedAt && ` ${formatRelative(operation.finishedAt)}`}
+                </AlertTitle>
+                {operation.message && <AlertDescription>{operation.message}</AlertDescription>}
             </Alert>
         )
     }

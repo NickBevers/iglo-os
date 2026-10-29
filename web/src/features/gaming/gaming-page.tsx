@@ -2,6 +2,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Link } from '@tanstack/react-router'
 import { AlertTriangleIcon, Gamepad2Icon } from 'lucide-react'
 import { toast } from 'sonner'
+import { ConfirmButton } from '@/components/confirm-button'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -122,21 +123,25 @@ export function GamingPage() {
                             {query.data.status === 'running' ? (
                                 <>
                                     {session && (
-                                        <Button
-                                            variant="outline"
+                                        <ConfirmButton
+                                            title="End this session?"
+                                            description="The game closes on the device that plays it. Save in the game first, or the progress since the last save is lost."
+                                            confirm="End session"
                                             disabled={end.isPending}
-                                            onClick={() => end.mutate(session.id)}
+                                            onConfirm={() => end.mutate(session.id)}
                                         >
                                             End session
-                                        </Button>
+                                        </ConfirmButton>
                                     )}
-                                    <Button
-                                        variant="outline"
+                                    <ConfirmButton
+                                        title="Stop gaming?"
+                                        description="This shuts the container down and ends every session. Save in the game first, or the progress since the last save is lost."
+                                        confirm="Stop"
                                         disabled={play.isPending}
-                                        onClick={() => play.mutate(false)}
+                                        onConfirm={() => play.mutate(false)}
                                     >
                                         Stop
-                                    </Button>
+                                    </ConfirmButton>
                                 </>
                             ) : (
                                 <Button disabled={play.isPending} onClick={() => play.mutate(true)}>

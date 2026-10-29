@@ -14,6 +14,7 @@ import { Field, Section } from './form-parts'
 import { keepSaved } from './keep-saved'
 import { useVideosShares } from './use-videos-shares'
 import { VideosShareFields } from './videos-share'
+import { FormError } from './form-error'
 
 type JellyfinFormProps = {
     defaults: Apps['defaults']
@@ -48,7 +49,6 @@ export function JellyfinForm({ defaults, saved, onDone }: JellyfinFormProps) {
             toast.success('The install started')
             onDone()
         },
-        onError: (error) => toast.error(error.message),
     })
 
     function set<K extends keyof JellyfinAnswers>(key: K, value: JellyfinAnswers[K]) {
@@ -183,6 +183,7 @@ export function JellyfinForm({ defaults, saved, onDone }: JellyfinFormProps) {
                 </p>
             </Section>
 
+            <FormError error={install.error} title="The install did not start" />
             <DialogFooter>
                 <Button type="button" variant="outline" onClick={onDone}>
                     Cancel

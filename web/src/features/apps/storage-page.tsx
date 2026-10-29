@@ -7,6 +7,7 @@ import { Switch } from '@/components/ui/switch'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { api, type BindingInput } from '@/lib/api'
 import { Field } from './form-parts'
+import { FormError } from './form-error'
 
 // A null ID or server is one you haven't typed. The page then suggests one.
 type Draft = Omit<BindingInput, 'id' | 'server'> & { id: string | null; server: string | null }
@@ -58,7 +59,6 @@ export function StoragePage() {
             refresh()
             toast.success('Share mounted')
         },
-        onError: (e) => toast.error(e.message),
     })
     const remove = useMutation({
         mutationFn: api.deleteBinding,
@@ -231,6 +231,9 @@ export function StoragePage() {
                             login for all its shared folders. Credentials stay on the host. Existing shared media mounts
                             are left in place; apps must explicitly select a new binding.
                         </p>
+                        <div className="sm:col-span-2">
+                            <FormError error={create.error} title="The share did not connect" />
+                        </div>
                         <Button className="justify-self-start" disabled={create.isPending}>
                             {create.isPending ? 'Connecting…' : 'Connect share'}
                         </Button>

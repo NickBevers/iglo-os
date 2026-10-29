@@ -26,6 +26,7 @@ import { keepSaved } from './keep-saved'
 import { VpnFields } from './vpn-fields'
 import { useVideosShares } from './use-videos-shares'
 import { VideosShareFields } from './videos-share'
+import { FormError } from './form-error'
 
 type InstallDialogProps = {
     app: CatalogApp
@@ -134,7 +135,6 @@ function MediaStackForm({
             toast.success('The install started')
             onDone()
         },
-        onError: (error) => toast.error(error.message),
     })
 
     function set<K extends keyof MediaStackAnswers>(key: K, value: MediaStackAnswers[K]) {
@@ -429,6 +429,7 @@ function MediaStackForm({
                 </div>
             </Section>
 
+            <FormError error={install.error} title="The install did not start" />
             <DialogFooter>
                 <Button type="button" variant="outline" onClick={onDone}>
                     Cancel
