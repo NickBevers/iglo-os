@@ -78,6 +78,58 @@ The installers only run on a Proxmox host. Test them in a nested Proxmox VM on y
 2. Install Proxmox VE 9 from its ISO.
 3. Build a bundle with `make bundle`, copy it to the VM, and run `./install.sh` as root.
 
+## Deploy to your server
+
+`make deploy` puts the tagged commit on your Proxmox host. It runs on your own
+machine, and needs SSH access as root to the host (at home, or over
+Tailscale).
+
+One time:
+
+1. Install [age](https://github.com/FiloSottile/age) (BSD-3-Clause) with your
+   package manager.
+2. Make a signing key. The private key goes straight into a file encrypted
+   with a passphrase, and never touches the disk unencrypted. Commit the public
+   key.
+
+   ```sh
+   mkdir -p ~/.config/iglo
+   go run ./cmd/iglo-release keygen -public internal/release/signing.pub | age -p -o ~/.config/iglo/signing-key.age
+   ```
+
+3. Keep a copy of `signing-key.age` and its passphrase somewhere safe, like
+   your password manager. Without them, the agent installs no new version, and
+   you install the next one by hand once.
+
+   To keep the key in KeePassXC instead, set `IGLO_SIGNING_KEY_CMD` to a
+   command that prints it, like
+   `keepassxc-cli show -s -a Password ~/vault.kdbx iglo-signing-key`.
+
+Each time:
+
+```sh
+git tag -a v0.2.0 -m v0.2.0
+make deploy HOST=root@192.168.1.10
+git push origin v0.2.0
+```
+
+`make deploy`:
+
+1. Refuses changes that aren't committed, and a commit without a version tag.
+2. Runs every check of [AGENTS.md](../AGENTS.md): `make web`, `make test`,
+   the race tests, `gofmt`, Prettier, `bash -n` and ShellCheck.
+3. Builds the bundle and signs it with your key, which only that one command
+   sees.
+4. Copies the bundle to `/root/iglo-deploy` on the host. Then
+   `iglo-agent upgrade` hands it to the agent over its root-only socket,
+   `/run/iglo-agent/admin.sock`, and prints the install log. The agent checks
+   the signature and that the version is newer, and rolls back when the new
+   version doesn't work. No container can reach that socket.
+
+On a host without Iglo-OS, the same command runs the first install, which
+asks for the admin account. The bundle comes from your own machine over SSH,
+so it needs no download from anywhere.
+
 ## Making a release
 
 1. One time: create the signing key. The private key goes straight into a GitHub secret. Commit the public key.
