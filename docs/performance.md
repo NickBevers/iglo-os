@@ -184,6 +184,15 @@ over Tailscale and on a phone.
   Now it is written only when a new backup finished.
 - **Polls slow down when nothing runs.** Music and Gaming poll fast only while
   jobs or sessions run.
+- **The nightly Photos backup** is a clock check each minute in the manager.
+  It asks the host agent for its settings once an hour, a read of two small
+  files with no `pct`. Only at the backup time does it ask Proxmox whether
+  backups run, once a minute while they do. The Apps view keeps the backup
+  state for 10 minutes, until a backup, a check or a settings change ends.
+  Background work asks whether a Photos backup runs up to 4 times a minute;
+  the host agent's answer is a file read, kept for 10 seconds.
+  restic itself is incremental: only new and changed originals are read
+  (counted from the code, not measured on the target).
 
 ## Memory
 

@@ -13,8 +13,9 @@ export const shareNames: Record<string, string> = {
 // readOnlyRoles are the shares that the apps only read.
 export const readOnlyRoles = new Set(['games', 'inbox'])
 
-// Draft is the plan while you fill it in. confirm repeats the admin password.
-export type Draft = SetupPlan & { confirm: string }
+// Draft is the plan while you fill it in. confirm repeats the admin password,
+// and backupConfirm the backup password of Photos.
+export type Draft = SetupPlan & { confirm: string; backupConfirm: string }
 
 export function newDraft(setup: Setup): Draft {
     const shares: Draft['nas']['shares'] = {}
@@ -27,6 +28,8 @@ export function newDraft(setup: Setup): Draft {
         nas: { server: '', oneAccount: false, account: { username: '', password: '' }, shares },
         admin: { username: '', password: '', email: '' },
         confirm: '',
+        backupPassword: '',
+        backupConfirm: '',
         vpn: {
             provider: 'protonvpn',
             locations: 'Netherlands',
@@ -100,9 +103,14 @@ export function draftFromPlan(setup: Setup, plan: SetupPlan): Draft {
     }
 }
 
-// planOf is what goes to the manager, without the repeated password.
+// planOf is what goes to the manager, without the repeated passwords. The
+// backup password only goes with Photos.
 export function planOf(draft: Draft): SetupPlan {
     const plan: Partial<Draft> = { ...draft }
     delete plan.confirm
+    delete plan.backupConfirm
+    if (!draft.apps.includes('photos')) {
+        plan.backupPassword = ''
+    }
     return plan as SetupPlan
 }

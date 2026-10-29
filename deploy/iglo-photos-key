@@ -1,0 +1,51 @@
+#!/usr/bin/env bash
+# Sets the password of the Photos backups, as root on the host: for a Photos
+# without one, or after the TPM of the host was reset and the sealed password
+# can't be read anymore. It reads the password twice on stdin, without echo.
+# It must open the Photos backups that exist, on the Backups shares and off
+# the NAS, or nothing changes. The host seals it (secrets.sh) and never shows
+# it again: keep it in your password manager. Changing the password of
+# existing backups (restic key passwd) is not what this does.
+#
+#   iglo-photos-key set
+set -euo pipefail
+LIB="${IGLO_LIB_DIR:-/usr/local/lib/iglo}"
+# shellcheck source=deploy/lib.sh
+source "$LIB/lib.sh"
+# shellcheck source=deploy/storage.sh
+source "$LIB/storage.sh"
+# shellcheck source=deploy/secrets.sh
+source "$LIB/secrets.sh"
+# shellcheck source=deploy/stacks/photos/backup.sh
+source "$LIB/stacks/photos/backup.sh"
+[[ $EUID -eq 0 ]] || die "run this as root on the Proxmox host"
+[[ "${1:-}" == set ]] || { echo "Usage: iglo-photos-key set" >&2;exit 1; }
+
+second=""
+IFS= read -r -s -p "New backup password: " NEW_PASSWORD || true
+echo >&2
+IFS= read -r -s -p "The same password again: " second || true
+echo >&2
+[[ "$NEW_PASSWORD" == "$second" ]] || die "The two passwords are not the same"
+second=""
+
+# A backup or check must not run while the password changes.
+photos_lock
+# Every Backups share must be mounted, and its Photos backups must open.
+checked=false
+for conf in /etc/iglo/storage/*.conf; do
+    [[ -f "$conf" ]] || continue
+    grep -qx 'ROLE=backups' "$conf" || continue
+    id=$(basename "$conf" .conf)
+    [[ "$id" =~ ^[a-z][a-z0-9]{0,31}$ ]] || continue
+    share="/mnt/iglo/shares/$id"
+    fstype=""
+    read -r fstype _ < <(findmnt --mountpoint "$share" --noheadings --output FSTYPE,SOURCE 2>/dev/null) || true
+    if [[ "$fstype" != cifs ]]; then
+        die "The Backups share $id is not mounted, so the password can't be checked against its Photos backups. Mount it first"
+    fi
+    check_new_password "$share"
+    checked=true
+done
+[[ "$checked" == true ]] || check_new_password ""
+seal_new_password

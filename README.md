@@ -36,7 +36,7 @@ this revision to get them.
 | Area | Implemented | Setup and limits |
 | --- | --- | --- |
 | [Scoped SMB storage](docs/scoped-storage.md) | Storage page, folder roles, host-only credentials and consumer-aware disconnect. Jellyfin and the media stack use the Videos share. | Configure NAS permissions first. SMB only: NFS and host folders are not supported. |
-| [Photos / Immich](docs/photos.md) | Pinned installer, SSD database/derivatives, NAS originals, matched backups and recovery verification | Create the Immich admin/API key after installation. Rehearse a full library restore before relying on backups. |
+| [Photos / Immich](docs/photos.md) | Pinned installer, SSD database/derivatives, NAS originals, nightly encrypted restic backups to the NAS and an optional disk off it, recovery verification | Create the Immich admin/API key after installation. Keep the backup password you type at install in your password manager. Rehearse a full library restore before relying on backups. |
 | [Music and Inbox](docs/workers.md) | Native Music and FFmpeg workers, queue pages and admission leases | New Inbox queues start paused. Active jobs finish after admission is paused. |
 | [Background work](docs/background-work.md) | Immich queue controls and independent worker controls for gaming holds, windows and host RAM headroom | Admission checks do not reserve RAM/GPU capacity. A Moonlight session holds work by itself. |
 | [Gaming](docs/gaming.md) | Experimental Wolf/ES-DE app from the Apps page, Gaming page with Play and Stop, library counts per system, read-only ROM access, persistent emulator profiles, session detection and one session at a time | Privileged LXC after explicit confirmation; hardware streaming, controllers and saves still need acceptance tests. |

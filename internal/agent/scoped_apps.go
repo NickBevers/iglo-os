@@ -3,6 +3,7 @@ package agent
 import (
 	"fmt"
 	"strings"
+	"unicode"
 )
 
 const PhotosApp = "photos"
@@ -10,7 +11,7 @@ const MusicApp = "music"
 const InboxApp = "inbox"
 const GamingApp = "gaming"
 
-// ScopedAnswers contain binding IDs, never NAS paths or credentials.
+// ScopedAnswers contain binding IDs, never NAS paths or NAS credentials.
 type ScopedAnswers struct {
 	Storage        string `json:"storage"`
 	LibraryBinding string `json:"libraryBinding"`
@@ -21,7 +22,18 @@ type ScopedAnswers struct {
 	DiskGB         int    `json:"diskGB"`
 	// Privileged confirms that Gaming may create a privileged container.
 	Privileged bool `json:"privileged"`
+	// BackupPassword is the password of the Photos backups, which you keep in
+	// your password manager. The installer seals it on the host. It is never
+	// kept for a retry and never shown again.
+	BackupPassword string `json:"backupPassword,omitempty"`
 }
+
+// ValidBackupPassword is the check of the backup password, also in
+// backup.sh: 12 to 128 characters, on one line.
+func ValidBackupPassword(password string) bool {
+	return len([]rune(password)) >= 12 && len(password) <= 128 && !strings.ContainsFunc(password, unicode.IsControl)
+}
+
 type scopedAppAnswers struct {
 	App string
 	ScopedAnswers
@@ -40,6 +52,12 @@ func (a ScopedAnswers) ValidateFor(app string) error {
 	}
 	if app == PhotosApp && !bindingID.MatchString(a.BackupBinding) {
 		return bad("select a separate backups share binding")
+	}
+	if app == PhotosApp && !ValidBackupPassword(a.BackupPassword) {
+		return bad("the backup password must be 12 to 128 characters, on one line")
+	}
+	if app != PhotosApp && a.BackupPassword != "" {
+		return bad("only Photos has a backup password")
 	}
 	if app == InboxApp && !bindingID.MatchString(a.OutputBinding) {
 		return bad("select a video output share binding")
@@ -72,6 +90,14 @@ func (a ScopedAnswers) ValidateFor(app string) error {
 	return nil
 }
 func (a scopedAppAnswers) Validate() error { return a.ValidateFor(a.App) }
+
+// file is the answers file for the installer, 0600 on the host. The
+// installer reads the backup password from it, removes the file, and seals
+// the password. The container keeps the answers without it.
 func (a scopedAppAnswers) file() string {
-	return strings.Join([]string{"STORAGE=" + a.Storage, "LIBRARY_BINDING=" + a.LibraryBinding, "OUTPUT_BINDING=" + a.OutputBinding, "BACKUP_BINDING=" + a.BackupBinding, fmt.Sprintf("CORES=%d\nMEMORY_MIB=%d\nDISK_GB=%d\nPRIVILEGED=%t", a.Cores, a.MemoryMiB, a.DiskGB, a.Privileged)}, "\n") + "\n"
+	lines := []string{"STORAGE=" + a.Storage, "LIBRARY_BINDING=" + a.LibraryBinding, "OUTPUT_BINDING=" + a.OutputBinding, "BACKUP_BINDING=" + a.BackupBinding, fmt.Sprintf("CORES=%d\nMEMORY_MIB=%d\nDISK_GB=%d\nPRIVILEGED=%t", a.Cores, a.MemoryMiB, a.DiskGB, a.Privileged)}
+	if a.App == PhotosApp {
+		lines = append(lines, "BACKUP_PASSWORD="+a.BackupPassword)
+	}
+	return strings.Join(lines, "\n") + "\n"
 }

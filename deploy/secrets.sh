@@ -50,6 +50,36 @@ secret_get() {
     systemd-creds decrypt --name="$3" "$file" -
 }
 
+# A host secret belongs to the host, not to one container, like the password
+# of the Photos backups. It stays when an app is removed, so a new install
+# can still read the old backups. No container ever gets it.
+host_secret_file() {
+    printf '%s/host/%s.cred' "$SECRETS_ROOT" "$1"
+}
+
+host_secret_exists() {
+    [[ "$1" =~ ^[a-z0-9_]{1,64}$ && -f "$(host_secret_file "$1")" ]]
+}
+
+# host_secret_put seals stdin as host secret $1. It never removes one: empty
+# input fails. The value goes through a pipe, never a file or argument.
+host_secret_put() {
+    local name="$1" value file
+    [[ "$name" =~ ^[a-z0-9_]{1,64}$ ]] || return 1
+    value="$(cat)"
+    [[ -n "$value" ]] || return 1
+    file="$(host_secret_file "$name")"
+    install -d -m 0700 "$SECRETS_ROOT" "$SECRETS_ROOT/host"
+    printf '%s' "$value" | systemd-creds encrypt --name="$name" - "$file.new"
+    mv -f "$file.new" "$file"
+}
+
+# host_secret_get prints host secret $1, or fails when there is none.
+host_secret_get() {
+    host_secret_exists "$1" || return 1
+    systemd-creds decrypt --name="$1" "$(host_secret_file "$1")" -
+}
+
 # secrets_unlock unseals the run secrets of container $1 into RAM, readable
 # by the root of the container only. It removes the ones that are gone.
 secrets_unlock() {

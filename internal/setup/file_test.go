@@ -20,7 +20,7 @@ func TestPlanFileKeepsAllButTheSecrets(t *testing.T) {
 		t.Fatal(err)
 	}
 	text := string(data)
-	for _, secret := range []string{"correct horse battery", "nas-media", "cGVyZmVjdGx5", "confirmPrivileged"} {
+	for _, secret := range []string{"correct horse battery", "nas-media", "cGVyZmVjdGx5", "confirmPrivileged", "photos backup password", "backupPassword"} {
 		if strings.Contains(text, secret) {
 			t.Fatalf("the file has %q:\n%s", secret, text)
 		}
@@ -43,7 +43,10 @@ func TestPlanFileKeepsAllButTheSecrets(t *testing.T) {
 		t.Fatalf("loaded = %+v", loaded)
 	}
 	// With the secrets typed again, the plan is whole.
-	loaded.Admin.Password, loaded.VPN.WireGuardKey = plan.Admin.Password, plan.VPN.WireGuardKey
+	if loaded.BackupPassword != "" {
+		t.Fatal("the plan file has the backup password")
+	}
+	loaded.Admin.Password, loaded.VPN.WireGuardKey, loaded.BackupPassword = plan.Admin.Password, plan.VPN.WireGuardKey, plan.BackupPassword
 	loaded.VPN.PIAUsername, loaded.VPN.PIAPassword, loaded.VPN.PIADedicatedToken = plan.VPN.PIAUsername, plan.VPN.PIAPassword, plan.VPN.PIADedicatedToken
 	for role, share := range loaded.NAS.Shares {
 		share.Password = "typed"

@@ -14,6 +14,7 @@ import { appsQuery } from '@/lib/queries'
 import { formatDateTime, formatRelative } from '@/lib/format'
 import { AppActions } from './app-actions'
 import { HeadscaleDetails } from './headscale-details'
+import { PhotosBackupDetails } from './photos-backup'
 import { InstallDialog } from './install-dialog'
 
 // On a phone, the buttons go below the description, so the text keeps its width.
@@ -115,8 +116,8 @@ function AppCard({ app, defaults }: { app: CatalogApp; defaults: Apps['defaults'
                                 <Button variant="outline" onClick={() => setInstallOpen(true)}>
                                     Change answers
                                 </Button>
-                                {/* The media stack keeps no VPN login for a retry. */}
-                                {!['media', 'headscale'].includes(app.id) && (
+                                {/* The media stack keeps no VPN login for a retry, and Photos no backup password. */}
+                                {!['media', 'headscale', 'photos'].includes(app.id) && (
                                     <Button disabled={retry.isPending} onClick={() => retry.mutate()}>
                                         {retry.isPending ? <Loader2Icon className="animate-spin" /> : <RotateCwIcon />}
                                         Try again
@@ -135,6 +136,9 @@ function AppCard({ app, defaults }: { app: CatalogApp; defaults: Apps['defaults'
                     <OperationProgress operation={operation} rollback={app.rollback} flareSolverr={app.flareSolverr} />
                 )}
                 {app.id === 'headscale' && app.installed && <HeadscaleDetails app={app} />}
+                {app.id === 'photos' && app.installed && app.photosBackup && (
+                    <PhotosBackupDetails backup={app.photosBackup} />
+                )}
                 {app.planned && (
                     <p className="text-xs text-muted-foreground">
                         This app's Iglo-OS integration is not implemented yet. Installation, updates and removal are
@@ -218,13 +222,15 @@ function AppCard({ app, defaults }: { app: CatalogApp; defaults: Apps['defaults'
 const operationText = {
     backup: {
         running: 'Backing up Photos…',
-        runningDetail: 'Photos is paused while originals and the database are copied. Large libraries can take hours.',
+        runningDetail:
+            'Photos stays online. restic copies the database and the new originals to the NAS, and off it when a disk is set. The first backup of a large library can take hours.',
         failed: 'The Photos backup failed',
         succeeded: 'Photos is backed up',
     },
     verify: {
         running: 'Checking Photos recovery…',
-        runningDetail: 'Checksums are checked and a disposable database is restored. Live data stays in place.',
+        runningDetail:
+            'restic checks the backups and reads a part of their data. The database of the latest snapshot is restored into a disposable database. Live data stays in place.',
         failed: 'Recovery verification failed',
         succeeded: 'Recovery verified',
     },

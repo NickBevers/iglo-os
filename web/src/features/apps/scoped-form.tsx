@@ -7,6 +7,8 @@ import { Input } from '@/components/ui/input'
 import { api, type Apps, type ImmichAdmin, type SavedAnswers, type ScopedAnswers } from '@/lib/api'
 import { Field } from './form-parts'
 import { FormError } from './form-error'
+import { BackupPasswordFields } from './backup-password'
+import { backupPasswordProblem } from './backup-password-check'
 
 export function ScopedForm({
     id,
@@ -23,7 +25,7 @@ export function ScopedForm({
     const client = useQueryClient()
     const [answers, set] = useState<ScopedAnswers>(
         saved?.scoped?.libraryBinding
-            ? saved.scoped
+            ? { ...saved.scoped, backupPassword: '' }
             : {
                   storage: defaults.storage,
                   libraryBinding: '',
@@ -50,6 +52,10 @@ export function ScopedForm({
     }
     // Photos: Iglo-OS makes the first Immich admin, then connects Background work.
     const [makeAdmin, setMakeAdmin] = useState(true)
+    // Photos: the password of its backups, typed twice.
+    const [confirmPassword, setConfirmPassword] = useState('')
+    const passwordProblem = id === 'photos' ? backupPasswordProblem(answers.backupPassword ?? '', confirmPassword) : ''
+    const [showPasswordProblem, setShowPasswordProblem] = useState(false)
     const [admin, setAdmin] = useState<ImmichAdmin>({ email: '', name: '', password: '', faceModels: false })
     const install = useMutation({
         mutationFn: () => api.installScopedApp(id, answers, id === 'photos' && makeAdmin ? admin : undefined),
@@ -61,6 +67,10 @@ export function ScopedForm({
     })
     function submit(e: SubmitEvent) {
         e.preventDefault()
+        if (passwordProblem) {
+            setShowPasswordProblem(true)
+            return
+        }
         install.mutate()
     }
     const roles =
@@ -146,6 +156,14 @@ export function ScopedForm({
             </div>
             {id === 'photos' && (
                 <>
+                    <BackupPasswordFields
+                        id="scoped-backup-password"
+                        password={answers.backupPassword ?? ''}
+                        confirm={confirmPassword}
+                        problem={showPasswordProblem ? passwordProblem : ''}
+                        onPassword={(backupPassword) => set({ ...answers, backupPassword })}
+                        onConfirm={setConfirmPassword}
+                    />
                     <label className="flex items-start gap-3 text-sm">
                         <Checkbox
                             className="mt-0.5"

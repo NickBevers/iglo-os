@@ -28,7 +28,8 @@ bundle: build
 	install -m 0755 deploy/stacks/jellyfin/install.sh $(BUNDLE)/stacks/jellyfin/install.sh
 	mkdir -p $(BUNDLE)/stacks/photos
 	install -m 0755 deploy/stacks/photos/install.sh deploy/stacks/photos/recovery.sh $(BUNDLE)/stacks/photos/
-	install -m 0644 deploy/stacks/photos/compose.yaml deploy/stacks/photos/compose.override.yaml deploy/stacks/photos/compose.gpu.yaml $(BUNDLE)/stacks/photos/
+	install -m 0644 deploy/stacks/photos/compose.yaml deploy/stacks/photos/compose.override.yaml deploy/stacks/photos/compose.gpu.yaml deploy/stacks/photos/backup.sh $(BUNDLE)/stacks/photos/
+	install -m 0700 deploy/iglo-photos-key $(BUNDLE)/iglo-photos-key
 	mkdir -p $(BUNDLE)/stacks/music $(BUNDLE)/stacks/inbox
 	install -m 0755 deploy/stacks/music/install.sh $(BUNDLE)/stacks/music/
 	install -m 0644 deploy/stacks/music/iglo-music.service $(BUNDLE)/stacks/music/
@@ -50,7 +51,7 @@ deploy:
 
 # Every shell script, also the ones without .sh, checked with the sourced
 # files they name. Pinned, so CI and a laptop find the same things.
-SHELL_SCRIPTS := $(shell git ls-files '*.sh') deploy/iglo-mdns dev/bin/tailscale
+SHELL_SCRIPTS := $(shell git ls-files '*.sh') deploy/iglo-mdns deploy/iglo-photos-key dev/bin/tailscale
 shellcheck:
 	docker run --rm -v "$(CURDIR):/mnt" -w /mnt koalaman/shellcheck:v0.10.0 -x -S warning $(SHELL_SCRIPTS)
 

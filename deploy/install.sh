@@ -270,6 +270,13 @@ install_scripts() {
         install -d -m 0755 "$SCRIPTS_DIR/stacks/photos"
         install -m 0755 "$BUNDLE_DIR/stacks/photos/install.sh" "$BUNDLE_DIR/stacks/photos/recovery.sh" "$SCRIPTS_DIR/stacks/photos/"
         install -m 0644 "$BUNDLE_DIR/stacks/photos/compose.yaml" "$BUNDLE_DIR/stacks/photos/compose.override.yaml" "$BUNDLE_DIR/stacks/photos/compose.gpu.yaml" "$SCRIPTS_DIR/stacks/photos/"
+        # The Photos backups with restic, on the host. A bundle from before them has neither file.
+        if [[ -f "$BUNDLE_DIR/stacks/photos/backup.sh" ]]; then
+            install -m 0644 "$BUNDLE_DIR/stacks/photos/backup.sh" "$SCRIPTS_DIR/stacks/photos/"
+        fi
+        if [[ -f "$BUNDLE_DIR/iglo-photos-key" ]]; then
+            install -m 0700 "$BUNDLE_DIR/iglo-photos-key" /usr/local/sbin/iglo-photos-key
+        fi
     fi
     mv -f "$SCRIPTS_DIR/install.sh.new" "$SCRIPTS_DIR/install.sh"
     # The Apps page installs stacks from here.
