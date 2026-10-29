@@ -9,6 +9,8 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 import { Checkbox } from '@/components/ui/checkbox'
 import { Input } from '@/components/ui/input'
 import { Switch } from '@/components/ui/switch'
+import { BackupPasswordFields } from '@/features/apps/backup-password'
+import { backupPasswordProblem } from '@/features/apps/backup-password-check'
 import { Field } from '@/features/apps/form-parts'
 import { FormError } from '@/features/apps/form-error'
 import { VpnFields } from '@/features/apps/vpn-fields'
@@ -61,6 +63,11 @@ export function Wizard({ setup }: { setup: Setup }) {
         event.preventDefault()
         if (page === 'Accounts' && draft.admin.password !== draft.confirm) {
             toast.error('The two admin passwords differ')
+            return
+        }
+        const backupProblem = backupPasswordProblem(draft.backupPassword, draft.backupConfirm)
+        if (page === 'Accounts' && wants('photos') && backupProblem) {
+            toast.error(`Backup password: ${backupProblem}`)
             return
         }
         if (page === 'Review') {
@@ -415,6 +422,20 @@ function AccountsPage({ draft, setDraft, wants }: Omit<PageProps, 'setup'> & { w
                         />
                     </Field>
                 </div>
+
+                {wants('photos') && (
+                    <fieldset className="flex flex-col gap-4 border-t pt-4">
+                        <legend className="section-title">Photos backups</legend>
+                        <BackupPasswordFields
+                            id="setup-backup-password"
+                            password={draft.backupPassword}
+                            confirm={draft.backupConfirm}
+                            problem=""
+                            onPassword={(backupPassword) => setDraft((d) => ({ ...d, backupPassword }))}
+                            onConfirm={(backupConfirm) => setDraft((d) => ({ ...d, backupConfirm }))}
+                        />
+                    </fieldset>
+                )}
 
                 {wants('media') && (
                     <fieldset className="flex flex-col gap-4 border-t pt-4">

@@ -37,6 +37,7 @@ func newAppInstaller() (*agent.AppInstaller, error) {
 		}
 	}
 
+	photoBackups = newPhotosBackups()
 	fake := &fakeInstalls{}
 	return agent.NewAppInstallerWith(statePath("apps"), stacks, fake.start, fake.isRunning, func(ctx context.Context, name string, args ...string) ([]byte, error) {
 		if name == "pct" && len(args) == 2 && args[0] == "config" && args[1] == "210" {
@@ -255,9 +256,7 @@ func (f *fakeInstalls) playOnContainer(stack, action, answers, logPath, exitPath
 
 	installed := map[string]string{"arr": "media-installed", "jellyfin": "jellyfin-installed", "photos": "photos-installed", "music": "music-installed", "inbox": "inbox-installed", "gaming": "gaming-installed", "headscale": "headscale-installed"}[stack]
 	if action == "--backup" || action == "--verify" {
-		write("==> Development simulation: no files copied or database restored")
-		write("==> Simulated Photos recovery finished")
-		finish(0)
+		finish(playPhotosRecovery(photoBackups, action, write))
 		return
 	}
 	if action == "--remove" {
@@ -276,7 +275,14 @@ func (f *fakeInstalls) playOnContainer(stack, action, answers, logPath, exitPath
 	switch stack {
 	case "headscale":
 		write("==> Development simulation: checked SQLite backup, controller refresh and local health")
-	case "photos", "music", "inbox", "gaming":
+	case "photos":
+		write("==> Backing up Photos before the update")
+		if playPhotosRecovery(photoBackups, "--backup", write) != 0 {
+			finish(1)
+			return
+		}
+		write("==> Development simulation: scoped app update")
+	case "music", "inbox", "gaming":
 		write("==> Development simulation: scoped app update")
 	case "arr":
 		write("==> Copying the stack of Iglo-OS dev into the container")
@@ -416,6 +422,13 @@ func (f *fakeInstalls) play(stack, answers, logPath, exitPath string) {
 			steps = append(steps, "==> Configuring Seerr", "==> Anime films use the [Anime] Remux-1080p profile")
 		}
 	}
+	// Like the installer: the backup password is checked and sealed before
+	// the container exists.
+	if stack == "photos" && !sealBackupPassword(answers, write) {
+		write("==> The install failed, nothing was made")
+		finish(1)
+		return
+	}
 	for _, step := range steps {
 		write(step)
 	}
@@ -535,6 +548,7 @@ func bindVideos(id int, answers string) error {
 func addAppRoutes(mux *http.ServeMux, installer *agent.AppInstaller) {
 	agent.RegisterEvents(mux, installer)
 	agent.RegisterHeadscale(mux, installer)
+	addPhotosBackupRoutes(mux)
 	for _, action := range []agent.AppAction{agent.ActionBackup, agent.ActionVerify} {
 		mux.HandleFunc("POST /v1/apps/photos/"+string(action), func(w http.ResponseWriter, r *http.Request) {
 			var in agent.AppContainerRequest

@@ -123,6 +123,7 @@ func validPlan() Plan {
 			"videos": share("Videos", "media"), "photos": share("Photos", "photos"), "backups": share("Backups", "backup"),
 		}},
 		Admin:          Admin{Username: "nick", Password: "correct horse battery", Email: "nick@example.com"},
+		BackupPassword: "photos backup password",
 		VPN:            VPN{Provider: "protonvpn", Locations: "Netherlands", WireGuardKey: "cGVyZmVjdGx5IHZhbGlkIGtleSBvZiAzMiBieXRlcyE="},
 		FlareSolverr:   true,
 		AnimeIndexers:  true,
@@ -137,20 +138,21 @@ func TestPlanValidate(t *testing.T) {
 		t.Fatal(err)
 	}
 	for name, change := range map[string]func(*Plan){
-		"no apps":         func(p *Plan) { p.Apps = nil },
-		"unknown app":     func(p *Plan) { p.Apps = []string{"made-up"} },
-		"short password":  func(p *Plan) { p.Admin.Password = "short" },
-		"bad username":    func(p *Plan) { p.Admin.Username = "nick b" },
-		"no email":        func(p *Plan) { p.Admin.Email = "" },
-		"no share":        func(p *Plan) { delete(p.NAS.Shares, "photos") },
-		"no account":      func(p *Plan) { p.NAS.Shares["videos"] = Share{Share: "Videos"} },
-		"bad VPN key":     func(p *Plan) { p.VPN.WireGuardKey = "nope" },
-		"unknown country": func(p *Plan) { p.VPN.Locations = "Atlantis" },
-		"PIA no password": func(p *Plan) { p.VPN.Provider, p.VPN.PIAUsername = "pia", "p1234567" },
-		"gaming, no ok":   func(p *Plan) { p.Apps = append(p.Apps, agent.GamingApp) },
-		"bad time zone":   func(p *Plan) { p.Timezone = "Mars/Base" },
-		"no NAS address":  func(p *Plan) { p.NAS.Server = "" },
-		"one empty login": func(p *Plan) { p.NAS.OneAccount = true },
+		"no apps":               func(p *Plan) { p.Apps = nil },
+		"unknown app":           func(p *Plan) { p.Apps = []string{"made-up"} },
+		"short password":        func(p *Plan) { p.Admin.Password = "short" },
+		"short backup password": func(p *Plan) { p.BackupPassword = "short" },
+		"bad username":          func(p *Plan) { p.Admin.Username = "nick b" },
+		"no email":              func(p *Plan) { p.Admin.Email = "" },
+		"no share":              func(p *Plan) { delete(p.NAS.Shares, "photos") },
+		"no account":            func(p *Plan) { p.NAS.Shares["videos"] = Share{Share: "Videos"} },
+		"bad VPN key":           func(p *Plan) { p.VPN.WireGuardKey = "nope" },
+		"unknown country":       func(p *Plan) { p.VPN.Locations = "Atlantis" },
+		"PIA no password":       func(p *Plan) { p.VPN.Provider, p.VPN.PIAUsername = "pia", "p1234567" },
+		"gaming, no ok":         func(p *Plan) { p.Apps = append(p.Apps, agent.GamingApp) },
+		"bad time zone":         func(p *Plan) { p.Timezone = "Mars/Base" },
+		"no NAS address":        func(p *Plan) { p.NAS.Server = "" },
+		"one empty login":       func(p *Plan) { p.NAS.OneAccount = true },
 	} {
 		plan := validPlan()
 		plan.NAS.Shares = map[string]Share{}
@@ -299,7 +301,7 @@ func TestSetupRunsThePlanInOrder(t *testing.T) {
 	if media.VideosBinding != "films" || media.JellyfinAPIKey != "0123456789abcdef0123456789abcdef" || media.JellyfinAdminUsername != "nick" || !media.AnimeIndexers {
 		t.Fatalf("media = %+v", media)
 	}
-	if got := host.requests[agent.PhotosApp].Scoped; got.LibraryBinding != "photos" || got.BackupBinding != "backups" || got.MemoryMiB != 8192 {
+	if got := host.requests[agent.PhotosApp].Scoped; got.LibraryBinding != "photos" || got.BackupBinding != "backups" || got.MemoryMiB != 8192 || got.BackupPassword != "photos backup password" {
 		t.Fatalf("photos = %+v", got)
 	}
 	if host.backupsOn != "backups" || host.job.Storage != "iglo-backups" || host.job.Hour != 3 {

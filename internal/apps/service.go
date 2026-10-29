@@ -172,6 +172,8 @@ type AppView struct {
 	// FlareSolverr says whether the media stack runs FlareSolverr. It is
 	// only set for a media stack that runs and answered.
 	FlareSolverr *bool `json:"flareSolverr,omitempty"`
+	// PhotosBackup is the settings and the state of the Photos backups.
+	PhotosBackup *agent.PhotosBackupView `json:"photosBackup,omitempty"`
 }
 
 // StorageSpace is the size of a storage for container disks, and what is free.
@@ -248,8 +250,14 @@ type Service struct {
 	// generation counts the operations, so only the monitor of the newest one runs.
 	generation int
 	// active is the app of the operation that a monitor still handles, like a rollback after a failed update.
-	active    string
-	rollbacks map[string]string
+	active string
+	// activeAction is what the operation of active does, like a Photos backup.
+	activeAction agent.AppAction
+	// photosSlot is the last nightly Photos backup that the scheduler handled,
+	// and photosHold what it waits for now.
+	photosSlot time.Time
+	photosHold string
+	rollbacks  map[string]string
 	// wake makes the monitor look at a running operation right away.
 	wake chan struct{}
 	// gamingWake makes WatchGaming look at once, after Play or Stop.
@@ -268,6 +276,10 @@ type Service struct {
 	// costs a pct exec, and only an operation changes it, so it is kept for
 	// 10 minutes and forgotten when an operation finishes.
 	flareSolverr ttlCache[bool]
+	// photoBackups is the state of the Photos backups, from the host agent.
+	photoBackups ttlCache[agent.PhotosBackupView]
+	// holdStatus is the operation of the host agent, for PhotosBackupRunning.
+	holdStatus ttlCache[agent.AppInstallStatus]
 
 	gamingMu sync.Mutex
 	// gamingSessions are the Moonlight sessions that WatchGaming saw last.
@@ -386,6 +398,11 @@ func (s *Service) appView(ctx context.Context, app App, resources []proxmox.Reso
 		})
 		if err == nil {
 			appView.Stats = &stats
+		}
+	}
+	if app.ID == agent.PhotosApp && appView.Installed {
+		if backups, err := s.photosBackupView(ctx, photosBackupTTL); err == nil {
+			appView.PhotosBackup = &backups
 		}
 	}
 	if !appView.Installed && !app.Planned && install.State != agent.UpgradeRunning {
@@ -857,7 +874,8 @@ func (s *Service) watch(background context.Context, op operation) {
 	defer s.mu.Unlock()
 
 	s.generation++
-	s.active = op.app.ID
+	s.active, s.activeAction = op.app.ID, op.action
+	s.holdStatus.forget()
 	delete(s.rollbacks, op.app.ID)
 	go s.monitor(background, op, s.generation)
 	s.Changed(events.Apps)
@@ -883,6 +901,7 @@ func (s *Service) monitor(ctx context.Context, op operation, generation int) {
 			s.active = ""
 		}
 		s.mu.Unlock()
+		s.holdStatus.forget()
 		s.Changed(events.Apps)
 	}()
 
@@ -910,11 +929,12 @@ func (s *Service) monitor(ctx context.Context, op operation, generation int) {
 		s.addresses.forget()
 		s.stats.forget()
 		s.flareSolverr.forget()
+		s.photoBackups.forget()
 
 		switch op.action {
 		case agent.ActionBackup, agent.ActionVerify:
 			s.Logger.Info("photos recovery finished", "action", op.action, "state", status.State)
-			s.Notify(ctx, fmt.Sprintf("Photos %s: %s", op.action, status.State))
+			s.Notify(ctx, s.photosRecoveryMessage(ctx, op.action, status))
 		case agent.ActionUpdate:
 			s.finishUpdate(ctx, op, status)
 		case agent.ActionRemove:

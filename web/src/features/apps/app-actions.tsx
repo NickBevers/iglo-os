@@ -26,7 +26,7 @@ const updateText: Record<string, string> = {
         'The controller and relay pause briefly. Iglo keeps a checked local database backup and preserves device identities, certificates and policy. Unsupported version changes are refused. An interrupted upgrade can lose registrations made after its backup.',
     music: 'Iglo-OS updates the worker and its pinned download tools. An active job can be interrupted and will need resubmission; queued jobs and published NAS files stay.',
     inbox: 'Iglo-OS updates the worker and FFmpeg. An active job can be interrupted and will need a retry; queued jobs and published NAS files stay.',
-    photos: 'Iglo-OS pauses Photos while copying the database and originals to Backups, then installs the Immich version bundled with this Iglo-OS release. Large libraries can take a long time. Keep a separate off-device backup too.',
+    photos: 'Iglo-OS backs up the database and the originals with restic first, like the nightly backup, then installs the Immich version bundled with this Iglo-OS release. Photos restarts, so it is offline for a few minutes.',
     media: 'Iglo-OS makes a snapshot, updates the packages, copies the stack of this Iglo-OS release, and downloads the new images. The apps restart, so they are offline for a few minutes. Your settings in the apps stay. Recyclarr then names new files the way Jellyfin reads them, and adds the anime profile to Radarr; files that are there keep their names.',
     jellyfin:
         'Iglo-OS makes a snapshot, then updates Jellyfin and the other packages. Jellyfin restarts, so it is offline for a minute. Your settings, users and libraries stay.',
@@ -37,7 +37,7 @@ const removeText: Record<string, string> = {
         'The controller database, device identities and TLS certificates are deleted. Every device must join again unless you restore a backup. If Iglo uses this controller, its remote access will stop. Keep LAN access available. Repeated reinstalls may hit certificate issuance limits.',
     music: 'The queue and any unfinished staging files are deleted. Published music on the NAS stays.',
     inbox: 'Worker settings and history on the local disk are deleted. NAS sources and completed outputs stay.',
-    photos: 'The local database is deleted with the container. Export and verify a Photos recovery backup first. Originals and existing backups on the NAS stay in place.',
+    photos: 'The local database is deleted with the container. Back up Photos and run Verify recovery first. Originals, the backups on the NAS and off it, and their password on the host stay.',
     media: 'The downloads disk goes with it, so downloads that did not finish are lost. Your movies and series stay on the Videos share, and Jellyfin keeps its libraries.',
     jellyfin:
         'Its settings, users and watch history go with it, and the Jellyfin page disconnects. Your movies and series stay on the Videos share.',
@@ -78,14 +78,7 @@ export function AppActions({ app }: { app: CatalogApp }) {
                     <Button
                         variant="outline"
                         disabled={busy || recovery.isPending || app.status !== 'running'}
-                        onClick={() => {
-                            if (
-                                window.confirm(
-                                    'Photos will be unavailable while its database and originals are copied to Backups. Start the backup?',
-                                )
-                            )
-                                recovery.mutate('backup')
-                        }}
+                        onClick={() => recovery.mutate('backup')}
                     >
                         Back up Photos
                     </Button>

@@ -102,6 +102,7 @@ func run(socketPath, adminPath string, socketGID int, logger *slog.Logger) error
 	agent.RegisterEvents(mux, apps)
 	agent.RegisterHeadscale(mux, apps)
 	agent.RegisterInbox(mux)
+	agent.RegisterPhotosBackups(mux, agent.NewPhotosBackups(), logger)
 	for _, action := range []agent.AppAction{agent.ActionBackup, agent.ActionVerify} {
 		mux.HandleFunc("POST /v1/apps/photos/"+string(action), appOnContainer(func(app string, vmid int) error { return apps.Recover(agent.PhotosApp, vmid, action) }, "photos recovery started", logger))
 	}

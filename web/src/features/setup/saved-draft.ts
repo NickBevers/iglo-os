@@ -34,6 +34,7 @@ function withoutSecrets(draft: Draft): SetupPlan {
         confirmPrivileged: false,
         timezone: draft.timezone,
         storage: draft.storage,
+        backupPassword: '',
     }
 }
 

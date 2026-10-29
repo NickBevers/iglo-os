@@ -150,7 +150,8 @@ func serve() error {
 	// Heavy background work waits while backups or updates run. The window
 	// of background work overlaps the nightly backups (03:00), the weekly
 	// updates (04:00) and the restore check (05:00).
-	workloadService.SetHold(func(ctx context.Context) string {
+	// backupsOrUpdates also keeps the nightly Photos backup from starting.
+	backupsOrUpdates := func(ctx context.Context) string {
 		switch {
 		case backupService.Running(ctx):
 			return "Backups are running"
@@ -158,7 +159,7 @@ func serve() error {
 			return "Updates are running"
 		}
 		return ""
-	})
+	}
 
 	tailscaleService, err := tailscale.New(tailscale.Options{
 		DataDir:  cfg.DataDir,
@@ -205,6 +206,16 @@ func serve() error {
 		Logger:  logger,
 		Changed: hub.Publish,
 	})
+	// The Photos backup holds heavy work too: it reads the whole library.
+	workloadService.SetHold(func(ctx context.Context) string {
+		if reason := appsService.PhotosBackupRunning(ctx); reason != "" {
+			return reason
+		}
+		return backupsOrUpdates(ctx)
+	})
+	// The nightly Photos backup, at 01:00 by default: before the processing
+	// window of background work and the Proxmox backups.
+	go appsService.RunPhotosBackups(ctx, backupsOrUpdates)
 	// A Moonlight session holds heavy background work, also without Play.
 	go appsService.WatchGaming(ctx, workloadService.HoldWhilePlaying)
 	go appsService.WatchMusic(ctx)

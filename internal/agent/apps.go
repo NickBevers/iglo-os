@@ -474,6 +474,10 @@ func (i *AppInstaller) Retry(app string) error {
 	if app == MediaStackApp && saved.Answers.VPN.missingSecrets() {
 		return fmt.Errorf("%w: the VPN login is not kept for a retry, use Change answers and enter it again", ErrInvalidAnswers)
 	}
+	// Nor the password of the Photos backups.
+	if app == PhotosApp && saved.Scoped.BackupPassword == "" {
+		return fmt.Errorf("%w: the backup password is not kept for a retry, use Change answers and enter it again", ErrInvalidAnswers)
+	}
 
 	return i.installLocked(app, saved)
 }
@@ -771,6 +775,7 @@ func (i *AppInstaller) save(app string, saved savedFile) error {
 
 func (i *AppInstaller) write(app string, saved savedFile) error {
 	saved.Answers.VPN = saved.Answers.VPN.withoutSecrets()
+	saved.Scoped.BackupPassword = ""
 	data, err := json.Marshal(saved)
 	if err != nil {
 		return err

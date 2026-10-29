@@ -84,6 +84,9 @@ type Plan struct {
 	Timezone string `json:"timezone" yaml:"timezone"`
 	// Storage is the Proxmox storage of the container disks.
 	Storage string `json:"storage" yaml:"storage"`
+	// BackupPassword is the password of the Photos backups. It is never in a
+	// plan file, and goes when the run ends, like the other secrets.
+	BackupPassword string `json:"backupPassword,omitempty" yaml:"-"`
 }
 
 // NAS is where the shares are. By default each share has an account of its
@@ -216,6 +219,7 @@ func (p Plan) scopedAnswers(app string, bindings map[string]string) agent.Scoped
 	switch app {
 	case agent.PhotosApp:
 		answers.LibraryBinding, answers.BackupBinding, answers.Cores = bindings["photos"], bindings["backups"], 4
+		answers.BackupPassword = p.BackupPassword
 	case agent.MusicApp:
 		answers.LibraryBinding = bindings["music"]
 	case agent.InboxApp:

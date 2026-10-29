@@ -117,6 +117,9 @@ export type ScopedAnswers = {
     diskGB: number
     // privileged confirms that Gaming may create a privileged container. Only Gaming sets it.
     privileged?: boolean
+    // backupPassword is the password of the Photos backups. The host seals it
+    // and never sends it back.
+    backupPassword?: string
 }
 
 // Gaming is the state of the Gaming app. The library counts the games per
@@ -241,6 +244,9 @@ export type SetupPlan = {
     confirmPrivileged: boolean
     timezone: string
     storage: string
+    // backupPassword is the password of the Photos backups. Like the other
+    // passwords, it is never kept in a plan file or the saved draft.
+    backupPassword: string
 }
 
 export type StorageBinding = {
@@ -615,6 +621,49 @@ export type CatalogApp = {
     // flareSolverr says whether the media stack runs FlareSolverr. Only set for
     // a media stack that runs.
     flareSolverr?: boolean
+    // photosBackup is the settings and the state of the Photos backups.
+    photosBackup?: PhotosBackup
+}
+
+// PhotosBackupSettings are when the nightly Photos backup runs, how many
+// snapshots it keeps, and the folder on a disk of the host for the copy off
+// the NAS, or empty.
+export type PhotosBackupSettings = {
+    time: string
+    offsitePath: string
+    keepDaily: number
+    keepWeekly: number
+    keepMonthly: number
+}
+
+export type PhotosRepository = {
+    bytes?: number
+    snapshots?: number
+    // result of the last copy off the NAS. missing means its disk can't be used.
+    result?: 'ok' | 'failed' | 'missing' | 'off'
+    message?: string
+    // finished is the last copy off the NAS that worked.
+    finished?: string
+}
+
+// PhotosBackup is what the host says about the Photos backups. The password
+// of the backups never leaves the host: hasPassword only says it is there.
+export type PhotosBackup = {
+    settings: PhotosBackupSettings
+    hasPassword: boolean
+    status: {
+        started?: string
+        finished?: string
+        result?: 'ok' | 'failed'
+        message?: string
+        snapshot?: string
+        nas: PhotosRepository
+        offsite: PhotosRepository
+        verified?: string
+        verifyResult?: 'ok' | 'failed'
+        verifyMessage?: string
+        verifySnapshot?: string
+    }
 }
 
 export type Apps = {
@@ -768,6 +817,7 @@ export const api = {
     submitMusic: (input: { url: string; video: boolean }) => request<MusicJob>('POST', '/music/jobs', input),
     pauseMusic: (paused: boolean) => request<void>('PUT', '/music/pause', { paused }),
     photosRecovery: (action: 'backup' | 'verify') => request<void>('POST', `/photos/recovery/${action}`),
+    savePhotosBackups: (settings: PhotosBackupSettings) => request<void>('PUT', '/photos/backups', settings),
     installHeadscale: (headscale: HeadscaleAnswers) => request<void>('POST', '/apps/headscale/install', { headscale }),
     // immich makes the first admin of a new Photos. The password stays in the memory of the manager.
     installScopedApp: (id: string, scoped: ScopedAnswers, immich?: ImmichAdmin) =>

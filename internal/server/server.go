@@ -238,6 +238,7 @@ func New(options Options) http.Handler {
 	mux.Handle("GET /api/guests/{vmid}/console", s.requireSession(http.HandlerFunc(s.console)))
 	mux.Handle("GET /api/apps", s.requireSession(http.HandlerFunc(s.appsStatus)))
 	mux.Handle("POST /api/photos/recovery/{action}", s.requireSession(http.HandlerFunc(s.photosRecovery)))
+	mux.Handle("PUT /api/photos/backups", s.requireSession(http.HandlerFunc(s.photosBackups)))
 	for _, route := range []string{"GET /api/inbox", "POST /api/inbox", "PUT /api/inbox/settings", "POST /api/inbox/scan", "POST /api/inbox/retry/{id}"} {
 		mux.Handle(route, s.requireSession(http.HandlerFunc(s.inboxWork)))
 	}

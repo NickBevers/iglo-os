@@ -41,7 +41,7 @@ type File struct {
 // the shares, so the plan of a running setup stays as it is.
 func (p Plan) withoutSecrets() Plan {
 	plan := p
-	plan.Admin.Password, plan.NAS.Account.Password = "", ""
+	plan.Admin.Password, plan.NAS.Account.Password, plan.BackupPassword = "", "", ""
 	plan.VPN.WireGuardKey, plan.VPN.PIAUsername, plan.VPN.PIAPassword, plan.VPN.PIADedicatedToken = "", "", "", ""
 	// Plan files from before PIA call the locations countries.
 	if plan.VPN.Locations == "" {
