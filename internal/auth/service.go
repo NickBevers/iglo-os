@@ -144,6 +144,7 @@ func (s *Service) Login(username, password, code, clientIP string) (string, erro
 
 	delete(s.failures, clientIP)
 	s.lastTOTPStep = step
+	s.pruneLocked()
 
 	token, err := randomToken()
 	if err != nil {
@@ -226,7 +227,27 @@ func (s *Service) isLockedOut(clientIP string) bool {
 	return entry.count >= maxFailures
 }
 
+// pruneLocked drops expired sessions and failures outside the lockout window.
+// Validate only drops a session that is used again, and isLockedOut only an
+// address that tries again, so without this both maps would keep the rest.
+// A login and each failure call it; the maps are small, so a pass is cheap.
+// It needs s.mu.
+func (s *Service) pruneLocked() {
+	now := s.now()
+	for key, expiresAt := range s.sessions {
+		if !now.Before(expiresAt) {
+			delete(s.sessions, key)
+		}
+	}
+	for clientIP, entry := range s.failures {
+		if now.Sub(entry.first) > lockoutWindow {
+			delete(s.failures, clientIP)
+		}
+	}
+}
+
 func (s *Service) recordFailure(clientIP string) {
+	s.pruneLocked()
 	entry, ok := s.failures[clientIP]
 	if !ok || s.now().Sub(entry.first) > lockoutWindow {
 		s.failures[clientIP] = &failure{count: 1, first: s.now()}
