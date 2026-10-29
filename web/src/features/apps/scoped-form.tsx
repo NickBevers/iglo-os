@@ -6,6 +6,7 @@ import { Checkbox } from '@/components/ui/checkbox'
 import { Input } from '@/components/ui/input'
 import { api, type Apps, type SavedAnswers, type ScopedAnswers } from '@/lib/api'
 import { Field } from './form-parts'
+import { FormError } from './form-error'
 
 export function ScopedForm({
     id,
@@ -54,7 +55,6 @@ export function ScopedForm({
             toast.success('Installation started')
             onDone()
         },
-        onError: (e) => toast.error(e.message),
     })
     function submit(e: SubmitEvent) {
         e.preventDefault()
@@ -177,6 +177,7 @@ export function ScopedForm({
                     </label>
                 </>
             )}
+            <FormError error={install.error} title="The install did not start" />
             <div className="flex justify-end gap-2">
                 <Button type="button" variant="outline" onClick={onDone}>
                     Cancel

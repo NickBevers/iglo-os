@@ -702,7 +702,13 @@
         "updateAvailable": true,
         "vmid": 170,
         "status": "running",
-        "operation": null,
+        "operation": {
+          "app": "photos",
+          "action": "verify",
+          "state": "succeeded",
+          "startedAt": "2026-10-28T20:02:10+01:00",
+          "finishedAt": "2026-10-28T20:09:44+01:00"
+        },
         "saved": null
       },
       {

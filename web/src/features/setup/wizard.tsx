@@ -9,6 +9,7 @@ import { Checkbox } from '@/components/ui/checkbox'
 import { Input } from '@/components/ui/input'
 import { Switch } from '@/components/ui/switch'
 import { Field } from '@/features/apps/form-parts'
+import { FormError } from '@/features/apps/form-error'
 import { VpnFields } from '@/features/apps/vpn-fields'
 import { api, type Setup } from '@/lib/api'
 import { formatBytes } from '@/lib/format'
@@ -26,7 +27,6 @@ export function Wizard({ setup }: { setup: Setup }) {
     const start = useMutation({
         mutationFn: () => api.startSetup(planOf(draft)),
         onSuccess: () => client.invalidateQueries({ queryKey: ['setup'] }),
-        onError: (error) => toast.error(error.message),
     })
     const roles = rolesOf(draft, setup)
     const wants = (app: string) => draft.apps.includes(app)
@@ -66,6 +66,7 @@ export function Wizard({ setup }: { setup: Setup }) {
             {page === 'Accounts' && <AccountsPage draft={draft} setDraft={setDraft} wants={wants} />}
             {page === 'Review' && <ReviewPage setup={setup} draft={draft} roles={roles} />}
 
+            {page === 'Review' && <FormError error={start.error} title="The setup did not start" />}
             <div className="flex gap-2">
                 {page !== 'Apps' && (
                     <Button type="button" variant="outline" onClick={() => setPage(pages[pages.indexOf(page) - 1])}>

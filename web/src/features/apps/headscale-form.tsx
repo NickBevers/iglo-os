@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { api, type Apps, type HeadscaleAnswers, type SavedAnswers } from '@/lib/api'
 import { Field } from './form-parts'
+import { FormError } from './form-error'
 
 export function HeadscaleForm({
     defaults,
@@ -28,7 +29,6 @@ export function HeadscaleForm({
             toast.success('Controller installation started')
             onDone()
         },
-        onError: (e) => toast.error(e.message),
     })
     function submit(event: SubmitEvent) {
         event.preventDefault()
@@ -127,6 +127,7 @@ export function HeadscaleForm({
                 />
                 I have checked public DNS, port forwarding and this static address.
             </label>
+            <FormError error={install.error} title="The install did not start" />
             <Button type="submit" disabled={install.isPending || !answers.prerequisites}>
                 Install Headscale
             </Button>
