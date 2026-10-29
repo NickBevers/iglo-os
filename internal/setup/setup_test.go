@@ -30,6 +30,7 @@ type fakeHost struct {
 	jobSaved  bool
 	backupsOn string
 	settings  workloads.Settings
+	space     map[string]apps.StorageSpace
 }
 
 func (f *fakeHost) StorageBindings(context.Context) (agent.BindingView, error) {
@@ -61,7 +62,7 @@ func (f *fakeHost) GamingReady(context.Context) (agent.GamingReadiness, error) {
 func (f *fakeHost) Status(context.Context) (apps.View, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
-	view := apps.View{Defaults: apps.Defaults{Storage: "local-lvm", Storages: []string{"local-lvm"}}}
+	view := apps.View{Defaults: apps.Defaults{Storage: "local-lvm", Storages: []string{"local-lvm"}, StorageSpace: f.space}}
 	for _, id := range Apps {
 		view.Apps = append(view.Apps, apps.AppView{App: apps.App{ID: id, Name: id}, Installed: f.installed[id]})
 	}
@@ -364,5 +365,38 @@ func TestViewShowsGamingAsNotReady(t *testing.T) {
 	gaming := view.Apps[slices.IndexFunc(view.Apps, func(a AppChoice) bool { return a.ID == agent.GamingApp })]
 	if gaming.Ready || len(gaming.Missing) != 1 || view.HostBytes != 32<<30 || !view.Apps[0].Installed || view.State != StateIdle {
 		t.Fatalf("view = %+v", view)
+	}
+}
+
+func TestSetupRefusesDisksThatDontFit(t *testing.T) {
+	host := &fakeHost{installed: map[string]bool{}, requests: map[string]agent.InstallRequest{}}
+	service := New(Options{Apps: host, Agent: host, Backups: fakeBackups{host}, Workloads: fakeWorkloads{host, ""}})
+	plan := validPlan()
+	need := 0
+	for _, id := range plan.Apps {
+		need += diskGiB(id)
+	}
+
+	// The view tells the review what each app takes, and what the storage holds.
+	host.space = map[string]apps.StorageSpace{"local-lvm": {TotalBytes: int64(need-1) << 30, FreeBytes: 100 << 30}}
+	view := service.View(context.Background())
+	media := view.Apps[slices.IndexFunc(view.Apps, func(a AppChoice) bool { return a.ID == agent.MediaStackApp })]
+	if media.DiskGiB != mediaDiskGiB+downloadsDiskGiB || view.StorageSpace["local-lvm"].FreeBytes != 100<<30 {
+		t.Fatalf("view = %+v", view)
+	}
+
+	// One GiB too many is refused, before anything runs.
+	err := service.Start(context.Background(), plan)
+	if !errors.Is(err, ErrInvalid) || !strings.Contains(err.Error(), "more than local-lvm holds") {
+		t.Fatalf("too big: %v", err)
+	}
+	if service.View(context.Background()).State != StateIdle {
+		t.Fatal("started anyway")
+	}
+
+	// An installed app has its space already, so the rest fits.
+	host.installed[plan.Apps[0]] = true
+	if err := service.Start(context.Background(), plan); errors.Is(err, ErrInvalid) && strings.Contains(err.Error(), "holds") {
+		t.Fatalf("installed app counted: %v", err)
 	}
 }

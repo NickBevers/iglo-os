@@ -184,10 +184,19 @@ type AppView struct {
 	Saved *agent.SavedAnswers `json:"saved"`
 }
 
+// StorageSpace is the size of a storage for container disks, and what is free.
+type StorageSpace struct {
+	TotalBytes int64 `json:"totalBytes"`
+	FreeBytes  int64 `json:"freeBytes"`
+}
+
 type Defaults struct {
-	Storages     []string `json:"storages"`
-	Storage      string   `json:"storage"`
-	JellyfinVMID int      `json:"jellyfinVmid,omitempty"`
+	Storages []string `json:"storages"`
+	// StorageSpace is the size of each storage in Storages, for the setup's
+	// disk budget. A storage that reports no size is left out.
+	StorageSpace map[string]StorageSpace `json:"storageSpace"`
+	Storage      string                  `json:"storage"`
+	JellyfinVMID int                     `json:"jellyfinVmid,omitempty"`
 	// MediaVMID is the media stack. The forms prefer the Videos share that it
 	// or Jellyfin already uses, so both apps see the same media.
 	MediaVMID         int    `json:"mediaVmid,omitempty"`
@@ -433,6 +442,7 @@ func (s *Service) node(resources []proxmox.Resource) string {
 func (s *Service) defaults(ctx context.Context, node string, resources []proxmox.Resource) Defaults {
 	defaults := Defaults{
 		Storages:          []string{},
+		StorageSpace:      map[string]StorageSpace{},
 		MoviesFolder:      "movies",
 		SeriesFolder:      "series",
 		AnimeFolder:       "anime",
@@ -455,6 +465,9 @@ func (s *Service) defaults(ctx context.Context, node string, resources []proxmox
 		for _, storage := range storages {
 			if storage.Active {
 				defaults.Storages = append(defaults.Storages, storage.Storage)
+				if storage.Total > 0 {
+					defaults.StorageSpace[storage.Storage] = StorageSpace{TotalBytes: storage.Total, FreeBytes: storage.Avail}
+				}
 			}
 		}
 	}

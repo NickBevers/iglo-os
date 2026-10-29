@@ -23,14 +23,23 @@ func TestHostMemoryComesFirstAndPressureHoldsWork(t *testing.T) {
 	if got := reason(); got != "Waiting for memory pressure to ease" {
 		t.Fatalf("reason = %q", got)
 	}
-	// The agent's reading wins over Proxmox, which still says 8 GiB is free.
+	// The agent's reading counts, not Proxmox, which still says 8 GiB is free.
 	memory.Pressure, memory.Available = 0, 3<<30
 	if got := reason(); got != "Preserving RAM headroom" {
 		t.Fatalf("reason = %q", got)
 	}
-	// An agent on another node doesn't count; Proxmox does.
-	memory.Node = "other"
-	if got := reason(); got != "Background processing allowed" || f.s.Status().Pressure != -1 {
-		t.Fatalf("reason = %q, pressure = %v", got, f.s.Status().Pressure)
+	// An agent on another node doesn't count, and Proxmox is no stand-in:
+	// new heavy work waits.
+	memory.Node, memory.Available = "other", 16<<30
+	if got := reason(); got != "Waiting for host memory" {
+		t.Fatalf("other node: reason = %q", got)
+	}
+}
+
+func TestNoAgentMeansNoReading(t *testing.T) {
+	f := setup(t)
+	f.s.hostMemory = nil
+	if _, found := f.s.memory(context.Background(), "pve"); found {
+		t.Fatal("found memory without the host agent")
 	}
 }

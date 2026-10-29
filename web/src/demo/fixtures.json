@@ -874,7 +874,7 @@
         "shares": [
           "videos"
         ],
-        "memoryMiB": 3072,
+        "memoryMiB": 3072, "diskGiB": 16,
         "ready": true,
         "missing": []
       },
@@ -886,7 +886,7 @@
         "shares": [
           "videos"
         ],
-        "memoryMiB": 4096,
+        "memoryMiB": 4096, "diskGiB": 216,
         "ready": true,
         "missing": []
       },
@@ -899,7 +899,7 @@
           "photos",
           "backups"
         ],
-        "memoryMiB": 8192,
+        "memoryMiB": 8192, "diskGiB": 64,
         "ready": true,
         "missing": []
       },
@@ -911,7 +911,7 @@
         "shares": [
           "music"
         ],
-        "memoryMiB": 1024,
+        "memoryMiB": 1024, "diskGiB": 64,
         "ready": true,
         "missing": []
       },
@@ -924,7 +924,7 @@
           "inbox",
           "videos"
         ],
-        "memoryMiB": 2048,
+        "memoryMiB": 2048, "diskGiB": 64,
         "ready": true,
         "missing": []
       },
@@ -936,7 +936,7 @@
         "shares": [
           "games"
         ],
-        "memoryMiB": 6144,
+        "memoryMiB": 6144, "diskGiB": 96,
         "ready": true,
         "missing": []
       }
@@ -959,7 +959,8 @@
     "storages": [
       "fast-zfs",
       "local-lvm"
-    ]
+    ],
+    "storageSpace": {"local-lvm": {"totalBytes": 400000000000, "freeBytes": 370000000000}}
   },
   "/music/jobs": {
     "storageReady": true,

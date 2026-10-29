@@ -510,6 +510,10 @@ function ReviewPage({ setup, draft, roles }: { setup: Setup; draft: Draft; roles
     const limitBytes = (always.reduce((sum, app) => sum + app.memoryMiB, 0) + 512) * 2 ** 20
     const peakBytes = limitBytes + (gaming ? gaming.memoryMiB * 2 ** 20 : 0)
     const tight = setup.hostBytes > 0 && peakBytes > setup.hostBytes
+    // Installed apps have their disks already. The disks are thin: they take
+    // space as the apps write, but together they can't outgrow the storage.
+    const diskBytes = chosen.filter((app) => !app.installed).reduce((sum, app) => sum + app.diskGiB * 2 ** 30, 0)
+    const space = setup.storageSpace?.[draft.storage]
 
     return (
         <Card>
@@ -553,6 +557,26 @@ function ReviewPage({ setup, draft, roles }: { setup: Setup; draft: Draft; roles
                     {setup.hostBytes > 0 && `, of ${formatBytes(setup.hostBytes)} on the host`}. Limits are not
                     reservations: idle apps use far less.
                 </Row>
+                <Row label="Disk">
+                    {formatBytes(diskBytes)} of container disks on {draft.storage}
+                    {space &&
+                        `, which holds ${formatBytes(space.totalBytes)} with ${formatBytes(space.freeBytes)} free`}
+                    .
+                    {draft.apps.includes('media') &&
+                        ` The media stack takes ${formatBytes(200 * 2 ** 30)} of it for downloads.`}
+                </Row>
+                {space && diskBytes > space.totalBytes && (
+                    <p className="text-destructive">
+                        These disks are more than {draft.storage} holds. They would fill it before they are full, and
+                        then every container on it stops writing. Leave out an app, or choose another storage.
+                    </p>
+                )}
+                {space && diskBytes <= space.totalBytes && diskBytes > space.freeBytes && (
+                    <p className="text-warning">
+                        These disks are more than is free on {draft.storage}. They only take space as the apps write, so
+                        this works until they fill up. Keep an eye on the disk on the Health page.
+                    </p>
+                )}
                 {tight && (
                     <p className="text-warning">
                         All limits together are more than the memory of the host. That works while the apps stay below

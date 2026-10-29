@@ -136,6 +136,9 @@ func (s *Service) Start(ctx context.Context, plan Plan) error {
 	if err := plan.Validate(covered); err != nil {
 		return err
 	}
+	if err := s.checkDisk(ctx, plan); err != nil {
+		return err
+	}
 	if err := s.savePlan(plan); err != nil {
 		return err
 	}
@@ -267,6 +270,33 @@ var appNames = map[string]string{
 }
 
 // covered are the roles of the shares that are connected already.
+// checkDisk refuses a plan whose new disks are more than its storage holds.
+// They are thin, so they fit at first, but they would fill the storage before
+// they are full themselves, and every guest on it would stop writing. Apps
+// that are installed already have their space. Without a size for the
+// storage, the installers check what they can.
+func (s *Service) checkDisk(ctx context.Context, plan Plan) error {
+	status, err := s.Apps.Status(ctx)
+	if err != nil {
+		return nil
+	}
+	space, known := status.Defaults.StorageSpace[plan.Storage]
+	if !known {
+		return nil
+	}
+	var need int64
+	for _, id := range plan.Apps {
+		installed := slices.ContainsFunc(status.Apps, func(app apps.AppView) bool { return app.ID == id && app.Installed })
+		if !installed {
+			need += int64(diskGiB(id)) << 30
+		}
+	}
+	if need > space.TotalBytes {
+		return fmt.Errorf("%w: the apps need %d GiB of local disk, more than %s holds (%d GiB). Leave out an app, or choose another storage", ErrInvalid, need>>30, plan.Storage, space.TotalBytes>>30)
+	}
+	return nil
+}
+
 func (s *Service) covered(ctx context.Context) (map[string]bool, error) {
 	view, err := s.Agent.StorageBindings(ctx)
 	if err != nil {

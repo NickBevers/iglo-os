@@ -44,6 +44,11 @@ func (h *fakeHost) Resources(context.Context) ([]proxmox.Resource, error) {
 	return []proxmox.Resource{{Type: "node", Node: "pve", Status: "online", MaxMem: 32 << 30, Mem: (32 << 30) - h.free}}, h.err
 }
 
+// HostMemory answers like the host agent, with the same free memory.
+func (h *fakeHost) HostMemory(context.Context) (HostMemory, error) {
+	return HostMemory{Node: "pve", Total: 32 << 30, Available: h.free, Pressure: -1}, h.err
+}
+
 type fixture struct {
 	s           *Service
 	host        *fakeHost
@@ -99,7 +104,7 @@ func setup(t *testing.T) *fixture {
 	}))
 	t.Cleanup(f.server.Close)
 	var err error
-	f.s, err = New(Options{DataDir: t.TempDir(), Proxmox: f.host, Now: func() time.Time { return f.now }})
+	f.s, err = New(Options{DataDir: t.TempDir(), Proxmox: f.host, HostMemory: f.host.HostMemory, Now: func() time.Time { return f.now }})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -130,7 +135,7 @@ func TestProtectionAndRecoveryLeaveEssentialAndOperatorQueuesAlone(t *testing.T)
 	}
 	// Recover ownership from disk, not the old process's in-memory state.
 	f.now = f.now.Add(3 * time.Hour)
-	restarted, err := New(Options{DataDir: filepath.Dir(f.s.path), Proxmox: f.host, Now: func() time.Time { return f.now }})
+	restarted, err := New(Options{DataDir: filepath.Dir(f.s.path), Proxmox: f.host, HostMemory: f.host.HostMemory, Now: func() time.Time { return f.now }})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -268,7 +273,7 @@ func TestRecoveryWhenPauseSucceededButReplyFailed(t *testing.T) {
 	if !f.queues[0].IsPaused || !f.s.state.Owned["videoConversion"] || f.s.Status().Error == "" {
 		t.Fatal(f.s.Status(), f.s.state)
 	}
-	restarted, err := New(Options{DataDir: filepath.Dir(f.s.path), Proxmox: f.host, Now: func() time.Time { return f.now }})
+	restarted, err := New(Options{DataDir: filepath.Dir(f.s.path), Proxmox: f.host, HostMemory: f.host.HostMemory, Now: func() time.Time { return f.now }})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -381,5 +386,29 @@ func TestPagesHearOfChangesButNotOfFreeMemory(t *testing.T) {
 	s.Protect(60)
 	if !slices.Equal(topics, []string{"workloads", "gaming"}) {
 		t.Fatalf("topics = %v", topics)
+	}
+}
+
+func TestHeadroomIsAtLeastFourGiB(t *testing.T) {
+	settings := DefaultSettings()
+	settings.ReserveGiB = 3
+	if err := settings.Validate(); err == nil {
+		t.Fatal("accepted 3 GiB of headroom")
+	}
+
+	// Settings saved before the floor come up to it.
+	dir := t.TempDir()
+	old := DefaultSettings()
+	old.ReserveGiB = 1
+	data, _ := json.Marshal(diskState{Settings: old, Owned: map[string]bool{}})
+	if err := os.WriteFile(filepath.Join(dir, "workloads.json"), data, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	s, err := New(Options{DataDir: dir, Proxmox: &fakeHost{free: 8 << 30}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := s.Status().Settings.ReserveGiB; got != MinReserveGiB {
+		t.Fatalf("headroom = %d", got)
 	}
 }

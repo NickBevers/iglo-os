@@ -42,6 +42,27 @@ var memoryMiB = map[string]int{
 	agent.MusicApp: 1024, agent.InboxApp: 2048, agent.GamingApp: 6144,
 }
 
+// The local disks that the setup's apps install with, in GiB. Jellyfin's and
+// the media stack's container disks are fixed in their installers
+// (deploy/stacks/jellyfin/install.sh and deploy/stacks/arr/install.sh); the
+// media stack also gets a disk for its downloads.
+const (
+	jellyfinDiskGiB  = 16
+	mediaDiskGiB     = 16
+	downloadsDiskGiB = 200
+)
+
+// diskGiB is the local disk an app of the setup takes, for the disk budget.
+func diskGiB(app string) int {
+	switch app {
+	case agent.JellyfinApp:
+		return jellyfinDiskGiB
+	case agent.MediaStackApp:
+		return mediaDiskGiB + downloadsDiskGiB
+	}
+	return Plan{}.scopedAnswers(app, nil).DiskGB
+}
+
 // Plan is what the setup page asks. Its secrets stay in memory, never on disk.
 type Plan struct {
 	Apps  []string `json:"apps" yaml:"apps"`
@@ -177,7 +198,7 @@ func (p Plan) mediaAnswers(videos, jellyfinKey string, withJellyfin bool) agent.
 		AnimeFolder: "anime", AnimeMoviesFolder: "anime-movies",
 		VPN: p.VPN.settings(), SubtitleLanguages: "en",
 		Username: p.Admin.Username, Password: p.Admin.Password, RestartJellyfin: true, Storage: p.Storage,
-		DownloadsSize: 200, FlareSolverr: p.FlareSolverr, AnimeIndexers: p.AnimeIndexers,
+		DownloadsSize: downloadsDiskGiB, FlareSolverr: p.FlareSolverr, AnimeIndexers: p.AnimeIndexers,
 	}
 	// The media stack sets up Seerr with the admin of Jellyfin, and adds the
 	// libraries with the key that the Jellyfin installer made, when it has it.
