@@ -207,8 +207,15 @@ function GuestRow({ guest, backups, onBackUp, onConfirm, onCheck }: GuestRowProp
 }
 
 function RestoreButton({ guest, disabled, onClick }: { guest: Guest; disabled: boolean; onClick: () => void }) {
+    const reasonID = `restore-reason-${guest.vmid}`
     const button = (
-        <Button variant="outline" size="sm" disabled={disabled || guest.self} onClick={onClick}>
+        <Button
+            variant="outline"
+            size="sm"
+            disabled={disabled || guest.self}
+            onClick={onClick}
+            aria-describedby={guest.self ? reasonID : undefined}
+        >
             Restore
         </Button>
     )
@@ -217,11 +224,15 @@ function RestoreButton({ guest, disabled, onClick }: { guest: Guest; disabled: b
         return button
     }
 
+    // A disabled button can't take focus, so the trigger around it does, and
+    // a screen reader reads the reason with the button.
     return (
         <Tooltip>
-            <TooltipTrigger render={<span />}>{button}</TooltipTrigger>
+            <TooltipTrigger render={<span tabIndex={0} />}>{button}</TooltipTrigger>
             <TooltipContent>
-                Iglo-OS runs in this container. To restore it, run <code>iglo-restore</code> on the Proxmox host.
+                <span id={reasonID}>
+                    Iglo-OS runs in this container. To restore it, run <code>iglo-restore</code> on the Proxmox host.
+                </span>
             </TooltipContent>
         </Tooltip>
     )
@@ -243,7 +254,13 @@ function IncludedSwitch({ guest, jobActive, disabled, onChange }: IncludedSwitch
                 disabled={disabled || !jobActive}
                 onCheckedChange={onChange}
                 aria-label={`Back up ${guest.name} on the schedule`}
+                aria-describedby={jobActive ? undefined : `schedule-reason-${guest.vmid}`}
             />
+            {!jobActive && (
+                <span id={`schedule-reason-${guest.vmid}`} className="sr-only">
+                    Turn on the schedule first.
+                </span>
+            )}
         </label>
     )
 
@@ -253,7 +270,7 @@ function IncludedSwitch({ guest, jobActive, disabled, onChange }: IncludedSwitch
 
     return (
         <Tooltip>
-            <TooltipTrigger render={<span />}>{control}</TooltipTrigger>
+            <TooltipTrigger render={<span tabIndex={0} />}>{control}</TooltipTrigger>
             <TooltipContent>Turn on the schedule first.</TooltipContent>
         </Tooltip>
     )
