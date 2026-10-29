@@ -35,6 +35,15 @@ type Config struct {
 	// AnimePath and AnimeMoviesPath are optional libraries for anime.
 	AnimePath       string
 	AnimeMoviesPath string
+	// MusicPath and MusicVideosPath are optional libraries on the Music
+	// share, where the Music app publishes. HomeVideosPath is the optional
+	// library of the home videos that Inbox makes.
+	MusicPath       string
+	MusicVideosPath string
+	HomeVideosPath  string
+	// APIKey is a key of Jellyfin, for AddLibraries only. Setup logs in as
+	// the admin instead.
+	APIKey string
 	// GPU turns on VA-API transcoding, for Intel and AMD.
 	GPU bool
 	// VAInfo is the output of vainfo in the container. It says which codecs
@@ -64,16 +73,10 @@ var retryEvery = 2 * time.Second
 // Setup returns an API key for Iglo-OS. It skips the startup wizard when it
 // was already done, so it is safe to run again.
 func Setup(ctx context.Context, cfg Config) (string, error) {
-	if cfg.HTTP == nil {
-		cfg.HTTP = &http.Client{Timeout: 30 * time.Second}
-	}
-	if cfg.Wait == 0 {
-		cfg.Wait = 3 * time.Minute
-	}
-	jf := &server{baseURL: strings.TrimRight(cfg.URL, "/"), http: cfg.HTTP, wait: cfg.Wait}
+	jf := newServer(cfg)
 
 	cfg.Logf("Waiting for Jellyfin to start")
-	info, err := jf.waitForStart(ctx, cfg.Wait)
+	info, err := jf.waitForStart(ctx, jf.wait)
 	if err != nil {
 		return "", err
 	}
@@ -90,18 +93,8 @@ func Setup(ctx context.Context, cfg Config) (string, error) {
 	}
 
 	cfg.Logf("Adding the libraries")
-	for _, library := range []struct{ name, kind, path string }{
-		{"Movies", "movies", cfg.MoviesPath},
-		{"Series", "tvshows", cfg.SeriesPath},
-		{"Anime", "tvshows", cfg.AnimePath},
-		{"Anime Movies", "movies", cfg.AnimeMoviesPath},
-	} {
-		if library.path == "" {
-			continue
-		}
-		if err := jf.ensureLibrary(ctx, library.name, library.kind, library.path); err != nil {
-			return "", err
-		}
+	if err := jf.ensureLibraries(ctx, cfg); err != nil {
+		return "", err
 	}
 
 	if cfg.GPU {
@@ -129,6 +122,66 @@ func Setup(ctx context.Context, cfg Config) (string, error) {
 	}
 
 	return apiKey, nil
+}
+
+// AddLibraries adds the libraries of cfg that are missing, with the API key
+// cfg.APIKey. The update of Jellyfin uses it: it has no admin password.
+func AddLibraries(ctx context.Context, cfg Config) error {
+	if cfg.APIKey == "" {
+		return errors.New("an API key is required")
+	}
+	jf := newServer(cfg)
+	jf.token = cfg.APIKey
+
+	cfg.Logf("Waiting for Jellyfin to start")
+	if _, err := jf.waitForStart(ctx, jf.wait); err != nil {
+		return err
+	}
+	cfg.Logf("Adding the libraries that are missing")
+	return jf.ensureLibraries(ctx, cfg)
+}
+
+func newServer(cfg Config) *server {
+	client, wait := cfg.HTTP, cfg.Wait
+	if client == nil {
+		client = &http.Client{Timeout: 30 * time.Second}
+	}
+	if wait == 0 {
+		wait = 3 * time.Minute
+	}
+	return &server{baseURL: strings.TrimRight(cfg.URL, "/"), http: client, wait: wait}
+}
+
+// library is a library of Jellyfin. kind is its collection type: Jellyfin
+// v12.4 knows movies, tvshows, music, musicvideos, homevideos, boxsets,
+// books and mixed (CollectionTypeOptions.cs, checked on 29 October 2026).
+type library struct{ name, kind, path string }
+
+// libraries are the libraries of cfg with a path, in the order they are added.
+func (cfg Config) libraries() []library {
+	all := []library{
+		{"Movies", "movies", cfg.MoviesPath},
+		{"Series", "tvshows", cfg.SeriesPath},
+		{"Anime", "tvshows", cfg.AnimePath},
+		{"Anime Movies", "movies", cfg.AnimeMoviesPath},
+		{"Music", "music", cfg.MusicPath},
+		{"Music Videos", "musicvideos", cfg.MusicVideosPath},
+		{"Home Videos", "homevideos", cfg.HomeVideosPath},
+	}
+	return slices.DeleteFunc(all, func(l library) bool { return l.path == "" })
+}
+
+func (s *server) ensureLibraries(ctx context.Context, cfg Config) error {
+	for _, library := range cfg.libraries() {
+		added, err := s.ensureLibrary(ctx, library)
+		if err != nil {
+			return err
+		}
+		if !added {
+			cfg.Logf("The library %s is there already", library.name)
+		}
+	}
+	return nil
 }
 
 type publicInfo struct {
@@ -195,33 +248,39 @@ func (s *server) login(ctx context.Context, username, password string) error {
 }
 
 type virtualFolder struct {
+	Name      string   `json:"Name"`
 	Locations []string `json:"Locations"`
 }
 
-// ensureLibrary adds a library unless one already uses the path.
-func (s *server) ensureLibrary(ctx context.Context, name, kind, path string) error {
+// ensureLibrary adds a library unless one already uses the path or the
+// name, and says whether it added it. A library that is there keeps its
+// settings. Jellyfin v12.4 adds a second library of the same name as
+// "Music2" (LibraryManager.AddVirtualFolder), so the name counts too.
+func (s *server) ensureLibrary(ctx context.Context, library library) (bool, error) {
 	var folders []virtualFolder
 	if err := s.do(ctx, http.MethodGet, "/Library/VirtualFolders", nil, &folders); err != nil {
-		return err
+		return false, err
 	}
-	if slices.ContainsFunc(folders, func(folder virtualFolder) bool { return slices.Contains(folder.Locations, path) }) {
-		return nil
+	if slices.ContainsFunc(folders, func(folder virtualFolder) bool {
+		return slices.Contains(folder.Locations, library.path) || strings.EqualFold(folder.Name, library.name)
+	}) {
+		return false, nil
 	}
 
-	query := url.Values{"name": {name}, "collectionType": {kind}, "refreshLibrary": {"true"}}
+	query := url.Values{"name": {library.name}, "collectionType": {library.kind}, "refreshLibrary": {"true"}}
 	// Scrub previews (trickplay) and chapter images, made by their night tasks
 	// only: during a scan they would start whenever Sonarr imports, maybe
 	// while someone watches. Jellyfin v12.4 has all four off by default
 	// (LibraryOptions.cs).
 	body := map[string]any{"LibraryOptions": map[string]any{
-		"PathInfos":                               []map[string]string{{"Path": path}},
+		"PathInfos":                               []map[string]string{{"Path": library.path}},
 		"EnableTrickplayImageExtraction":          true,
 		"ExtractTrickplayImagesDuringLibraryScan": false,
 		"EnableChapterImageExtraction":            true,
 		"ExtractChapterImagesDuringLibraryScan":   false,
 	}}
 
-	return s.do(ctx, http.MethodPost, "/Library/VirtualFolders?"+query.Encode(), body, nil)
+	return true, s.do(ctx, http.MethodPost, "/Library/VirtualFolders?"+query.Encode(), body, nil)
 }
 
 // gpu is what the GPU can do for Jellyfin, read from vainfo.

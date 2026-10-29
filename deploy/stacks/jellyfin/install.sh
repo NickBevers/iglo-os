@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # Installs Jellyfin in a new LXC on this Proxmox host, with the official
 # Jellyfin repository, the Videos share from Storage and the GPU of the host.
+# The Music share from Storage is optional.
 #
 #   ./install.sh [--storage local-lvm] [--bridge vmbr0] [--ctid 140] [--answers file]
 #   ./install.sh --update --ctid 140
@@ -8,6 +9,8 @@
 #
 # With --answers, it asks nothing and reads the answers from a KEY=value file.
 # The host agent uses this for the Apps page, and also --update and --remove.
+# An update takes --answers too, with only the API key of Jellyfin, to add the
+# libraries that are missing.
 set -euo pipefail
 
 STACK_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -23,6 +26,14 @@ CT_ID=""
 ANSWERS=""
 MODE="install"
 VIDEOS_BINDING=""
+MUSIC_BINDING=""
+JELLYFIN_API_KEY=""
+# HOME_VIDEOS_FOLDER is where Inbox publishes on the Videos share (cmd/iglo-inbox).
+HOME_VIDEOS_FOLDER="home-videos"
+# The Music app publishes songs and music videos in these folders of the
+# Music share (internal/music).
+MUSIC_AUDIO_FOLDER="audio"
+MUSIC_VIDEOS_FOLDER="videos"
 THEME="y"
 GPU=""
 GPU_DEVICE="/dev/dri/renderD128"
@@ -63,7 +74,7 @@ load_answers() {
         key="${line%%=*}" value="${line#*=}"
         case "$key" in
             VIDEOS_BINDING | MOVIES_FOLDER | SERIES_FOLDER | ANIME_FOLDER | ANIME_MOVIES_FOLDER | \
-                JELLYFIN_ADMIN_USERNAME | \
+                MUSIC_BINDING | JELLYFIN_ADMIN_USERNAME | \
                 JELLYFIN_ADMIN_PASSWORD | THEME | STORAGE)
                 printf -v "$key" '%s' "$value"
                 ;;
@@ -72,6 +83,22 @@ load_answers() {
     done <"$ANSWERS"
     # It holds the admin password.
     rm -f "$ANSWERS"
+}
+
+# load_update_answers reads the answers of an update: only the API key that
+# Iglo-OS has of this Jellyfin. The file goes at once, as it holds the key.
+load_update_answers() {
+    local line key value
+    while IFS= read -r line || [[ -n "$line" ]]; do
+        [[ -z "$line" ]] && continue
+        key="${line%%=*}" value="${line#*=}"
+        case "$key" in
+            JELLYFIN_API_KEY) JELLYFIN_API_KEY="$value" ;;
+            *) rm -f "$ANSWERS"; die "unknown answer: $key" ;;
+        esac
+    done <"$ANSWERS"
+    rm -f "$ANSWERS"
+    [[ "$JELLYFIN_API_KEY" =~ ^[a-f0-9]{32}$ ]] || die "the Jellyfin API key must be 32 characters (0-9 and a-f)"
 }
 
 ask_settings() {
@@ -86,6 +113,8 @@ ask_settings() {
         ask SERIES_FOLDER "Folder for series in it" "series"
         ask ANIME_FOLDER "Folder for anime series in it" "anime"
         ask ANIME_MOVIES_FOLDER "Folder for anime movies in it" "anime-movies"
+        echo "A Music share from the Storage page gives Jellyfin the Music libraries."
+        ask MUSIC_BINDING "ID of the Music share, empty for none" ""
         echo "The admin account of Jellyfin:"
         ask JELLYFIN_ADMIN_USERNAME "Username" "admin"
         ask JELLYFIN_ADMIN_PASSWORD "Password" "" secret
@@ -93,6 +122,11 @@ ask_settings() {
     fi
 
     check_folders
+    if [[ -n "$MUSIC_BINDING" ]]; then
+        [[ "$MUSIC_BINDING" != "$VIDEOS_BINDING" ]] || die "the Music share must be another share than the Videos share"
+        require_binding "$MUSIC_BINDING" music ro
+    fi
+    # Last, so make_share_folders works on the Videos share.
     require_binding "$VIDEOS_BINDING" videos ro
     [[ -n "${JELLYFIN_ADMIN_USERNAME:-}" && -n "${JELLYFIN_ADMIN_PASSWORD:-}" ]] || die "the Jellyfin admin needs a username and a password"
 }
@@ -113,32 +147,151 @@ create_container() {
         --description "$(app_description "Jellyfin, installed by Iglo-OS")"
 
     CREATED_CT="$CT_ID"
-    # Jellyfin only reads the media, and the share mounts before the container starts.
+    # Jellyfin only reads the media, and the shares mount before the container starts.
     bind_share "$CT_ID" 0 "$VIDEOS_BINDING" videos ro /data/media
+    [[ -z "$MUSIC_BINDING" ]] || bind_share "$CT_ID" 1 "$MUSIC_BINDING" music ro /data/music
     pct start "$CT_ID"
     wait_for_network "$CT_ID"
 }
 
-# update upgrades Jellyfin and the other packages. The setup of Jellyfin stays.
+# optional_folder says whether folder $1 is on the share of the last
+# require_binding. It makes the folder when it is missing and the share has
+# write access. Without it, Jellyfin gets no library for the folder.
+optional_folder() {
+    [[ ! -d "$BINDING_PATH/$1" ]] || return 0
+    if [[ "$BINDING_READ_ONLY" == false ]]; then
+        log "Making the folder $1 on the share"
+        if mkdir -m 0775 "$BINDING_PATH/$1"; then
+            return 0
+        fi
+    fi
+    log "The share has no folder $1, so Jellyfin gets no library for it"
+    return 1
+}
+
+# extra_libraries sets LIBRARY_FLAGS to the libraries of the home videos of
+# Inbox on the Videos share, and of the Music app on the Music share, for the
+# folders that are there.
+extra_libraries() {
+    LIBRARY_FLAGS=()
+    require_binding "$VIDEOS_BINDING" videos ro
+    if optional_folder "$HOME_VIDEOS_FOLDER"; then
+        LIBRARY_FLAGS+=(--home-videos "/data/media/$HOME_VIDEOS_FOLDER")
+    fi
+    [[ -n "$MUSIC_BINDING" ]] || return 0
+    require_binding "$MUSIC_BINDING" music ro
+    if optional_folder "$MUSIC_AUDIO_FOLDER"; then
+        LIBRARY_FLAGS+=(--music "/data/music/$MUSIC_AUDIO_FOLDER")
+    fi
+    if optional_folder "$MUSIC_VIDEOS_FOLDER"; then
+        LIBRARY_FLAGS+=(--music-videos "/data/music/$MUSIC_VIDEOS_FOLDER")
+    fi
+}
+
+# mounted_binding prints the share of Storage that container $CT_ID has at
+# mount point $1, from the config of the container in $2. It prints nothing
+# for no mount, or a mount that is not a share of Storage.
+mounted_binding() {
+    local source
+    source="$(sed -nE "s#^mp[0-9]+: ([^,]+),(.*,)?mp=$1(,.*)?\$#\\1#p" <<<"$2")"
+    [[ "$source" =~ ^/mnt/iglo/shares/([a-z][a-z0-9]{0,31})$ ]] && echo "${BASH_REMATCH[1]}"
+    return 0
+}
+
+# connect_music gives an installed Jellyfin the Music share, read-only, when
+# it has none and Storage has exactly one that is mounted. It sets
+# MUSIC_BINDING to the share that Jellyfin has, and RESTART when Jellyfin must
+# restart to see a new one.
+connect_music() {
+    local config conf id candidates=()
+    config="$(pct config "$CT_ID")"
+    VIDEOS_BINDING="$(mounted_binding /data/media "$config")"
+    MUSIC_BINDING="$(mounted_binding /data/music "$config")"
+    [[ -z "$MUSIC_BINDING" ]] || return 0
+    if grep -qE '^mp[0-9]+: [^,]+,(.*,)?mp=/data/music(,|$)' <<<"$config"; then
+        log "Jellyfin has other files at /data/music, so the update leaves the Music share out"
+        return 0
+    fi
+
+    for conf in /etc/iglo/storage/*.conf; do
+        [[ -f "$conf" ]] || continue
+        id="$(basename "$conf" .conf)"
+        grep -qx 'ROLE=music' "$conf" || continue
+        # A share that is not mounted now is left out, without stopping the update.
+        if (require_binding "$id" music ro) >/dev/null 2>&1; then
+            candidates+=("$id")
+        fi
+    done
+    case "${#candidates[@]}" in
+        0) return 0 ;;
+        1) ;;
+        *)
+            log "Storage has more than one Music share, so the update connects none. Reinstall Jellyfin to choose one"
+            return 0
+            ;;
+    esac
+
+    MUSIC_BINDING="${candidates[0]}"
+    log "Giving Jellyfin the Music share $MUSIC_BINDING at /data/music, read-only"
+    bind_share "$CT_ID" "$(free_mount_index "$CT_ID")" "$MUSIC_BINDING" music ro /data/music
+    RESTART=y
+}
+
+# update_libraries adds the libraries of the Music share and the home videos
+# that are missing. A failure only warns: the update itself worked.
+update_libraries() {
+    if [[ -z "$JELLYFIN_API_KEY" ]]; then
+        log "Iglo-OS has no API key of this Jellyfin, so the update adds no libraries. Connect it on the Jellyfin page"
+        return 0
+    fi
+    if [[ -z "$VIDEOS_BINDING" ]]; then
+        log "Jellyfin has no Videos share of Storage at /data/media, so the update adds no libraries"
+        return 0
+    fi
+    extra_libraries
+    ((${#LIBRARY_FLAGS[@]} > 0)) || return 0
+    # The key goes on stdin, so it is not in the process list.
+    if ! printf '%s\n' "$JELLYFIN_API_KEY" | "$STACK_DIR/iglo-jellyfin" libraries \
+        --url "http://$(container_ip "$CT_ID"):8096" "${LIBRARY_FLAGS[@]}"; then
+        log "Warning: the libraries were not added. Add them in Jellyfin under Dashboard > Libraries"
+    fi
+}
+
+# update upgrades Jellyfin and the other packages, and connects the Music
+# share and its libraries when they are new. The setup of Jellyfin and its
+# libraries stay.
 update() {
     require_proxmox
+    [[ -z "$ANSWERS" ]] || load_update_answers
+    [[ -x "$STACK_DIR/iglo-jellyfin" ]] || die "missing iglo-jellyfin next to install.sh"
     require_app_container "$CT_ID" jellyfin
     require_running "$CT_ID"
 
     upgrade_packages "$CT_ID"
 
+    RESTART=""
+    connect_music
+    if [[ -n "$RESTART" ]]; then
+        log "Restarting Jellyfin, so it sees the Music share"
+        pct reboot "$CT_ID"
+        wait_for_network "$CT_ID"
+    fi
+
     log "Waiting for Jellyfin"
-    local url
+    local url ready=""
     url="http://$(container_ip "$CT_ID"):8096/System/Info/Public"
     for _ in $(seq 1 40); do
         if curl -sf "$url" >/dev/null; then
-            pct set "$CT_ID" --description "$(app_description "Jellyfin, installed by Iglo-OS")"
-            log "Done"
-            return 0
+            ready=y
+            break
         fi
         sleep 3
     done
-    die "Jellyfin does not answer after the update"
+    [[ -n "$ready" ]] || die "Jellyfin does not answer after the update"
+
+    update_libraries
+    pct set "$CT_ID" --description "$(app_description "Jellyfin, installed by Iglo-OS")"
+    log "Done"
 }
 
 # on_exit removes the container that a failed install from the Apps page made,
@@ -228,6 +381,8 @@ configure_jellyfin() {
     [[ "$THEME" == "y" ]] && flags+=(--theme)
     [[ -z "$ANIME_FOLDER" ]] || flags+=(--anime "/data/media/$ANIME_FOLDER")
     [[ -z "$ANIME_MOVIES_FOLDER" ]] || flags+=(--anime-movies "/data/media/$ANIME_MOVIES_FOLDER")
+    extra_libraries
+    flags+=("${LIBRARY_FLAGS[@]}")
 
     # The password goes on stdin, so it is not in the process list.
     printf '%s\n' "$JELLYFIN_ADMIN_PASSWORD" | "$STACK_DIR/iglo-jellyfin" setup \

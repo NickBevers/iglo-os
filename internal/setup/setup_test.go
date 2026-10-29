@@ -230,6 +230,23 @@ func fakeImmich(t *testing.T) (*httptest.Server, *[]string) {
 	return server, &calls
 }
 
+func TestSetupGivesJellyfinTheMusicShare(t *testing.T) {
+	host := &fakeHost{installed: map[string]bool{}, requests: map[string]agent.InstallRequest{}}
+	// Jellyfin only reads the Music share, so a read-only one is enough.
+	host.bindings = []agent.Binding{{ID: "films", Role: "videos", Mounted: true}, {ID: "songs", Role: "music", Mounted: true, ReadOnly: true}}
+	service := New(Options{Apps: host, Agent: host, Backups: fakeBackups{host}, Workloads: fakeWorkloads{host, ""}, Poll: time.Millisecond})
+
+	plan := validPlan()
+	plan.Apps, plan.ProxmoxBackups = []string{agent.JellyfinApp}, false
+	if err := service.Start(context.Background(), plan); err != nil {
+		t.Fatal(err)
+	}
+	waitFor(t, service, StateDone)
+	if got := host.requests[agent.JellyfinApp].Jellyfin; got.VideosBinding != "films" || got.MusicBinding != "songs" {
+		t.Fatalf("jellyfin = %+v", got)
+	}
+}
+
 func waitFor(t *testing.T, service *Service, state string) View {
 	t.Helper()
 	deadline := time.Now().Add(5 * time.Second)
@@ -275,7 +292,7 @@ func TestSetupRunsThePlanInOrder(t *testing.T) {
 	}
 
 	// The apps use the shares and each other.
-	if got := host.requests[agent.JellyfinApp].Jellyfin; got.VideosBinding != "films" || got.AdminUsername != "nick" {
+	if got := host.requests[agent.JellyfinApp].Jellyfin; got.VideosBinding != "films" || got.AdminUsername != "nick" || got.MusicBinding != "" {
 		t.Fatalf("jellyfin = %+v", got)
 	}
 	media := host.requests[agent.MediaStackApp].MediaStackAnswers

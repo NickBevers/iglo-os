@@ -32,13 +32,14 @@ downloads and missing mounts never publish a completed file. The queue retains
 the most recent 100 jobs in `queue.json`; it is not a library inventory. Jobs
 interrupted by a restart fail explicitly and require resubmission.
 
-Add a **read-only Music share mount** to your Jellyfin guest, then a Music library
-for `audio/` and, if wanted, a separate Music videos library for `videos/`.
-The existing Jellyfin installer only binds its legacy movie/series share; this
-extra library mount is still a manual Proxmox/Jellyfin step. Set a host mount
-dependency as for the scoped guests and test NAS loss/reboot before relying on
-it. The worker does not automatically modify existing Jellyfin libraries.
-Finamp connects to Jellyfin, rather than to the worker.
+Jellyfin reads the Music share read-only at `/data/music`, with a **Music**
+library for `audio/` and a **Music Videos** library for `videos/`. Choose the
+Music share in the Jellyfin install form; the guided setup does it by itself.
+For a Jellyfin that is installed already, connect the Music share and update
+Jellyfin on the Apps page. The share mounts before the container starts, as for
+the scoped guests. See [jellyfin.md](jellyfin.md#music-and-home-videos). The
+worker itself never changes Jellyfin. Finamp connects to Jellyfin, rather than
+to the worker.
 
 The worker API binds **127.0.0.1:8788 inside the guest**. The authenticated manager
 uses the host agent and `pct exec`; it does not expose the worker port to clients.
@@ -56,7 +57,8 @@ The loopback API on port 8789 reaches clients only through the manager/agent.
 
 Open **Services → Inbox work**, review the profile and resume the initially
 paused queue. Sources are read only at `/data/inbox`. Output goes to
-`/data/videos/home-videos`. SSD staging and state live in
+`/data/videos/home-videos`, the `home-videos` folder of the Videos share.
+Jellyfin shows it as the **Home Videos** library. SSD staging and state live in
 `/var/lib/iglo-inbox/worker`. Scans accept files unchanged for 30 seconds.
 Remote SMB writes do not reliably generate local inotify events, so the worker
 lists the share itself. Each listing can wake the NAS disks, so timed scans

@@ -263,8 +263,15 @@ type AppContainerRequest struct {
 	VMID    int    `json:"vmid"`
 }
 
-func (c *Client) UpdateApp(ctx context.Context, app string, vmid int) error {
-	return c.do(ctx, http.MethodPost, "/v1/apps/"+url.PathEscape(app)+"/update", AppContainerRequest{VMID: vmid}, nil)
+// AppUpdateRequest names the container of an app to update. JellyfinAPIKey
+// is for Jellyfin only: with it, the update adds the libraries that are missing.
+type AppUpdateRequest struct {
+	VMID           int    `json:"vmid"`
+	JellyfinAPIKey string `json:"jellyfinApiKey,omitempty"`
+}
+
+func (c *Client) UpdateApp(ctx context.Context, app string, request AppUpdateRequest) error {
+	return c.do(ctx, http.MethodPost, "/v1/apps/"+url.PathEscape(app)+"/update", request, nil)
 }
 
 func (c *Client) RemoveApp(ctx context.Context, app string, vmid int) error {

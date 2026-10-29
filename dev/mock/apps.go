@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"iglo/internal/agent"
+	"iglo/internal/stacks/jellyfinsetup"
 )
 
 // failPassword makes a fake install fail, to see the error on the Apps page.
@@ -54,7 +55,16 @@ func (f *fakeInstalls) isRunning() bool {
 
 func (f *fakeInstalls) start(script string, args []string, cleanup, logPath, exitPath string) error {
 	stack := filepath.Base(filepath.Dir(script))
-	play := func() { f.playOnContainer(stack, args[0], logPath, exitPath) }
+	play := func() { f.playOnContainer(stack, args[0], "", logPath, exitPath) }
+	// An update of Jellyfin gets the API key in an answers file.
+	if args[0] == "--update" && cleanup != "" {
+		answers, err := os.ReadFile(cleanup)
+		if err != nil {
+			return err
+		}
+		os.Remove(cleanup)
+		play = func() { f.playOnContainer(stack, args[0], string(answers), logPath, exitPath) }
+	}
 	if args[0] == "--vpn" {
 		answers, err := os.ReadFile(cleanup)
 		if err != nil {
@@ -223,8 +233,9 @@ func saveFlareSolverr(on bool) {
 	os.WriteFile(statePath("flaresolverr"), []byte(answer+"\n"), 0o600)
 }
 
-// playOnContainer plays an update or a removal. With .dev/fail-update, an update fails.
-func (f *fakeInstalls) playOnContainer(stack, action, logPath, exitPath string) {
+// playOnContainer plays an update or a removal. With .dev/fail-update, an
+// update fails. answers are those of an update of Jellyfin, or empty.
+func (f *fakeInstalls) playOnContainer(stack, action, answers, logPath, exitPath string) {
 	defer func() {
 		f.mu.Lock()
 		f.running = false
@@ -272,16 +283,99 @@ func (f *fakeInstalls) playOnContainer(stack, action, logPath, exitPath string) 
 		write("==> Downloading the new images")
 		write("==> Starting the stack")
 		write("==> Waiting for the VPN")
-	default:
-		write("==> Waiting for Jellyfin")
 	}
 	if _, err := os.Stat(statePath("fail-update")); err == nil {
 		write("error: the fake update failed, because .dev/fail-update exists")
 		finish(1)
 		return
 	}
+	if stack == "jellyfin" {
+		if err := updateJellyfin(answers, write); err != nil {
+			write("error: " + err.Error())
+			finish(1)
+			return
+		}
+	}
 	write("==> Done")
 	finish(0)
+}
+
+// jellyfinConf is the fake container config of Jellyfin, with its shares.
+var jellyfinConf = statePath("binding-containers/140.conf")
+
+// updateJellyfin plays the update of Jellyfin like install.sh --update: it
+// gives Jellyfin the Music share when Storage has exactly one and Jellyfin
+// has none, and adds the missing libraries with the API key of the answers.
+// The fake Jellyfin on 18096 stands in for the one in container 140.
+func updateJellyfin(answers string, write func(string)) error {
+	conf, _ := os.ReadFile(jellyfinConf)
+	if !strings.Contains(string(conf), "mp=/data/music") {
+		music := []string{}
+		manifests, _ := filepath.Glob(statePath("bindings/*.conf"))
+		for _, manifest := range manifests {
+			if data, err := os.ReadFile(manifest); err == nil && strings.Contains(string(data), "ROLE=music\n") {
+				music = append(music, strings.TrimSuffix(filepath.Base(manifest), ".conf"))
+			}
+		}
+		switch len(music) {
+		case 0:
+		case 1:
+			write("==> Giving Jellyfin the Music share " + music[0] + " at /data/music, read-only")
+			if err := addMount(jellyfinConf, music[0], "/data/music"); err != nil {
+				return err
+			}
+			write("==> Restarting Jellyfin, so it sees the Music share")
+		default:
+			write("==> Storage has more than one Music share, so the update connects none. Reinstall Jellyfin to choose one")
+		}
+	}
+	write("==> Waiting for Jellyfin")
+
+	key := ""
+	for line := range strings.Lines(answers) {
+		if value, ok := strings.CutPrefix(strings.TrimSpace(line), "JELLYFIN_API_KEY="); ok {
+			key = value
+		}
+	}
+	if key == "" {
+		write("==> Iglo-OS has no API key of this Jellyfin, so the update adds no libraries. Connect it on the Jellyfin page")
+		return nil
+	}
+	conf, _ = os.ReadFile(jellyfinConf)
+	cfg := jellyfinsetup.Config{URL: "http://" + jellyfinAddr, APIKey: key, HomeVideosPath: "/data/media/home-videos"}
+	if strings.Contains(string(conf), "mp=/data/music") {
+		cfg.MusicPath, cfg.MusicVideosPath = "/data/music/audio", "/data/music/videos"
+	}
+	return playLibraries(cfg, write)
+}
+
+// playLibraries adds the libraries of cfg to the fake Jellyfin. A failure
+// only warns, as in the installer.
+func playLibraries(cfg jellyfinsetup.Config, write func(string)) error {
+	cfg.Logf = func(format string, args ...any) { write("==> " + fmt.Sprintf(format, args...)) }
+	cfg.Wait = 5 * time.Second
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+	if err := jellyfinsetup.AddLibraries(ctx, cfg); err != nil {
+		write("==> Warning: the libraries were not added (" + err.Error() + "). Add them in Jellyfin under Dashboard > Libraries")
+	}
+	return nil
+}
+
+// addMount adds a share to a fake container config at the first free mount point.
+func addMount(path, binding, destination string) error {
+	conf, _ := os.ReadFile(path)
+	index := 0
+	for line := range strings.Lines(string(conf)) {
+		if strings.HasPrefix(line, "mp") {
+			index++
+		}
+	}
+	line := fmt.Sprintf("mp%d: %s,mp=%s,ro=1\n", index, statePath("shares/"+binding), destination)
+	if err := os.MkdirAll(filepath.Dir(path), 0o700); err != nil {
+		return err
+	}
+	return os.WriteFile(path, append(conf, line...), 0o600)
 }
 
 func (f *fakeInstalls) play(stack, answers, logPath, exitPath string) {
@@ -339,6 +433,9 @@ func (f *fakeInstalls) play(stack, answers, logPath, exitPath string) {
 			return
 		}
 	}
+	if stack == "jellyfin" {
+		installJellyfinLibraries(answers, write)
+	}
 	if stack == "headscale" {
 		os.WriteFile(statePath("headscale-answers"), []byte(answers), 0600)
 		os.WriteFile(statePath("headscale-installed"), nil, 0600)
@@ -387,6 +484,36 @@ func (f *fakeInstalls) play(stack, answers, logPath, exitPath string) {
 		os.WriteFile(statePath("media-installed"), nil, 0o600)
 	}
 	finish(0)
+}
+
+// installJellyfinLibraries plays the libraries of a new Jellyfin, with the
+// Music share of the answers when there is one. The fake Jellyfin on 18096
+// stands in for the one in container 140, which the setup has made already.
+func installJellyfinLibraries(answers string, write func(string)) {
+	values := map[string]string{}
+	for line := range strings.Lines(answers) {
+		if key, value, ok := strings.Cut(strings.TrimSpace(line), "="); ok {
+			values[key] = value
+		}
+	}
+	folder := func(key string) string {
+		if values[key] == "" {
+			return ""
+		}
+		return "/data/media/" + values[key]
+	}
+	cfg := jellyfinsetup.Config{
+		URL: "http://" + jellyfinAddr, APIKey: "0123456789abcdef0123456789abcdef",
+		MoviesPath: folder("MOVIES_FOLDER"), SeriesPath: folder("SERIES_FOLDER"),
+		AnimePath: folder("ANIME_FOLDER"), AnimeMoviesPath: folder("ANIME_MOVIES_FOLDER"),
+		HomeVideosPath: "/data/media/home-videos",
+	}
+	if music := values["MUSIC_BINDING"]; music != "" {
+		write("==> Giving Jellyfin the Music share " + music + " at /data/music, read-only")
+		addMount(jellyfinConf, music, "/data/music")
+		cfg.MusicPath, cfg.MusicVideosPath = "/data/music/audio", "/data/music/videos"
+	}
+	playLibraries(cfg, write)
 }
 
 // bindVideos records that a fake Jellyfin or media stack uses the Videos
@@ -455,20 +582,30 @@ func addAppRoutes(mux *http.ServeMux, installer *agent.AppInstaller) {
 		}
 		w.WriteHeader(http.StatusAccepted)
 	})
-	for action, run := range map[string]func(string, int) error{"update": installer.Update, "remove": installer.Remove} {
-		mux.HandleFunc("POST /v1/apps/{app}/"+action, func(w http.ResponseWriter, r *http.Request) {
-			var request agent.AppContainerRequest
-			if err := json.NewDecoder(r.Body).Decode(&request); err != nil {
-				http.Error(w, "invalid request body", http.StatusBadRequest)
-				return
-			}
-			if err := run(r.PathValue("app"), request.VMID); err != nil {
-				fail(w, err)
-				return
-			}
-			w.WriteHeader(http.StatusAccepted)
-		})
-	}
+	mux.HandleFunc("POST /v1/apps/{app}/update", func(w http.ResponseWriter, r *http.Request) {
+		var request agent.AppUpdateRequest
+		if err := json.NewDecoder(r.Body).Decode(&request); err != nil {
+			http.Error(w, "invalid request body", http.StatusBadRequest)
+			return
+		}
+		if err := installer.Update(r.PathValue("app"), request); err != nil {
+			fail(w, err)
+			return
+		}
+		w.WriteHeader(http.StatusAccepted)
+	})
+	mux.HandleFunc("POST /v1/apps/{app}/remove", func(w http.ResponseWriter, r *http.Request) {
+		var request agent.AppContainerRequest
+		if err := json.NewDecoder(r.Body).Decode(&request); err != nil {
+			http.Error(w, "invalid request body", http.StatusBadRequest)
+			return
+		}
+		if err := installer.Remove(r.PathValue("app"), request.VMID); err != nil {
+			fail(w, err)
+			return
+		}
+		w.WriteHeader(http.StatusAccepted)
+	})
 	mux.HandleFunc("GET /v1/apps/media/vpn", func(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, loadVPN())
 	})

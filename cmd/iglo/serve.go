@@ -191,6 +191,8 @@ func serve() error {
 			}
 			return jellyfinService.SaveSettings(ctx, jellyfin.Settings{URL: "http://" + status.IP + ":8096", APIKey: status.APIKey})
 		},
+		// The update of Jellyfin adds the libraries that are missing with it.
+		JellyfinKey: func() string { return jellyfinService.Settings().APIKey },
 		// The Jellyfin page forgets a Jellyfin that is gone.
 		OnRemoved: func(ctx context.Context, app string, ip string) error {
 			if app != agent.JellyfinApp {

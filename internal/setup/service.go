@@ -390,6 +390,8 @@ func (s *Service) installApp(ctx context.Context, plan Plan, app string) (string
 			return "", err
 		}
 		request.Jellyfin = plan.jellyfinAnswers(videos.ID)
+		// Jellyfin only reads the Music share, so one without write access does too.
+		request.Jellyfin.MusicBinding = s.musicShare(ctx)
 	case agent.MediaStackApp:
 		videos, err := s.binding(ctx, "videos")
 		if err != nil {
@@ -421,6 +423,21 @@ func (s *Service) installApp(ctx context.Context, plan Plan, app string) (string
 		return "", err
 	}
 	return s.waitForApp(ctx, app)
+}
+
+// musicShare is a mounted Music share for the Music libraries of Jellyfin,
+// or empty when there is none.
+func (s *Service) musicShare(ctx context.Context) string {
+	view, err := s.Agent.StorageBindings(ctx)
+	if err != nil {
+		return ""
+	}
+	for _, binding := range view.Bindings {
+		if binding.Role == "music" && binding.Mounted {
+			return binding.ID
+		}
+	}
+	return ""
 }
 
 func (s *Service) appView(ctx context.Context, app string) (apps.AppView, bool) {

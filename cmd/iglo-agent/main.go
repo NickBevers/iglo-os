@@ -107,7 +107,7 @@ func run(socketPath, adminPath string, socketGID int, logger *slog.Logger) error
 	}
 	mux.HandleFunc("POST /v1/apps/{app}/install", installApp(apps, logger))
 	mux.HandleFunc("POST /v1/apps/{app}/retry", retryApp(apps, logger))
-	mux.HandleFunc("POST /v1/apps/{app}/update", appOnContainer(apps.Update, "app update started", logger))
+	mux.HandleFunc("POST /v1/apps/{app}/update", updateApp(apps, logger))
 	mux.HandleFunc("POST /v1/apps/{app}/remove", appOnContainer(apps.Remove, "app removal started", logger))
 	mux.HandleFunc("GET /v1/apps/media/vpn", func(w http.ResponseWriter, r *http.Request) {
 		vmid, _ := strconv.Atoi(r.URL.Query().Get("vmid"))
@@ -334,7 +334,28 @@ func retryApp(apps *agent.AppInstaller, logger *slog.Logger) http.HandlerFunc {
 	}
 }
 
-// appOnContainer runs an update or a removal of the app in container vmid.
+// updateApp updates the app in container vmid. The API key of Jellyfin in
+// the request is never logged.
+func updateApp(apps *agent.AppInstaller, logger *slog.Logger) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		var request agent.AppUpdateRequest
+		if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, 1024)).Decode(&request); err != nil {
+			http.Error(w, "invalid request body", http.StatusBadRequest)
+			return
+		}
+
+		app := r.PathValue("app")
+		if err := apps.Update(app, request); err != nil {
+			writeAppError(w, logger, app, err)
+			return
+		}
+
+		logger.Info("app update started", "app", app, "vmid", request.VMID, "libraries", request.JellyfinAPIKey != "")
+		w.WriteHeader(http.StatusAccepted)
+	}
+}
+
+// appOnContainer runs a removal or a recovery of the app in container vmid.
 func appOnContainer(run func(app string, vmid int) error, message string, logger *slog.Logger) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		var request agent.AppContainerRequest

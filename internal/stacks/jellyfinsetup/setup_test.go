@@ -345,3 +345,80 @@ func TestSetupAddsAnimeLibraries(t *testing.T) {
 		t.Fatalf("libraries = %v", fake.libraries)
 	}
 }
+
+func TestSetupAddsMusicAndHomeVideosLibraries(t *testing.T) {
+	fake := &fakeJellyfin{encoding: map[string]any{"HardwareAccelerationType": "none"}}
+	server := httptest.NewServer(fake)
+	defer server.Close()
+
+	cfg := testConfig(server.URL)
+	cfg.MusicPath, cfg.MusicVideosPath, cfg.HomeVideosPath = "/data/music/audio", "/data/music/videos", "/data/media/home-videos"
+	if _, err := Setup(context.Background(), cfg); err != nil {
+		t.Fatal(err)
+	}
+	want := [][2]string{{"Movies", "movies"}, {"Series", "tvshows"}, {"Music", "music"}, {"Music Videos", "musicvideos"}, {"Home Videos", "homevideos"}}
+	if len(fake.libraries) != len(want) {
+		t.Fatalf("libraries = %v", fake.libraries)
+	}
+	for i, library := range want {
+		if fake.libraries[i]["Name"] != library[0] || fake.libraries[i]["CollectionType"] != library[1] {
+			t.Fatalf("library %d = %v, want %v", i, fake.libraries[i], library)
+		}
+	}
+}
+
+func TestAddLibrariesWithAnAPIKey(t *testing.T) {
+	// A Music library of your own at another folder, and a library of your
+	// own at the folder of Inbox.
+	ownOptions := map[string]any{"EnableRealtimeMonitor": false}
+	fake := &fakeJellyfin{completed: true, libraries: []map[string]any{
+		{"Name": "music", "CollectionType": "music", "Locations": []any{"/mnt/songs"}, "LibraryOptions": ownOptions},
+		{"Name": "Family", "CollectionType": "homevideos", "Locations": []any{"/data/media/home-videos"}, "LibraryOptions": ownOptions},
+	}}
+	server := httptest.NewServer(fake)
+	defer server.Close()
+
+	cfg := Config{
+		URL: server.URL, APIKey: "api-key", Logf: func(string, ...any) {}, Wait: time.Second,
+		MusicPath: "/data/music/audio", MusicVideosPath: "/data/music/videos", HomeVideosPath: "/data/media/home-videos",
+	}
+	if err := AddLibraries(context.Background(), cfg); err != nil {
+		t.Fatal(err)
+	}
+	// Only Music Videos is new. The others keep their names, folders and settings.
+	if len(fake.libraries) != 3 || fake.libraries[2]["Name"] != "Music Videos" || fake.libraries[2]["CollectionType"] != "musicvideos" {
+		t.Fatalf("libraries = %v", fake.libraries)
+	}
+	if !reflect.DeepEqual(fake.libraries[0]["LibraryOptions"], ownOptions) || !reflect.DeepEqual(fake.libraries[1]["Locations"], []any{"/data/media/home-videos"}) {
+		t.Fatalf("an existing library changed: %v", fake.libraries)
+	}
+	for _, call := range fake.calls {
+		if strings.HasPrefix(call, "POST /Startup/") || call == "POST /Users/AuthenticateByName" || strings.HasPrefix(call, "POST /System/") {
+			t.Fatalf("the update called %s", call)
+		}
+	}
+
+	// Again: nothing to add.
+	calls := len(fake.calls)
+	if err := AddLibraries(context.Background(), cfg); err != nil {
+		t.Fatal(err)
+	}
+	if slices.Contains(fake.calls[calls:], "POST /Library/VirtualFolders") {
+		t.Fatalf("second run added a library: %v", fake.calls[calls:])
+	}
+}
+
+func TestAddLibrariesWithAWrongKey(t *testing.T) {
+	fake := &fakeJellyfin{completed: true}
+	server := httptest.NewServer(fake)
+	defer server.Close()
+
+	cfg := Config{URL: server.URL, APIKey: "other-key", MusicPath: "/data/music/audio", Logf: func(string, ...any) {}, Wait: time.Second}
+	if err := AddLibraries(context.Background(), cfg); err == nil || !strings.Contains(err.Error(), "401") {
+		t.Fatalf("err = %v", err)
+	}
+	cfg.APIKey = ""
+	if err := AddLibraries(context.Background(), cfg); err == nil {
+		t.Fatal("no error without a key")
+	}
+}

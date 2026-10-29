@@ -43,10 +43,14 @@ func (f *fakeAgent) ChangeFlareSolverr(_ context.Context, vmid int, enabled bool
 	return nil
 }
 
-func (f *fakeAgent) UpdateApp(_ context.Context, app string, vmid int) error {
+func (f *fakeAgent) UpdateApp(_ context.Context, app string, request agent.AppUpdateRequest) error {
 	f.mu.Lock()
 	defer f.mu.Unlock()
-	f.actions = append(f.actions, fmt.Sprintf("update %s %d", app, vmid))
+	action := fmt.Sprintf("update %s %d", app, request.VMID)
+	if request.JellyfinAPIKey != "" {
+		action += " key " + request.JellyfinAPIKey
+	}
+	f.actions = append(f.actions, action)
 	f.status = agent.AppInstallStatus{App: app, Action: agent.ActionUpdate, State: agent.UpgradeRunning}
 	return nil
 }
@@ -511,6 +515,30 @@ func TestUpdateOnlyForAppsOfIglo(t *testing.T) {
 	}
 	if len(fake.actions) != 0 {
 		t.Fatalf("actions = %v", fake.actions)
+	}
+}
+
+func TestJellyfinUpdateGetsTheKeyOfTheJellyfinPage(t *testing.T) {
+	ctx := context.Background()
+	resources := append(baseResources()[:2], proxmox.Resource{Type: "lxc", Node: "pve", VMID: 140, Name: "jellyfin", Status: "running", Tags: "iglo;jellyfin"},
+		proxmox.Resource{Type: "lxc", Node: "pve", VMID: 130, Name: "media", Status: "running", Tags: "iglo;media"})
+	for _, test := range []struct{ app, key, want string }{
+		{"jellyfin", "0123456789abcdef0123456789abcdef", "update jellyfin 140 key 0123456789abcdef0123456789abcdef"},
+		// The dev mock connects with the key "dev": not a key of Jellyfin.
+		{"jellyfin", "dev", "update jellyfin 140"},
+		{"media", "0123456789abcdef0123456789abcdef", "update media 130"},
+	} {
+		fake := &fakeAgent{}
+		service := New(Options{
+			Agent: fake, Proxmox: &fakeProxmox{resources: resources}, SelfVMID: 100, PollInterval: time.Hour,
+			JellyfinKey: func() string { return test.key },
+		})
+		if err := service.Update(ctx, ctx, test.app); err != nil {
+			t.Fatal(err)
+		}
+		if len(fake.actions) != 1 || fake.actions[0] != test.want {
+			t.Fatalf("%s with key %q: actions = %v", test.app, test.key, fake.actions)
+		}
 	}
 }
 

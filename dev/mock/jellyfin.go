@@ -5,14 +5,52 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"sync"
 )
 
 const jellyfinAddr = "127.0.0.1:18096"
 
+// fakeLibrary is a library of the fake Jellyfin, as GET /Library/VirtualFolders lists it.
+type fakeLibrary struct {
+	Name           string   `json:"Name"`
+	CollectionType string   `json:"CollectionType"`
+	Locations      []string `json:"Locations"`
+}
+
 // newJellyfin fakes the parts of the Jellyfin API that the manager reads:
-// the server info, the library counts, what plays now and what is new.
+// the server info, the library counts, what plays now and what is new. It
+// also keeps libraries, which the played installs and updates of Jellyfin
+// add through jellyfinsetup, like the real installer. They live in memory.
 func newJellyfin() http.Handler {
 	mux := http.NewServeMux()
+	var mu sync.Mutex
+	libraries := []fakeLibrary{
+		{"Movies", "movies", []string{"/data/media/movies"}},
+		{"Series", "tvshows", []string{"/data/media/series"}},
+	}
+	mux.HandleFunc("GET /System/Info/Public", func(w http.ResponseWriter, r *http.Request) {
+		writeJSON(w, map[string]any{"ServerName": "jellyfin", "Version": "10.11.2", "StartupWizardCompleted": true})
+	})
+	mux.HandleFunc("GET /Library/VirtualFolders", func(w http.ResponseWriter, r *http.Request) {
+		mu.Lock()
+		defer mu.Unlock()
+		writeJSON(w, libraries)
+	})
+	mux.HandleFunc("POST /Library/VirtualFolders", func(w http.ResponseWriter, r *http.Request) {
+		var body struct {
+			LibraryOptions struct {
+				PathInfos []struct{ Path string } `json:"PathInfos"`
+			} `json:"LibraryOptions"`
+		}
+		if json.NewDecoder(r.Body).Decode(&body) != nil || len(body.LibraryOptions.PathInfos) == 0 || r.URL.Query().Get("name") == "" {
+			http.Error(w, "invalid library", http.StatusBadRequest)
+			return
+		}
+		mu.Lock()
+		defer mu.Unlock()
+		libraries = append(libraries, fakeLibrary{r.URL.Query().Get("name"), r.URL.Query().Get("collectionType"), []string{body.LibraryOptions.PathInfos[0].Path}})
+		w.WriteHeader(http.StatusNoContent)
+	})
 	mux.HandleFunc("GET /System/Info", func(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, map[string]any{"ServerName": "jellyfin", "Version": "10.11.2"})
 	})

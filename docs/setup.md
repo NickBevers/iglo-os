@@ -17,7 +17,7 @@ In this order:
 
 1. Connects the shares, or uses the ones that are connected.
 2. Registers the Backups share as Proxmox backup storage and points the backup job at it, every night at 03:00, keeping 7 daily, 4 weekly and 3 monthly backups. A job that you set up before keeps its schedule.
-3. Installs Jellyfin, then the media stack with the API key that the Jellyfin install made and the same admin for Seerr, then Photos, Music, Inbox and Gaming.
+3. Installs Jellyfin, with the Music share when one is connected, then the media stack with the API key that the Jellyfin install made and the same admin for Seerr, then Photos, Music, Inbox and Gaming.
 4. After Photos, creates the Immich admin with your email and password, and an API key that may only read and pause the queues. It connects Background work with that key and turns it on, with heavy work from 02:00 to 07:00 in the time zone of your browser.
 
 Each step that is done already is skipped, so running the setup again only does what is missing.

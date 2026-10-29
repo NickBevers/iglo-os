@@ -59,7 +59,7 @@ Save large files, like an OpenAPI spec, to the scratchpad and read them with
 | --- | --- | --- |
 | Wolf | image revision `facb8e0` | `/api/v1/sessions`, `/sessions/stop`, `/events` (SSE `event: <C++ type>`), keys in sessions |
 | Immich | `v3.3.5` | `auth/admin-sign-up`, `auth/login`, `api-keys` with `queue.read` and `queue.update`, `server/config` |
-| Jellyfin | `v12.4` | `/socket` with `X-Emby-Token`, `SessionsStart`, `ForceKeepAlive`, `LibraryChanged` |
+| Jellyfin | `v12.4` | `/socket` with `X-Emby-Token`, `SessionsStart`, `ForceKeepAlive`, `LibraryChanged`, `Library/VirtualFolders` with an API key (admin role), collection types, a second library of one name becomes `Music2` |
 | Prowlarr | `Prowlarr/Indexers` v11 | Cardigann `nyaasi` and `animetosho-xyz`, `forceSave` |
 | Recyclarr | v8 templates | `[Anime] Remux-1080p` trash ID `20e0fc959f1f1704bed501f23bdae76f` |
 | typescript-eslint | 8.x | supports TypeScript up to 6.0, not 7 |

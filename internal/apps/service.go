@@ -36,12 +36,15 @@ const snapshotPrefix = "iglo_"
 // versionPattern is the line that the installers write in the description of an app container.
 var versionPattern = regexp.MustCompile(`(?m)^iglo-version: (\S+)$`)
 
+// jellyfinKeyPattern is the form of an API key that Jellyfin makes.
+var jellyfinKeyPattern = regexp.MustCompile(`^[a-f0-9]{32}$`)
+
 type Agent interface {
 	InstallApp(ctx context.Context, app string, request agent.InstallRequest) error
 	RetryApp(ctx context.Context, app string) error
 	SavedAppAnswers(ctx context.Context, app string) (*agent.SavedAnswers, error)
 	ForgetAppAnswers(ctx context.Context, app string) error
-	UpdateApp(ctx context.Context, app string, vmid int) error
+	UpdateApp(ctx context.Context, app string, request agent.AppUpdateRequest) error
 	RemoveApp(ctx context.Context, app string, vmid int) error
 	VPN(ctx context.Context, vmid int) (agent.VPNView, error)
 	ChangeVPN(ctx context.Context, vmid int, settings agent.VPNSettings) error
@@ -230,6 +233,9 @@ type Options struct {
 	// OnInstalled runs after an install worked, for example to connect a new
 	// Jellyfin to the Jellyfin page.
 	OnInstalled func(ctx context.Context, app string, status agent.AppInstallStatus) error
+	// JellyfinKey is the API key of the Jellyfin page. The update of Jellyfin
+	// uses it to add the libraries that are missing.
+	JellyfinKey func() string
 	// OnRemoved runs after a removal worked. ip was the address of the container.
 	OnRemoved func(ctx context.Context, app string, ip string) error
 	Logger    *slog.Logger
@@ -642,7 +648,14 @@ func (s *Service) Update(ctx context.Context, background context.Context, id str
 		}
 	}
 
-	if err := s.Agent.UpdateApp(ctx, app.ID, guest.VMID); err != nil {
+	request := agent.AppUpdateRequest{VMID: guest.VMID}
+	// With the key of the Jellyfin page, the update adds the libraries that
+	// are missing, like Music once a Music share is connected. The agent
+	// only takes a key in the form that Jellyfin makes, so others stay out.
+	if id == agent.JellyfinApp && s.JellyfinKey != nil && jellyfinKeyPattern.MatchString(s.JellyfinKey()) {
+		request.JellyfinAPIKey = s.JellyfinKey()
+	}
+	if err := s.Agent.UpdateApp(ctx, app.ID, request); err != nil {
 		return err
 	}
 	s.Logger.Info("app update started", "app", id, "vmid", guest.VMID, "snapshot", op.snapshot)
