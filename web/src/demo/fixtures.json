@@ -1,0 +1,2232 @@
+{
+ "answers": {
+  "/apps": {
+   "apps": [
+    {
+     "description": "Watch your movies and series on every device. Transcodes with the GPU of the host, when it has one.",
+     "hostUrl": "https://jellyfin.iglo.local",
+     "id": "jellyfin",
+     "installed": true,
+     "links": [
+      {
+       "description": "Watch",
+       "name": "Jellyfin",
+       "url": "http://192.168.1.121:8096"
+      }
+     ],
+     "name": "Jellyfin",
+     "operation": null,
+     "planned": false,
+     "saved": null,
+     "status": "running",
+     "updateAvailable": false,
+     "vmid": 101
+    },
+    {
+     "description": "Request, find and download movies and series for Jellyfin. Downloads go through ProtonVPN or PIA.",
+     "flareSolverr": true,
+     "hostUrl": "https://seerr.iglo.local",
+     "id": "media",
+     "installed": true,
+     "links": [
+      {
+       "description": "Requests",
+       "name": "Seerr",
+       "url": "http://192.168.1.150:5055"
+      },
+      {
+       "description": "Movies",
+       "name": "Radarr",
+       "url": "http://192.168.1.150:7878"
+      },
+      {
+       "description": "Series",
+       "name": "Sonarr",
+       "url": "http://192.168.1.150:8989"
+      },
+      {
+       "description": "Indexers",
+       "name": "Prowlarr",
+       "url": "http://192.168.1.150:9696"
+      },
+      {
+       "description": "Subtitles",
+       "name": "Bazarr",
+       "url": "http://192.168.1.150:6767"
+      },
+      {
+       "description": "Downloads",
+       "name": "qBittorrent",
+       "url": "http://192.168.1.150:8080"
+      }
+     ],
+     "name": "Media stack",
+     "operation": null,
+     "planned": false,
+     "saved": null,
+     "status": "running",
+     "updateAvailable": true,
+     "version": "v0.7.1",
+     "vmid": 130
+    },
+    {
+     "description": "Downloads songs from YouTube Music with their cover art, for Jellyfin and Finamp. Music videos only when you ask.",
+     "id": "music",
+     "installed": true,
+     "links": [],
+     "name": "Music",
+     "operation": null,
+     "planned": false,
+     "saved": null,
+     "stats": {
+      "activity": [
+       {
+        "detail": "Downloading from YouTube Music",
+        "progress": 82,
+        "title": "Kenshi Yonezu, Lemon"
+       },
+       {
+        "detail": "Waiting, 11 songs",
+        "progress": -1,
+        "title": "Fujii Kaze, Help Ever Hurt Never"
+       }
+      ],
+      "figures": [
+       {
+        "label": "Songs",
+        "value": 2341
+       },
+       {
+        "label": "Albums",
+        "value": 187
+       },
+       {
+        "label": "Artists",
+        "value": 96
+       },
+       {
+        "label": "On disk",
+        "unit": "bytes",
+        "value": 18400000000
+       }
+      ],
+      "sample": true
+     },
+     "status": "running",
+     "updateAvailable": true,
+     "version": "v0.7.1",
+     "vmid": 160
+    },
+    {
+     "description": "Immich: the phones back up their photos to the NAS, with faces and search.",
+     "id": "photos",
+     "installed": true,
+     "links": [
+      {
+       "description": "Photos",
+       "name": "Immich",
+       "url": "http://192.168.1.190:2283"
+      }
+     ],
+     "name": "Photos",
+     "operation": null,
+     "photosBackup": {
+      "hasPassword": false,
+      "settings": {
+       "keepDaily": 7,
+       "keepMonthly": 12,
+       "keepWeekly": 4,
+       "offsitePath": "",
+       "time": "01:00"
+      },
+      "status": {
+       "nas": {},
+       "offsite": {}
+      }
+     },
+     "planned": false,
+     "saved": null,
+     "status": "running",
+     "updateAvailable": true,
+     "version": "v0.7.1",
+     "vmid": 170
+    },
+    {
+     "description": "FFmpeg processes your own videos into the Home videos output library. Choose an original-codec or playback profile; sources stay read only.",
+     "id": "inbox",
+     "installed": true,
+     "links": [],
+     "name": "Inbox",
+     "operation": null,
+     "planned": false,
+     "saved": null,
+     "status": "running",
+     "updateAvailable": true,
+     "version": "v0.7.1",
+     "vmid": 180
+    },
+    {
+     "description": "Experimental. Retro games from your Games share, streamed to your PC or TV with Moonlight. Wolf runs in a privileged container that only starts while you play.",
+     "id": "gaming",
+     "installed": true,
+     "links": [],
+     "name": "Gaming",
+     "operation": null,
+     "planned": false,
+     "saved": null,
+     "stats": {
+      "activity": [],
+      "figures": [
+       {
+        "label": "Game Boy",
+        "value": 3
+       },
+       {
+        "label": "Game Boy Color",
+        "value": 2
+       },
+       {
+        "label": "Game Boy Advance",
+        "value": 4
+       },
+       {
+        "label": "Nintendo 64",
+        "value": 3
+       },
+       {
+        "label": "GameCube",
+        "value": 3
+       }
+      ],
+      "sample": true
+     },
+     "status": "stopped",
+     "updateAvailable": true,
+     "version": "v0.7.1",
+     "vmid": 190
+    },
+    {
+     "description": "Your own private network controller and relay. Native services in a 512 MiB container. Requires public HTTPS and a static LAN address.",
+     "id": "headscale",
+     "installed": false,
+     "links": [],
+     "name": "Headscale",
+     "operation": null,
+     "planned": false,
+     "saved": null,
+     "updateAvailable": false
+    }
+   ],
+   "defaults": {
+    "animeFolder": "anime",
+    "animeMoviesFolder": "anime-movies",
+    "downloadsSize": 200,
+    "jellyfinVmid": 101,
+    "lanAddress": "192.168.1.10/24",
+    "lanGateway": "192.168.1.1",
+    "mediaVmid": 130,
+    "moviesFolder": "movies",
+    "seriesFolder": "series",
+    "storage": "local-lvm",
+    "storageSpace": {
+     "fast-zfs": {
+      "freeBytes": 800000000000,
+      "totalBytes": 900000000000
+     },
+     "local-lvm": {
+      "freeBytes": 370000000000,
+      "totalBytes": 400000000000
+     }
+    },
+    "storages": [
+     "fast-zfs",
+     "local-lvm"
+    ],
+    "subtitleLanguages": "en",
+    "username": "iglo",
+    "vpnLocations": "Netherlands",
+    "vpnProvider": "protonvpn"
+   }
+  },
+  "/apps/media/vpn": {
+   "hasDedicatedToken": false,
+   "hasPiaLogin": false,
+   "hasWireguardKey": true,
+   "locations": "Netherlands",
+   "provider": "protonvpn"
+  },
+  "/auth/me": {
+   "username": "admin"
+  },
+  "/backups": {
+   "busy": "",
+   "check": {
+    "next": "2026-10-31T05:00:00+01:00"
+   },
+   "guests": [
+    {
+     "backups": [],
+     "included": false,
+     "name": "iglo",
+     "self": true,
+     "status": "running",
+     "type": "lxc",
+     "vmid": 100
+    },
+    {
+     "backups": [
+      {
+       "createdAt": "2026-10-29T10:35:19+01:00",
+       "notes": "jellyfin",
+       "protected": true,
+       "size": 1950000000,
+       "storage": "local",
+       "volid": "local:backup/vzdump-lxc-101-new.tar.zst"
+      },
+      {
+       "createdAt": "2026-10-28T10:35:19+01:00",
+       "notes": "jellyfin",
+       "protected": false,
+       "size": 1900000000,
+       "storage": "local",
+       "volid": "local:backup/vzdump-lxc-101-old.tar.zst"
+      }
+     ],
+     "included": false,
+     "name": "jellyfin",
+     "self": false,
+     "status": "running",
+     "type": "lxc",
+     "vmid": 101
+    },
+    {
+     "backups": [
+      {
+       "createdAt": "2026-10-29T10:35:59+01:00",
+       "notes": "media",
+       "protected": false,
+       "size": 3400000000,
+       "storage": "local",
+       "volid": "local:backup/vzdump-lxc-102-new.tar.zst"
+      }
+     ],
+     "included": false,
+     "name": "downloads",
+     "self": false,
+     "status": "running",
+     "type": "lxc",
+     "vmid": 102
+    },
+    {
+     "backups": [],
+     "included": false,
+     "name": "media",
+     "self": false,
+     "status": "running",
+     "type": "lxc",
+     "vmid": 130
+    },
+    {
+     "backups": [],
+     "included": false,
+     "name": "music",
+     "self": false,
+     "status": "running",
+     "type": "lxc",
+     "vmid": 160
+    },
+    {
+     "backups": [],
+     "included": false,
+     "name": "photos",
+     "self": false,
+     "status": "running",
+     "type": "lxc",
+     "vmid": 170
+    },
+    {
+     "backups": [],
+     "included": false,
+     "name": "inbox",
+     "self": false,
+     "status": "running",
+     "type": "lxc",
+     "vmid": 180
+    },
+    {
+     "backups": [],
+     "included": false,
+     "name": "gaming",
+     "self": false,
+     "status": "stopped",
+     "type": "lxc",
+     "vmid": 190
+    },
+    {
+     "backups": [],
+     "included": false,
+     "name": "windows-test",
+     "self": false,
+     "status": "stopped",
+     "type": "qemu",
+     "vmid": 200
+    }
+   ],
+   "history": [],
+   "job": {
+    "days": [],
+    "enabled": true,
+    "exclude": [],
+    "exists": false,
+    "hour": 3,
+    "keepDaily": 7,
+    "keepMonthly": 3,
+    "keepWeekly": 4,
+    "minute": 0,
+    "storage": "local"
+   },
+   "storages": [
+    {
+     "name": "local",
+     "node": "pve",
+     "total": 98000000000,
+     "type": "dir",
+     "used": 41000000000
+    },
+    {
+     "name": "nas-backups",
+     "node": "pve",
+     "total": 7900000000000,
+     "type": "nfs",
+     "used": 2100000000000
+    }
+   ]
+  },
+  "/gaming": {
+   "installed": true,
+   "library": [
+    {
+     "label": "Game Boy",
+     "value": 3
+    },
+    {
+     "label": "Game Boy Color",
+     "value": 2
+    },
+    {
+     "label": "Game Boy Advance",
+     "value": 4
+    },
+    {
+     "label": "Nintendo 64",
+     "value": 3
+    },
+    {
+     "label": "GameCube",
+     "value": 3
+    }
+   ],
+   "protected": false,
+   "sample": true,
+   "sessions": [],
+   "status": "stopped",
+   "vmid": 190
+  },
+  "/gaming/games": {
+   "systems": [
+    {
+     "games": [
+      {
+       "cover": false,
+       "name": "Legend of Zelda, The - Link's Awakening (USA, Europe)",
+       "title": "Legend of Zelda, The - Link's Awakening"
+      },
+      {
+       "cover": false,
+       "name": "Pokemon - Red Version (USA, Europe) (SGB Enhanced)",
+       "title": "Pokemon - Red Version"
+      },
+      {
+       "cover": false,
+       "name": "Tetris (World) (Rev 1)",
+       "title": "Tetris"
+      }
+     ],
+     "id": "gb",
+     "label": "Game Boy"
+    },
+    {
+     "games": [
+      {
+       "cover": false,
+       "name": "Pokemon - Crystal Version (USA, Europe) (Rev 1)",
+       "title": "Pokemon - Crystal Version"
+      },
+      {
+       "cover": false,
+       "name": "Pokemon - Gold Version (USA, Europe) (SGB Enhanced) (GB Compatible)",
+       "title": "Pokemon - Gold Version"
+      }
+     ],
+     "id": "gbc",
+     "label": "Game Boy Color"
+    },
+    {
+     "games": [
+      {
+       "cover": false,
+       "name": "Mario Kart - Super Circuit (USA)",
+       "title": "Mario Kart - Super Circuit"
+      },
+      {
+       "cover": false,
+       "name": "Metroid Fusion (USA)",
+       "title": "Metroid Fusion"
+      },
+      {
+       "cover": false,
+       "name": "Pokemon - Emerald Version (USA, Europe)",
+       "title": "Pokemon - Emerald Version"
+      },
+      {
+       "cover": false,
+       "name": "Space Pong (World) (Homebrew)",
+       "title": "Space Pong"
+      }
+     ],
+     "id": "gba",
+     "label": "Game Boy Advance"
+    },
+    {
+     "games": [
+      {
+       "cover": false,
+       "name": "Legend of Zelda, The - Ocarina of Time (USA) (Rev 2)",
+       "title": "Legend of Zelda, The - Ocarina of Time"
+      },
+      {
+       "cover": false,
+       "name": "Mario Kart 64 (USA)",
+       "title": "Mario Kart 64"
+      },
+      {
+       "cover": false,
+       "name": "Super Mario 64 (USA)",
+       "title": "Super Mario 64"
+      }
+     ],
+     "id": "n64",
+     "label": "Nintendo 64"
+    },
+    {
+     "games": [
+      {
+       "cover": false,
+       "name": "Legend of Zelda, The - The Wind Waker (USA)",
+       "title": "Legend of Zelda, The - The Wind Waker"
+      },
+      {
+       "cover": false,
+       "name": "Metroid Prime (USA)",
+       "title": "Metroid Prime"
+      },
+      {
+       "cover": false,
+       "name": "Super Smash Bros. Melee (USA) (En,Ja) (Rev 2)",
+       "title": "Super Smash Bros. Melee"
+      }
+     ],
+     "id": "gc",
+     "label": "GameCube"
+    }
+   ]
+  },
+  "/gaming/pairing": [],
+  "/health": {
+   "checkedAt": "2026-10-30T10:35:19.85579+01:00",
+   "disks": [
+    {
+     "devPath": "/dev/nvme0n1",
+     "health": "PASSED",
+     "model": "SAMSUNG MZVL2512HCJQ-00BH1",
+     "node": "pve",
+     "serial": "S6Z1",
+     "size": 512110190592,
+     "type": "nvme",
+     "used": "LVM",
+     "wearout": 4
+    },
+    {
+     "devPath": "/dev/sda",
+     "health": "PASSED",
+     "model": "WDC WD40EFRX",
+     "node": "pve",
+     "serial": "WD-1",
+     "size": 4000787030016,
+     "type": "hdd",
+     "used": "ZFS",
+     "wearout": null
+    },
+    {
+     "devPath": "/dev/sdb",
+     "health": "FAILED",
+     "model": "ST4000VN008",
+     "node": "pve",
+     "problem": "Disk /dev/sdb ST4000VN008 on pve: SMART says FAILED",
+     "serial": "ZD1",
+     "size": 4000787030016,
+     "type": "hdd",
+     "used": "ZFS",
+     "wearout": null
+    }
+   ],
+   "errors": [],
+   "pools": [
+    {
+     "alloc": 1200000000000,
+     "frag": 3,
+     "health": "DEGRADED",
+     "name": "tank",
+     "node": "pve",
+     "problem": "ZFS pool tank on pve is DEGRADED",
+     "size": 3985729650688
+    }
+   ],
+   "services": [],
+   "shares": [
+    {
+     "fsType": "cifs",
+     "mounted": false,
+     "path": "/mnt/backup",
+     "problem": "Share //nas/backup is not mounted at /mnt/backup",
+     "size": 0,
+     "source": "//nas/backup",
+     "used": 0
+    }
+   ],
+   "storage": [
+    {
+     "name": "backups",
+     "node": "pve",
+     "status": "unknown",
+     "total": 0,
+     "used": 0
+    },
+    {
+     "name": "local",
+     "node": "pve",
+     "status": "available",
+     "total": 98000000000,
+     "used": 41000000000
+    },
+    {
+     "name": "local-lvm",
+     "node": "pve",
+     "problem": "Storage local-lvm on pve is 94% full",
+     "status": "available",
+     "total": 350000000000,
+     "used": 330000000000
+    }
+   ]
+  },
+  "/inbox": {
+   "admitted": true,
+   "gpu": false,
+   "jobs": [],
+   "paused": true,
+   "profile": "preserve",
+   "sample": true,
+   "storageReady": true
+  },
+  "/jellyfin": {
+   "albums": 97,
+   "configured": true,
+   "episodes": 1290,
+   "movies": 412,
+   "musicVideos": 12,
+   "nowPlaying": [
+    {
+     "device": "Living room",
+     "itemId": "frieren",
+     "paused": false,
+     "playMethod": "DirectPlay",
+     "progress": 42,
+     "reasons": [],
+     "subtitle": "S1:E5, Phantoms of the Dead",
+     "title": "Frieren: Beyond Journey's End",
+     "transcode": false,
+     "user": "nick"
+    },
+    {
+     "device": "Phone",
+     "itemId": "song",
+     "paused": true,
+     "playMethod": "DirectPlay",
+     "progress": 40,
+     "reasons": [],
+     "subtitle": "",
+     "title": "Merry-Go-Round of Life",
+     "transcode": false,
+     "user": "nick"
+    }
+   ],
+   "recent": [
+    {
+     "id": "frieren",
+     "name": "Frieren: Beyond Journey's End",
+     "type": "Series",
+     "year": 2023
+    },
+    {
+     "id": "spirited",
+     "name": "Spirited Away",
+     "type": "Movie",
+     "year": 2001
+    },
+    {
+     "id": "dune2",
+     "name": "Dune: Part Two",
+     "type": "Movie",
+     "year": 2024
+    },
+    {
+     "id": "samurai",
+     "name": "Blue Eye Samurai",
+     "type": "Series",
+     "year": 2023
+    },
+    {
+     "id": "perfect",
+     "name": "Perfect Days",
+     "type": "Movie",
+     "year": 2023
+    }
+   ],
+   "series": 38,
+   "serverName": "jellyfin",
+   "songs": 1534,
+   "url": "http://127.0.0.1:18096",
+   "version": "10.11.2"
+  },
+  "/logs/docker?vmid=100&lines=200": {
+   "containers": [],
+   "entries": [],
+   "installed": false
+  },
+  "/logs/docker?vmid=101&lines=200": {
+   "containers": [],
+   "entries": [],
+   "installed": false
+  },
+  "/logs/docker?vmid=102&lines=200": {
+   "containers": [
+    {
+     "image": "lscr.io/linuxserver/radarr",
+     "name": "radarr",
+     "state": "running"
+    },
+    {
+     "image": "qmcgaw/gluetun",
+     "name": "gluetun",
+     "state": "running"
+    }
+   ],
+   "entries": [
+    {
+     "level": 6,
+     "message": "INFO [vpn] connected",
+     "source": "gluetun",
+     "time": "2026-10-30T10:32:32.895539+01:00"
+    },
+    {
+     "level": 4,
+     "message": "[Warn] IndexerStatusService: Indexer 1337x is disabled for a while",
+     "source": "radarr",
+     "time": "2026-10-30T10:34:32.895539+01:00"
+    },
+    {
+     "level": 3,
+     "message": "[Error] DownloadClient: could not connect to qbittorrent at gluetun:8080",
+     "source": "radarr",
+     "time": "2026-10-30T10:35:32.895539+01:00"
+    }
+   ],
+   "installed": true
+  },
+  "/logs/docker?vmid=130&lines=200": {
+   "containers": [
+    {
+     "image": "lscr.io/linuxserver/radarr",
+     "name": "radarr",
+     "state": "running"
+    },
+    {
+     "image": "qmcgaw/gluetun",
+     "name": "gluetun",
+     "state": "running"
+    }
+   ],
+   "entries": [
+    {
+     "level": 6,
+     "message": "INFO [vpn] connected",
+     "source": "gluetun",
+     "time": "2026-10-30T10:32:32.900101+01:00"
+    },
+    {
+     "level": 4,
+     "message": "[Warn] IndexerStatusService: Indexer 1337x is disabled for a while",
+     "source": "radarr",
+     "time": "2026-10-30T10:34:32.900101+01:00"
+    },
+    {
+     "level": 3,
+     "message": "[Error] DownloadClient: could not connect to qbittorrent at gluetun:8080",
+     "source": "radarr",
+     "time": "2026-10-30T10:35:32.900101+01:00"
+    }
+   ],
+   "installed": true
+  },
+  "/logs/docker?vmid=160&lines=200": {
+   "containers": [
+    {
+     "image": "lscr.io/linuxserver/radarr",
+     "name": "radarr",
+     "state": "running"
+    },
+    {
+     "image": "qmcgaw/gluetun",
+     "name": "gluetun",
+     "state": "running"
+    }
+   ],
+   "entries": [
+    {
+     "level": 6,
+     "message": "INFO [vpn] connected",
+     "source": "gluetun",
+     "time": "2026-10-30T10:32:32.905191+01:00"
+    },
+    {
+     "level": 4,
+     "message": "[Warn] IndexerStatusService: Indexer 1337x is disabled for a while",
+     "source": "radarr",
+     "time": "2026-10-30T10:34:32.905191+01:00"
+    },
+    {
+     "level": 3,
+     "message": "[Error] DownloadClient: could not connect to qbittorrent at gluetun:8080",
+     "source": "radarr",
+     "time": "2026-10-30T10:35:32.905191+01:00"
+    }
+   ],
+   "installed": true
+  },
+  "/logs/docker?vmid=170&lines=200": {
+   "containers": [
+    {
+     "image": "lscr.io/linuxserver/radarr",
+     "name": "radarr",
+     "state": "running"
+    },
+    {
+     "image": "qmcgaw/gluetun",
+     "name": "gluetun",
+     "state": "running"
+    }
+   ],
+   "entries": [
+    {
+     "level": 6,
+     "message": "INFO [vpn] connected",
+     "source": "gluetun",
+     "time": "2026-10-30T10:32:32.909618+01:00"
+    },
+    {
+     "level": 4,
+     "message": "[Warn] IndexerStatusService: Indexer 1337x is disabled for a while",
+     "source": "radarr",
+     "time": "2026-10-30T10:34:32.909618+01:00"
+    },
+    {
+     "level": 3,
+     "message": "[Error] DownloadClient: could not connect to qbittorrent at gluetun:8080",
+     "source": "radarr",
+     "time": "2026-10-30T10:35:32.909618+01:00"
+    }
+   ],
+   "installed": true
+  },
+  "/logs/docker?vmid=180&lines=200": {
+   "containers": [
+    {
+     "image": "lscr.io/linuxserver/radarr",
+     "name": "radarr",
+     "state": "running"
+    },
+    {
+     "image": "qmcgaw/gluetun",
+     "name": "gluetun",
+     "state": "running"
+    }
+   ],
+   "entries": [
+    {
+     "level": 6,
+     "message": "INFO [vpn] connected",
+     "source": "gluetun",
+     "time": "2026-10-30T10:32:32.913312+01:00"
+    },
+    {
+     "level": 4,
+     "message": "[Warn] IndexerStatusService: Indexer 1337x is disabled for a while",
+     "source": "radarr",
+     "time": "2026-10-30T10:34:32.913312+01:00"
+    },
+    {
+     "level": 3,
+     "message": "[Error] DownloadClient: could not connect to qbittorrent at gluetun:8080",
+     "source": "radarr",
+     "time": "2026-10-30T10:35:32.913312+01:00"
+    }
+   ],
+   "installed": true
+  },
+  "/logs/docker?vmid=190&lines=200": {
+   "containers": [
+    {
+     "image": "lscr.io/linuxserver/radarr",
+     "name": "radarr",
+     "state": "running"
+    },
+    {
+     "image": "qmcgaw/gluetun",
+     "name": "gluetun",
+     "state": "running"
+    }
+   ],
+   "entries": [
+    {
+     "level": 6,
+     "message": "INFO [vpn] connected",
+     "source": "gluetun",
+     "time": "2026-10-30T10:32:32.916895+01:00"
+    },
+    {
+     "level": 4,
+     "message": "[Warn] IndexerStatusService: Indexer 1337x is disabled for a while",
+     "source": "radarr",
+     "time": "2026-10-30T10:34:32.916895+01:00"
+    },
+    {
+     "level": 3,
+     "message": "[Error] DownloadClient: could not connect to qbittorrent at gluetun:8080",
+     "source": "radarr",
+     "time": "2026-10-30T10:35:32.916895+01:00"
+    }
+   ],
+   "installed": true
+  },
+  "/logs/docker?vmid=200&lines=200": {
+   "containers": [
+    {
+     "image": "lscr.io/linuxserver/radarr",
+     "name": "radarr",
+     "state": "running"
+    },
+    {
+     "image": "qmcgaw/gluetun",
+     "name": "gluetun",
+     "state": "running"
+    }
+   ],
+   "entries": [
+    {
+     "level": 6,
+     "message": "INFO [vpn] connected",
+     "source": "gluetun",
+     "time": "2026-10-30T10:32:32.920025+01:00"
+    },
+    {
+     "level": 4,
+     "message": "[Warn] IndexerStatusService: Indexer 1337x is disabled for a while",
+     "source": "radarr",
+     "time": "2026-10-30T10:34:32.920025+01:00"
+    },
+    {
+     "level": 3,
+     "message": "[Error] DownloadClient: could not connect to qbittorrent at gluetun:8080",
+     "source": "radarr",
+     "time": "2026-10-30T10:35:32.920025+01:00"
+    }
+   ],
+   "installed": true
+  },
+  "/logs/journal?vmid=0&priority=0&lines=500": [],
+  "/logs/journal?vmid=0&priority=1&lines=500": [],
+  "/logs/journal?vmid=0&priority=2&lines=500": [],
+  "/logs/journal?vmid=0&priority=3&lines=500": [
+   {
+    "level": 3,
+    "message": "authentication failure; rhost=::ffff:192.168.1.50 user=root@pam",
+    "source": "pvedaemon",
+    "time": "2026-10-30T10:18:32.876984+01:00"
+   }
+  ],
+  "/logs/journal?vmid=0&priority=4&lines=500": [
+   {
+    "level": 4,
+    "message": "EXT4-fs (dm-1): warning: mounting fs with errors, running e2fsck is recommended",
+    "source": "kernel",
+    "time": "2026-10-30T10:08:32.878625+01:00"
+   },
+   {
+    "level": 3,
+    "message": "authentication failure; rhost=::ffff:192.168.1.50 user=root@pam",
+    "source": "pvedaemon",
+    "time": "2026-10-30T10:18:32.878625+01:00"
+   }
+  ],
+  "/logs/journal?vmid=0&priority=5&lines=500": [
+   {
+    "level": 4,
+    "message": "EXT4-fs (dm-1): warning: mounting fs with errors, running e2fsck is recommended",
+    "source": "kernel",
+    "time": "2026-10-30T10:08:32.87952+01:00"
+   },
+   {
+    "level": 3,
+    "message": "authentication failure; rhost=::ffff:192.168.1.50 user=root@pam",
+    "source": "pvedaemon",
+    "time": "2026-10-30T10:18:32.87952+01:00"
+   }
+  ],
+  "/logs/journal?vmid=0&priority=6&lines=500": [
+   {
+    "level": 6,
+    "message": "Started pvedaemon.service - PVE API Daemon.",
+    "source": "systemd",
+    "time": "2026-10-30T09:48:32.880058+01:00"
+   },
+   {
+    "level": 4,
+    "message": "EXT4-fs (dm-1): warning: mounting fs with errors, running e2fsck is recommended",
+    "source": "kernel",
+    "time": "2026-10-30T10:08:32.880058+01:00"
+   },
+   {
+    "level": 3,
+    "message": "authentication failure; rhost=::ffff:192.168.1.50 user=root@pam",
+    "source": "pvedaemon",
+    "time": "2026-10-30T10:18:32.880058+01:00"
+   },
+   {
+    "level": 6,
+    "message": "status update time (5.123 seconds)",
+    "source": "pvestatd",
+    "time": "2026-10-30T10:36:32.880058+01:00"
+   }
+  ],
+  "/logs/journal?vmid=0&priority=7&lines=500": [
+   {
+    "level": 6,
+    "message": "Started pvedaemon.service - PVE API Daemon.",
+    "source": "systemd",
+    "time": "2026-10-30T09:48:32.880536+01:00"
+   },
+   {
+    "level": 4,
+    "message": "EXT4-fs (dm-1): warning: mounting fs with errors, running e2fsck is recommended",
+    "source": "kernel",
+    "time": "2026-10-30T10:08:32.880536+01:00"
+   },
+   {
+    "level": 3,
+    "message": "authentication failure; rhost=::ffff:192.168.1.50 user=root@pam",
+    "source": "pvedaemon",
+    "time": "2026-10-30T10:18:32.880536+01:00"
+   },
+   {
+    "level": 7,
+    "message": "job started id=abc kind=host-check",
+    "source": "iglo-agent",
+    "time": "2026-10-30T10:28:32.880536+01:00"
+   },
+   {
+    "level": 6,
+    "message": "status update time (5.123 seconds)",
+    "source": "pvestatd",
+    "time": "2026-10-30T10:36:32.880536+01:00"
+   }
+  ],
+  "/logs/journal?vmid=100&priority=0&lines=500": [],
+  "/logs/journal?vmid=100&priority=1&lines=500": [],
+  "/logs/journal?vmid=100&priority=2&lines=500": [],
+  "/logs/journal?vmid=100&priority=3&lines=500": [
+   {
+    "level": 3,
+    "message": "[ERR] Error processing request.",
+    "source": "jellyfin",
+    "time": "2026-10-30T10:31:32.88269+01:00"
+   }
+  ],
+  "/logs/journal?vmid=100&priority=4&lines=500": [
+   {
+    "level": 4,
+    "message": "[WRN] Slow query executed in 1203ms",
+    "source": "jellyfin",
+    "time": "2026-10-30T10:30:32.883388+01:00"
+   },
+   {
+    "level": 3,
+    "message": "[ERR] Error processing request.",
+    "source": "jellyfin",
+    "time": "2026-10-30T10:31:32.883388+01:00"
+   }
+  ],
+  "/logs/journal?vmid=100&priority=5&lines=500": [
+   {
+    "level": 4,
+    "message": "[WRN] Slow query executed in 1203ms",
+    "source": "jellyfin",
+    "time": "2026-10-30T10:30:32.884237+01:00"
+   },
+   {
+    "level": 3,
+    "message": "[ERR] Error processing request.",
+    "source": "jellyfin",
+    "time": "2026-10-30T10:31:32.884237+01:00"
+   }
+  ],
+  "/logs/journal?vmid=100&priority=6&lines=500": [
+   {
+    "level": 6,
+    "message": "Started jellyfin.service - Jellyfin Media Server.",
+    "source": "systemd",
+    "time": "2026-10-30T10:29:32.884846+01:00"
+   },
+   {
+    "level": 4,
+    "message": "[WRN] Slow query executed in 1203ms",
+    "source": "jellyfin",
+    "time": "2026-10-30T10:30:32.884846+01:00"
+   },
+   {
+    "level": 3,
+    "message": "[ERR] Error processing request.",
+    "source": "jellyfin",
+    "time": "2026-10-30T10:31:32.884846+01:00"
+   }
+  ],
+  "/logs/journal?vmid=100&priority=7&lines=500": [
+   {
+    "level": 6,
+    "message": "Started jellyfin.service - Jellyfin Media Server.",
+    "source": "systemd",
+    "time": "2026-10-30T10:29:32.885455+01:00"
+   },
+   {
+    "level": 4,
+    "message": "[WRN] Slow query executed in 1203ms",
+    "source": "jellyfin",
+    "time": "2026-10-30T10:30:32.885455+01:00"
+   },
+   {
+    "level": 3,
+    "message": "[ERR] Error processing request.",
+    "source": "jellyfin",
+    "time": "2026-10-30T10:31:32.885455+01:00"
+   }
+  ],
+  "/logs/journal?vmid=101&priority=0&lines=500": [],
+  "/logs/journal?vmid=101&priority=1&lines=500": [],
+  "/logs/journal?vmid=101&priority=2&lines=500": [],
+  "/logs/journal?vmid=101&priority=3&lines=500": [
+   {
+    "level": 3,
+    "message": "[ERR] Error processing request.",
+    "source": "jellyfin",
+    "time": "2026-10-30T10:31:32.888556+01:00"
+   }
+  ],
+  "/logs/journal?vmid=101&priority=4&lines=500": [
+   {
+    "level": 4,
+    "message": "[WRN] Slow query executed in 1203ms",
+    "source": "jellyfin",
+    "time": "2026-10-30T10:30:32.889128+01:00"
+   },
+   {
+    "level": 3,
+    "message": "[ERR] Error processing request.",
+    "source": "jellyfin",
+    "time": "2026-10-30T10:31:32.889128+01:00"
+   }
+  ],
+  "/logs/journal?vmid=101&priority=5&lines=500": [
+   {
+    "level": 4,
+    "message": "[WRN] Slow query executed in 1203ms",
+    "source": "jellyfin",
+    "time": "2026-10-30T10:30:32.889735+01:00"
+   },
+   {
+    "level": 3,
+    "message": "[ERR] Error processing request.",
+    "source": "jellyfin",
+    "time": "2026-10-30T10:31:32.889735+01:00"
+   }
+  ],
+  "/logs/journal?vmid=101&priority=6&lines=500": [
+   {
+    "level": 6,
+    "message": "Started jellyfin.service - Jellyfin Media Server.",
+    "source": "systemd",
+    "time": "2026-10-30T10:29:32.890337+01:00"
+   },
+   {
+    "level": 4,
+    "message": "[WRN] Slow query executed in 1203ms",
+    "source": "jellyfin",
+    "time": "2026-10-30T10:30:32.890337+01:00"
+   },
+   {
+    "level": 3,
+    "message": "[ERR] Error processing request.",
+    "source": "jellyfin",
+    "time": "2026-10-30T10:31:32.890337+01:00"
+   }
+  ],
+  "/logs/journal?vmid=101&priority=7&lines=500": [
+   {
+    "level": 6,
+    "message": "Started jellyfin.service - Jellyfin Media Server.",
+    "source": "systemd",
+    "time": "2026-10-30T10:29:32.891001+01:00"
+   },
+   {
+    "level": 4,
+    "message": "[WRN] Slow query executed in 1203ms",
+    "source": "jellyfin",
+    "time": "2026-10-30T10:30:32.891001+01:00"
+   },
+   {
+    "level": 3,
+    "message": "[ERR] Error processing request.",
+    "source": "jellyfin",
+    "time": "2026-10-30T10:31:32.891001+01:00"
+   }
+  ],
+  "/logs/journal?vmid=102&priority=0&lines=500": [],
+  "/logs/journal?vmid=102&priority=1&lines=500": [],
+  "/logs/journal?vmid=102&priority=2&lines=500": [],
+  "/logs/journal?vmid=102&priority=3&lines=500": [
+   {
+    "level": 3,
+    "message": "[ERR] Error processing request.",
+    "source": "jellyfin",
+    "time": "2026-10-30T10:31:32.893422+01:00"
+   }
+  ],
+  "/logs/journal?vmid=102&priority=4&lines=500": [
+   {
+    "level": 4,
+    "message": "[WRN] Slow query executed in 1203ms",
+    "source": "jellyfin",
+    "time": "2026-10-30T10:30:32.893839+01:00"
+   },
+   {
+    "level": 3,
+    "message": "[ERR] Error processing request.",
+    "source": "jellyfin",
+    "time": "2026-10-30T10:31:32.893839+01:00"
+   }
+  ],
+  "/logs/journal?vmid=102&priority=5&lines=500": [
+   {
+    "level": 4,
+    "message": "[WRN] Slow query executed in 1203ms",
+    "source": "jellyfin",
+    "time": "2026-10-30T10:30:32.894265+01:00"
+   },
+   {
+    "level": 3,
+    "message": "[ERR] Error processing request.",
+    "source": "jellyfin",
+    "time": "2026-10-30T10:31:32.894265+01:00"
+   }
+  ],
+  "/logs/journal?vmid=102&priority=6&lines=500": [
+   {
+    "level": 6,
+    "message": "Started jellyfin.service - Jellyfin Media Server.",
+    "source": "systemd",
+    "time": "2026-10-30T10:29:32.894663+01:00"
+   },
+   {
+    "level": 4,
+    "message": "[WRN] Slow query executed in 1203ms",
+    "source": "jellyfin",
+    "time": "2026-10-30T10:30:32.894663+01:00"
+   },
+   {
+    "level": 3,
+    "message": "[ERR] Error processing request.",
+    "source": "jellyfin",
+    "time": "2026-10-30T10:31:32.894663+01:00"
+   }
+  ],
+  "/logs/journal?vmid=102&priority=7&lines=500": [
+   {
+    "level": 6,
+    "message": "Started jellyfin.service - Jellyfin Media Server.",
+    "source": "systemd",
+    "time": "2026-10-30T10:29:32.895128+01:00"
+   },
+   {
+    "level": 4,
+    "message": "[WRN] Slow query executed in 1203ms",
+    "source": "jellyfin",
+    "time": "2026-10-30T10:30:32.895128+01:00"
+   },
+   {
+    "level": 3,
+    "message": "[ERR] Error processing request.",
+    "source": "jellyfin",
+    "time": "2026-10-30T10:31:32.895128+01:00"
+   }
+  ],
+  "/logs/journal?vmid=130&priority=0&lines=500": [],
+  "/logs/journal?vmid=130&priority=1&lines=500": [],
+  "/logs/journal?vmid=130&priority=2&lines=500": [],
+  "/logs/journal?vmid=130&priority=3&lines=500": [
+   {
+    "level": 3,
+    "message": "[ERR] Error processing request.",
+    "source": "jellyfin",
+    "time": "2026-10-30T10:31:32.897408+01:00"
+   }
+  ],
+  "/logs/journal?vmid=130&priority=4&lines=500": [
+   {
+    "level": 4,
+    "message": "[WRN] Slow query executed in 1203ms",
+    "source": "jellyfin",
+    "time": "2026-10-30T10:30:32.89792+01:00"
+   },
+   {
+    "level": 3,
+    "message": "[ERR] Error processing request.",
+    "source": "jellyfin",
+    "time": "2026-10-30T10:31:32.89792+01:00"
+   }
+  ],
+  "/logs/journal?vmid=130&priority=5&lines=500": [
+   {
+    "level": 4,
+    "message": "[WRN] Slow query executed in 1203ms",
+    "source": "jellyfin",
+    "time": "2026-10-30T10:30:32.898424+01:00"
+   },
+   {
+    "level": 3,
+    "message": "[ERR] Error processing request.",
+    "source": "jellyfin",
+    "time": "2026-10-30T10:31:32.898424+01:00"
+   }
+  ],
+  "/logs/journal?vmid=130&priority=6&lines=500": [
+   {
+    "level": 6,
+    "message": "Started jellyfin.service - Jellyfin Media Server.",
+    "source": "systemd",
+    "time": "2026-10-30T10:29:32.898874+01:00"
+   },
+   {
+    "level": 4,
+    "message": "[WRN] Slow query executed in 1203ms",
+    "source": "jellyfin",
+    "time": "2026-10-30T10:30:32.898874+01:00"
+   },
+   {
+    "level": 3,
+    "message": "[ERR] Error processing request.",
+    "source": "jellyfin",
+    "time": "2026-10-30T10:31:32.898874+01:00"
+   }
+  ],
+  "/logs/journal?vmid=130&priority=7&lines=500": [
+   {
+    "level": 6,
+    "message": "Started jellyfin.service - Jellyfin Media Server.",
+    "source": "systemd",
+    "time": "2026-10-30T10:29:32.899551+01:00"
+   },
+   {
+    "level": 4,
+    "message": "[WRN] Slow query executed in 1203ms",
+    "source": "jellyfin",
+    "time": "2026-10-30T10:30:32.899551+01:00"
+   },
+   {
+    "level": 3,
+    "message": "[ERR] Error processing request.",
+    "source": "jellyfin",
+    "time": "2026-10-30T10:31:32.899551+01:00"
+   }
+  ],
+  "/logs/journal?vmid=160&priority=0&lines=500": [],
+  "/logs/journal?vmid=160&priority=1&lines=500": [],
+  "/logs/journal?vmid=160&priority=2&lines=500": [],
+  "/logs/journal?vmid=160&priority=3&lines=500": [
+   {
+    "level": 3,
+    "message": "[ERR] Error processing request.",
+    "source": "jellyfin",
+    "time": "2026-10-30T10:31:32.902317+01:00"
+   }
+  ],
+  "/logs/journal?vmid=160&priority=4&lines=500": [
+   {
+    "level": 4,
+    "message": "[WRN] Slow query executed in 1203ms",
+    "source": "jellyfin",
+    "time": "2026-10-30T10:30:32.902886+01:00"
+   },
+   {
+    "level": 3,
+    "message": "[ERR] Error processing request.",
+    "source": "jellyfin",
+    "time": "2026-10-30T10:31:32.902886+01:00"
+   }
+  ],
+  "/logs/journal?vmid=160&priority=5&lines=500": [
+   {
+    "level": 4,
+    "message": "[WRN] Slow query executed in 1203ms",
+    "source": "jellyfin",
+    "time": "2026-10-30T10:30:32.903529+01:00"
+   },
+   {
+    "level": 3,
+    "message": "[ERR] Error processing request.",
+    "source": "jellyfin",
+    "time": "2026-10-30T10:31:32.903529+01:00"
+   }
+  ],
+  "/logs/journal?vmid=160&priority=6&lines=500": [
+   {
+    "level": 6,
+    "message": "Started jellyfin.service - Jellyfin Media Server.",
+    "source": "systemd",
+    "time": "2026-10-30T10:29:32.904107+01:00"
+   },
+   {
+    "level": 4,
+    "message": "[WRN] Slow query executed in 1203ms",
+    "source": "jellyfin",
+    "time": "2026-10-30T10:30:32.904107+01:00"
+   },
+   {
+    "level": 3,
+    "message": "[ERR] Error processing request.",
+    "source": "jellyfin",
+    "time": "2026-10-30T10:31:32.904107+01:00"
+   }
+  ],
+  "/logs/journal?vmid=160&priority=7&lines=500": [
+   {
+    "level": 6,
+    "message": "Started jellyfin.service - Jellyfin Media Server.",
+    "source": "systemd",
+    "time": "2026-10-30T10:29:32.904601+01:00"
+   },
+   {
+    "level": 4,
+    "message": "[WRN] Slow query executed in 1203ms",
+    "source": "jellyfin",
+    "time": "2026-10-30T10:30:32.904601+01:00"
+   },
+   {
+    "level": 3,
+    "message": "[ERR] Error processing request.",
+    "source": "jellyfin",
+    "time": "2026-10-30T10:31:32.904601+01:00"
+   }
+  ],
+  "/logs/journal?vmid=170&priority=0&lines=500": [],
+  "/logs/journal?vmid=170&priority=1&lines=500": [],
+  "/logs/journal?vmid=170&priority=2&lines=500": [],
+  "/logs/journal?vmid=170&priority=3&lines=500": [
+   {
+    "level": 3,
+    "message": "[ERR] Error processing request.",
+    "source": "jellyfin",
+    "time": "2026-10-30T10:31:32.907355+01:00"
+   }
+  ],
+  "/logs/journal?vmid=170&priority=4&lines=500": [
+   {
+    "level": 4,
+    "message": "[WRN] Slow query executed in 1203ms",
+    "source": "jellyfin",
+    "time": "2026-10-30T10:30:32.907822+01:00"
+   },
+   {
+    "level": 3,
+    "message": "[ERR] Error processing request.",
+    "source": "jellyfin",
+    "time": "2026-10-30T10:31:32.907822+01:00"
+   }
+  ],
+  "/logs/journal?vmid=170&priority=5&lines=500": [
+   {
+    "level": 4,
+    "message": "[WRN] Slow query executed in 1203ms",
+    "source": "jellyfin",
+    "time": "2026-10-30T10:30:32.908282+01:00"
+   },
+   {
+    "level": 3,
+    "message": "[ERR] Error processing request.",
+    "source": "jellyfin",
+    "time": "2026-10-30T10:31:32.908282+01:00"
+   }
+  ],
+  "/logs/journal?vmid=170&priority=6&lines=500": [
+   {
+    "level": 6,
+    "message": "Started jellyfin.service - Jellyfin Media Server.",
+    "source": "systemd",
+    "time": "2026-10-30T10:29:32.908745+01:00"
+   },
+   {
+    "level": 4,
+    "message": "[WRN] Slow query executed in 1203ms",
+    "source": "jellyfin",
+    "time": "2026-10-30T10:30:32.908745+01:00"
+   },
+   {
+    "level": 3,
+    "message": "[ERR] Error processing request.",
+    "source": "jellyfin",
+    "time": "2026-10-30T10:31:32.908745+01:00"
+   }
+  ],
+  "/logs/journal?vmid=170&priority=7&lines=500": [
+   {
+    "level": 6,
+    "message": "Started jellyfin.service - Jellyfin Media Server.",
+    "source": "systemd",
+    "time": "2026-10-30T10:29:32.909195+01:00"
+   },
+   {
+    "level": 4,
+    "message": "[WRN] Slow query executed in 1203ms",
+    "source": "jellyfin",
+    "time": "2026-10-30T10:30:32.909195+01:00"
+   },
+   {
+    "level": 3,
+    "message": "[ERR] Error processing request.",
+    "source": "jellyfin",
+    "time": "2026-10-30T10:31:32.909195+01:00"
+   }
+  ],
+  "/logs/journal?vmid=180&priority=0&lines=500": [],
+  "/logs/journal?vmid=180&priority=1&lines=500": [],
+  "/logs/journal?vmid=180&priority=2&lines=500": [],
+  "/logs/journal?vmid=180&priority=3&lines=500": [
+   {
+    "level": 3,
+    "message": "[ERR] Error processing request.",
+    "source": "jellyfin",
+    "time": "2026-10-30T10:31:32.911299+01:00"
+   }
+  ],
+  "/logs/journal?vmid=180&priority=4&lines=500": [
+   {
+    "level": 4,
+    "message": "[WRN] Slow query executed in 1203ms",
+    "source": "jellyfin",
+    "time": "2026-10-30T10:30:32.911727+01:00"
+   },
+   {
+    "level": 3,
+    "message": "[ERR] Error processing request.",
+    "source": "jellyfin",
+    "time": "2026-10-30T10:31:32.911727+01:00"
+   }
+  ],
+  "/logs/journal?vmid=180&priority=5&lines=500": [
+   {
+    "level": 4,
+    "message": "[WRN] Slow query executed in 1203ms",
+    "source": "jellyfin",
+    "time": "2026-10-30T10:30:32.912118+01:00"
+   },
+   {
+    "level": 3,
+    "message": "[ERR] Error processing request.",
+    "source": "jellyfin",
+    "time": "2026-10-30T10:31:32.912118+01:00"
+   }
+  ],
+  "/logs/journal?vmid=180&priority=6&lines=500": [
+   {
+    "level": 6,
+    "message": "Started jellyfin.service - Jellyfin Media Server.",
+    "source": "systemd",
+    "time": "2026-10-30T10:29:32.912524+01:00"
+   },
+   {
+    "level": 4,
+    "message": "[WRN] Slow query executed in 1203ms",
+    "source": "jellyfin",
+    "time": "2026-10-30T10:30:32.912524+01:00"
+   },
+   {
+    "level": 3,
+    "message": "[ERR] Error processing request.",
+    "source": "jellyfin",
+    "time": "2026-10-30T10:31:32.912524+01:00"
+   }
+  ],
+  "/logs/journal?vmid=180&priority=7&lines=500": [
+   {
+    "level": 6,
+    "message": "Started jellyfin.service - Jellyfin Media Server.",
+    "source": "systemd",
+    "time": "2026-10-30T10:29:32.912926+01:00"
+   },
+   {
+    "level": 4,
+    "message": "[WRN] Slow query executed in 1203ms",
+    "source": "jellyfin",
+    "time": "2026-10-30T10:30:32.912926+01:00"
+   },
+   {
+    "level": 3,
+    "message": "[ERR] Error processing request.",
+    "source": "jellyfin",
+    "time": "2026-10-30T10:31:32.912926+01:00"
+   }
+  ],
+  "/logs/journal?vmid=190&priority=0&lines=500": [],
+  "/logs/journal?vmid=190&priority=1&lines=500": [],
+  "/logs/journal?vmid=190&priority=2&lines=500": [],
+  "/logs/journal?vmid=190&priority=3&lines=500": [
+   {
+    "level": 3,
+    "message": "[ERR] Error processing request.",
+    "source": "jellyfin",
+    "time": "2026-10-30T10:31:32.914876+01:00"
+   }
+  ],
+  "/logs/journal?vmid=190&priority=4&lines=500": [
+   {
+    "level": 4,
+    "message": "[WRN] Slow query executed in 1203ms",
+    "source": "jellyfin",
+    "time": "2026-10-30T10:30:32.915302+01:00"
+   },
+   {
+    "level": 3,
+    "message": "[ERR] Error processing request.",
+    "source": "jellyfin",
+    "time": "2026-10-30T10:31:32.915302+01:00"
+   }
+  ],
+  "/logs/journal?vmid=190&priority=5&lines=500": [
+   {
+    "level": 4,
+    "message": "[WRN] Slow query executed in 1203ms",
+    "source": "jellyfin",
+    "time": "2026-10-30T10:30:32.915689+01:00"
+   },
+   {
+    "level": 3,
+    "message": "[ERR] Error processing request.",
+    "source": "jellyfin",
+    "time": "2026-10-30T10:31:32.915689+01:00"
+   }
+  ],
+  "/logs/journal?vmid=190&priority=6&lines=500": [
+   {
+    "level": 6,
+    "message": "Started jellyfin.service - Jellyfin Media Server.",
+    "source": "systemd",
+    "time": "2026-10-30T10:29:32.916081+01:00"
+   },
+   {
+    "level": 4,
+    "message": "[WRN] Slow query executed in 1203ms",
+    "source": "jellyfin",
+    "time": "2026-10-30T10:30:32.916081+01:00"
+   },
+   {
+    "level": 3,
+    "message": "[ERR] Error processing request.",
+    "source": "jellyfin",
+    "time": "2026-10-30T10:31:32.916081+01:00"
+   }
+  ],
+  "/logs/journal?vmid=190&priority=7&lines=500": [
+   {
+    "level": 6,
+    "message": "Started jellyfin.service - Jellyfin Media Server.",
+    "source": "systemd",
+    "time": "2026-10-30T10:29:32.916453+01:00"
+   },
+   {
+    "level": 4,
+    "message": "[WRN] Slow query executed in 1203ms",
+    "source": "jellyfin",
+    "time": "2026-10-30T10:30:32.916453+01:00"
+   },
+   {
+    "level": 3,
+    "message": "[ERR] Error processing request.",
+    "source": "jellyfin",
+    "time": "2026-10-30T10:31:32.916453+01:00"
+   }
+  ],
+  "/logs/journal?vmid=200&priority=0&lines=500": [],
+  "/logs/journal?vmid=200&priority=1&lines=500": [],
+  "/logs/journal?vmid=200&priority=2&lines=500": [],
+  "/logs/journal?vmid=200&priority=3&lines=500": [
+   {
+    "level": 3,
+    "message": "[ERR] Error processing request.",
+    "source": "jellyfin",
+    "time": "2026-10-30T10:31:32.918411+01:00"
+   }
+  ],
+  "/logs/journal?vmid=200&priority=4&lines=500": [
+   {
+    "level": 4,
+    "message": "[WRN] Slow query executed in 1203ms",
+    "source": "jellyfin",
+    "time": "2026-10-30T10:30:32.918718+01:00"
+   },
+   {
+    "level": 3,
+    "message": "[ERR] Error processing request.",
+    "source": "jellyfin",
+    "time": "2026-10-30T10:31:32.918718+01:00"
+   }
+  ],
+  "/logs/journal?vmid=200&priority=5&lines=500": [
+   {
+    "level": 4,
+    "message": "[WRN] Slow query executed in 1203ms",
+    "source": "jellyfin",
+    "time": "2026-10-30T10:30:32.919018+01:00"
+   },
+   {
+    "level": 3,
+    "message": "[ERR] Error processing request.",
+    "source": "jellyfin",
+    "time": "2026-10-30T10:31:32.919018+01:00"
+   }
+  ],
+  "/logs/journal?vmid=200&priority=6&lines=500": [
+   {
+    "level": 6,
+    "message": "Started jellyfin.service - Jellyfin Media Server.",
+    "source": "systemd",
+    "time": "2026-10-30T10:29:32.919381+01:00"
+   },
+   {
+    "level": 4,
+    "message": "[WRN] Slow query executed in 1203ms",
+    "source": "jellyfin",
+    "time": "2026-10-30T10:30:32.919381+01:00"
+   },
+   {
+    "level": 3,
+    "message": "[ERR] Error processing request.",
+    "source": "jellyfin",
+    "time": "2026-10-30T10:31:32.919381+01:00"
+   }
+  ],
+  "/logs/journal?vmid=200&priority=7&lines=500": [
+   {
+    "level": 6,
+    "message": "Started jellyfin.service - Jellyfin Media Server.",
+    "source": "systemd",
+    "time": "2026-10-30T10:29:32.919717+01:00"
+   },
+   {
+    "level": 4,
+    "message": "[WRN] Slow query executed in 1203ms",
+    "source": "jellyfin",
+    "time": "2026-10-30T10:30:32.919717+01:00"
+   },
+   {
+    "level": 3,
+    "message": "[ERR] Error processing request.",
+    "source": "jellyfin",
+    "time": "2026-10-30T10:31:32.919717+01:00"
+   }
+  ],
+  "/logs/tasks": [
+   {
+    "level": 3,
+    "message": "vzdump by root@pam: job errors",
+    "node": "pve",
+    "source": "vzdump",
+    "time": "2026-10-30T07:40:19Z",
+    "upid": "UPID:pve:0001:vzdump::root@pam:"
+   },
+   {
+    "level": 6,
+    "message": "vzsnapshot 101 by iglo@pve!manager: OK",
+    "node": "pve",
+    "source": "vzsnapshot",
+    "time": "2026-10-30T08:35:29Z",
+    "upid": "UPID:pve:0002:vzsnapshot:101:iglo@pve!manager:"
+   }
+  ],
+  "/logs/tasks/pve/log?upid=UPID%3Apve%3A0001%3Avzdump%3A%3Aroot%40pam%3A": {
+   "lines": [
+    "INFO: starting new backup job: vzdump --all 1 --storage local --mode snapshot",
+    "INFO: Starting Backup of VM 101 (lxc)",
+    "ERROR: Backup of VM 101 failed - no space left on device",
+    "INFO: Backup job finished with errors"
+   ]
+  },
+  "/logs/tasks/pve/log?upid=UPID%3Apve%3A0002%3Avzsnapshot%3A101%3Aiglo%40pve%21manager%3A": {
+   "lines": [
+    "INFO: starting new backup job: vzdump --all 1 --storage local --mode snapshot",
+    "INFO: Starting Backup of VM 101 (lxc)",
+    "ERROR: Backup of VM 101 failed - no space left on device",
+    "INFO: Backup job finished with errors"
+   ]
+  },
+  "/music/jobs": {
+   "admitted": true,
+   "jobs": [],
+   "paused": false,
+   "sample": true,
+   "storageReady": true
+  },
+  "/overview": {
+   "agent": {
+    "connected": true,
+    "hostname": "pve",
+    "version": "dev"
+   },
+   "guests": [
+    {
+     "cpu": 0.01,
+     "disk": 0,
+     "id": "lxc/100",
+     "maxCpu": 1,
+     "maxDisk": 0,
+     "maxMem": 536870912,
+     "mem": 90000000,
+     "name": "iglo",
+     "node": "pve",
+     "status": "running",
+     "type": "lxc",
+     "uptime": 3600,
+     "vmid": 100
+    },
+    {
+     "cpu": 0.07,
+     "disk": 0,
+     "id": "lxc/101",
+     "maxCpu": 4,
+     "maxDisk": 0,
+     "maxMem": 4294967296,
+     "mem": 1300000000,
+     "name": "jellyfin",
+     "node": "pve",
+     "status": "running",
+     "type": "lxc",
+     "uptime": 345600,
+     "vmid": 101
+    },
+    {
+     "cpu": 0.2,
+     "disk": 0,
+     "id": "lxc/102",
+     "maxCpu": 2,
+     "maxDisk": 0,
+     "maxMem": 4294967296,
+     "mem": 2300000000,
+     "name": "downloads",
+     "node": "pve",
+     "status": "running",
+     "type": "lxc",
+     "uptime": 345600,
+     "vmid": 102
+    },
+    {
+     "cpu": 0,
+     "disk": 0,
+     "id": "lxc/130",
+     "maxCpu": 4,
+     "maxDisk": 0,
+     "maxMem": 4294967296,
+     "mem": 0,
+     "name": "media",
+     "node": "pve",
+     "status": "running",
+     "type": "lxc",
+     "uptime": 60,
+     "vmid": 130
+    },
+    {
+     "cpu": 0.04,
+     "disk": 0,
+     "id": "lxc/160",
+     "maxCpu": 2,
+     "maxDisk": 0,
+     "maxMem": 1073741824,
+     "mem": 420000000,
+     "name": "music",
+     "node": "pve",
+     "status": "running",
+     "type": "lxc",
+     "uptime": 86400,
+     "vmid": 160
+    },
+    {
+     "cpu": 0.11,
+     "disk": 0,
+     "id": "lxc/170",
+     "maxCpu": 4,
+     "maxDisk": 0,
+     "maxMem": 6442450944,
+     "mem": 3100000000,
+     "name": "photos",
+     "node": "pve",
+     "status": "running",
+     "type": "lxc",
+     "uptime": 86400,
+     "vmid": 170
+    },
+    {
+     "cpu": 0.62,
+     "disk": 0,
+     "id": "lxc/180",
+     "maxCpu": 4,
+     "maxDisk": 0,
+     "maxMem": 2147483648,
+     "mem": 1400000000,
+     "name": "inbox",
+     "node": "pve",
+     "status": "running",
+     "type": "lxc",
+     "uptime": 86400,
+     "vmid": 180
+    },
+    {
+     "cpu": 0,
+     "disk": 0,
+     "id": "lxc/190",
+     "maxCpu": 4,
+     "maxDisk": 0,
+     "maxMem": 6442450944,
+     "mem": 0,
+     "name": "gaming",
+     "node": "pve",
+     "status": "stopped",
+     "type": "lxc",
+     "uptime": 0,
+     "vmid": 190
+    },
+    {
+     "cpu": 0,
+     "disk": 0,
+     "id": "qemu/200",
+     "maxCpu": 4,
+     "maxDisk": 0,
+     "maxMem": 8589934592,
+     "mem": 0,
+     "name": "windows-test",
+     "node": "pve",
+     "status": "stopped",
+     "type": "qemu",
+     "uptime": 0,
+     "vmid": 200
+    }
+   ],
+   "nodes": [
+    {
+     "cpu": 0.18,
+     "disk": 21000000000,
+     "maxCpu": 20,
+     "maxDisk": 100000000000,
+     "maxMem": 34359738368,
+     "mem": 9800000000,
+     "name": "pve",
+     "pveVersion": "pve-manager/9.2.0/dev",
+     "status": "online",
+     "uptime": 1234567
+    }
+   ]
+  },
+  "/self-update": {
+   "upgrade": null,
+   "version": "dev"
+  },
+  "/setup": {
+   "apps": [
+    {
+     "description": "Watch your movies and series on every device. Transcodes with the GPU of the host, when it has one.",
+     "diskGiB": 16,
+     "id": "jellyfin",
+     "installed": true,
+     "memoryMiB": 3072,
+     "missing": [],
+     "name": "Jellyfin",
+     "ready": true,
+     "shares": [
+      "videos"
+     ]
+    },
+    {
+     "description": "Request, find and download movies and series for Jellyfin. Downloads go through ProtonVPN or PIA.",
+     "diskGiB": 216,
+     "id": "media",
+     "installed": true,
+     "memoryMiB": 4096,
+     "missing": [],
+     "name": "Media stack",
+     "ready": true,
+     "shares": [
+      "videos"
+     ]
+    },
+    {
+     "description": "Immich: the phones back up their photos to the NAS, with faces and search.",
+     "diskGiB": 64,
+     "id": "photos",
+     "installed": true,
+     "memoryMiB": 8192,
+     "missing": [],
+     "name": "Photos",
+     "ready": true,
+     "shares": [
+      "photos",
+      "backups"
+     ]
+    },
+    {
+     "description": "Downloads songs from YouTube Music with their cover art, for Jellyfin and Finamp. Music videos only when you ask.",
+     "diskGiB": 64,
+     "id": "music",
+     "installed": true,
+     "memoryMiB": 1024,
+     "missing": [],
+     "name": "Music",
+     "ready": true,
+     "shares": [
+      "music"
+     ]
+    },
+    {
+     "description": "FFmpeg processes your own videos into the Home videos output library. Choose an original-codec or playback profile; sources stay read only.",
+     "diskGiB": 64,
+     "id": "inbox",
+     "installed": true,
+     "memoryMiB": 2048,
+     "missing": [],
+     "name": "Inbox",
+     "ready": true,
+     "shares": [
+      "inbox",
+      "videos"
+     ]
+    },
+    {
+     "description": "Experimental. Retro games from your Games share, streamed to your PC or TV with Moonlight. Wolf runs in a privileged container that only starts while you play.",
+     "diskGiB": 96,
+     "id": "gaming",
+     "installed": true,
+     "memoryMiB": 6144,
+     "missing": [],
+     "name": "Gaming",
+     "ready": true,
+     "shares": [
+      "games"
+     ]
+    }
+   ],
+   "bindings": [],
+   "hostBytes": 34359738368,
+   "state": "idle",
+   "steps": [],
+   "storage": "local-lvm",
+   "storageSpace": {
+    "fast-zfs": {
+     "freeBytes": 800000000000,
+     "totalBytes": 900000000000
+    },
+    "local-lvm": {
+     "freeBytes": 370000000000,
+     "totalBytes": 400000000000
+    }
+   },
+   "storages": [
+    "fast-zfs",
+    "local-lvm"
+   ]
+  },
+  "/storage/bindings": {
+   "bindings": [],
+   "sample": true
+  },
+  "/tailscale": {
+   "connecting": false,
+   "health": [
+    "You are logged out."
+   ],
+   "installed": true,
+   "ips": [],
+   "peers": [],
+   "services": [],
+   "serving": false,
+   "settings": {
+    "loginServer": "",
+    "shareSubnet": false,
+    "subnet": "",
+    "useTag": false
+   },
+   "state": "NeedsLogin",
+   "subnetApproved": false,
+   "suggestedSubnet": "192.168.1.0/24",
+   "tags": []
+  },
+  "/updates": {
+   "busy": "",
+   "guests": [
+    {
+     "autoUpdate": false,
+     "images": [],
+     "name": "iglo",
+     "packages": [],
+     "self": true,
+     "status": "running",
+     "vmid": 100
+    },
+    {
+     "autoUpdate": true,
+     "images": [],
+     "name": "jellyfin",
+     "packages": [],
+     "self": false,
+     "status": "running",
+     "vmid": 101
+    },
+    {
+     "autoUpdate": true,
+     "images": [],
+     "name": "downloads",
+     "packages": [],
+     "self": false,
+     "status": "running",
+     "vmid": 102
+    },
+    {
+     "autoUpdate": true,
+     "images": [],
+     "name": "media",
+     "packages": [],
+     "self": false,
+     "status": "running",
+     "vmid": 130
+    },
+    {
+     "autoUpdate": true,
+     "images": [],
+     "name": "music",
+     "packages": [],
+     "self": false,
+     "status": "running",
+     "vmid": 160
+    },
+    {
+     "autoUpdate": true,
+     "images": [],
+     "name": "photos",
+     "packages": [],
+     "self": false,
+     "status": "running",
+     "vmid": 170
+    },
+    {
+     "autoUpdate": true,
+     "images": [],
+     "name": "inbox",
+     "packages": [],
+     "self": false,
+     "status": "running",
+     "vmid": 180
+    },
+    {
+     "autoUpdate": true,
+     "images": [],
+     "name": "gaming",
+     "packages": [],
+     "self": false,
+     "status": "stopped",
+     "vmid": 190
+    }
+   ],
+   "history": [],
+   "host": {
+    "images": [],
+    "name": "",
+    "packages": []
+   },
+   "nextRun": "2026-11-01T04:00:00+01:00",
+   "ntfy": {
+    "configured": false,
+    "hasToken": false,
+    "server": "",
+    "topic": ""
+   },
+   "schedule": {
+    "enabled": true,
+    "hour": 4,
+    "minute": 0,
+    "weekday": 0
+   }
+  },
+  "/workloads": {
+   "checkedAt": "2026-10-30T10:38:19.859523+01:00",
+   "configured": false,
+   "freeBytes": 0,
+   "gamingActive": false,
+   "pressure": -1,
+   "queues": [],
+   "reason": "Not connected",
+   "settings": {
+    "enabled": false,
+    "end": "07:00",
+    "maxQueues": 1,
+    "node": "",
+    "queues": [
+     "videoConversion",
+     "faceDetection",
+     "facialRecognition",
+     "smartSearch"
+    ],
+    "reserveGiB": 4,
+    "start": "02:00",
+    "timezone": "UTC",
+    "url": "",
+    "window": false,
+    "workers": false
+   },
+   "totalBytes": 0,
+   "workerReason": "Native and manual worker controls"
+  }
+ },
+ "recordedAt": "2026-10-30T09:38:32Z"
+}
