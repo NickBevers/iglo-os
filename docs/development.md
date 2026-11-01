@@ -30,7 +30,14 @@ Open http://localhost:5173 and log in with `admin` / `iglo-dev-password` and the
 
 `npm run build:demo` in `web/` builds the web app as a static site into `web/dist-demo`. It needs no manager: `web/src/demo` answers the API in the browser with answers recorded from the dev mock. Anything that would change something fails with a message, and the live stream stays closed. A normal build leaves all of it out.
 
-The demo runs on Vercel at https://iglo-os-demo.vercel.app, from `web/vercel.json`. Deploy it again with `vercel deploy --prod` in `web/`.
+The demo runs on Vercel at https://iglo-os-demo.vercel.app, from `web/vercel.json`. Vercel never builds it: the project is not connected to GitHub, and its root directory is `web`. Deploy from a clean `main`, from the repo root:
+
+```sh
+vercel link --yes --project iglo-os-demo --scope nickbevers   # once
+make demo
+```
+
+`make demo` builds on this machine with `vercel build` and uploads only the result with `vercel deploy --prebuilt --prod`. `web/package.json` asks for Node 22 or newer, so the local build and Vercel agree on the version. The link writes `.vercel/` and `.env.local`, which git ignores.
 
 To record new answers, run the manager on the mock as above, then:
 
