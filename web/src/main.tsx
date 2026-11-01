@@ -10,6 +10,11 @@ import { ApiError } from '@/lib/api'
 import { sessionQuery } from '@/lib/queries'
 import { routeTree } from './routeTree.gen'
 
+// The demo build fakes the API in the browser. A normal build drops this.
+if (import.meta.env.VITE_DEMO === '1') {
+    await import('./demo')
+}
+
 function isClientError(error: unknown) {
     return error instanceof ApiError && error.status < 500
 }
