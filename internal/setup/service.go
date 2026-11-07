@@ -466,7 +466,9 @@ func (s *Service) waitForApp(ctx context.Context, app string) (string, error) {
 			continue
 		case view.Operation != nil && view.Operation.State == agent.UpgradeFailed:
 			return "", errors.New(view.Operation.Message)
-		case view.Operation == nil && view.Installed:
+		// The Apps page keeps a finished install in the view for an hour, so
+		// a succeeded one is done too, not only one that is gone.
+		case view.Installed && (view.Operation == nil || view.Operation.State == agent.UpgradeSucceeded):
 			return "Installed", nil
 		}
 	}
