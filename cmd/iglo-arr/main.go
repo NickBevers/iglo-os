@@ -28,6 +28,7 @@ import (
 	"os"
 	"os/exec"
 	"os/signal"
+	"strconv"
 	"strings"
 	"syscall"
 	"time"
@@ -165,7 +166,8 @@ func configure(args []string) error {
 		QBittorrentTempPassword: func(ctx context.Context) (string, error) {
 			return qbittorrentTempPassword(ctx)
 		},
-		SyncProfiles: syncProfiles,
+		ForwardedPort: forwardedPort,
+		SyncProfiles:  syncProfiles,
 		Logf: func(format string, args ...any) {
 			fmt.Printf("==> "+format+"\n", args...)
 		},
@@ -228,6 +230,16 @@ func lastLines(output string, n int) string {
 }
 
 // qbittorrentTempPassword reads the one-time password qBittorrent logs on first start.
+// forwardedPort reads the port that Gluetun wrote when the VPN forwarded one
+// (v3.41.3: /tmp/gluetun/forwarded_port), or 0 when it has none yet.
+func forwardedPort(ctx context.Context) (int, error) {
+	output, err := exec.CommandContext(ctx, "docker", "exec", "gluetun", "cat", "/tmp/gluetun/forwarded_port").Output()
+	if err != nil {
+		return 0, nil
+	}
+	return strconv.Atoi(strings.TrimSpace(string(output)))
+}
+
 func qbittorrentTempPassword(ctx context.Context) (string, error) {
 	output, err := exec.CommandContext(ctx, "docker", "logs", "qbittorrent").CombinedOutput()
 	if err != nil {

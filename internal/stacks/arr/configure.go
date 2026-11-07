@@ -83,6 +83,9 @@ type Config struct {
 
 	// QBittorrentTempPassword returns the one-time password qBittorrent logs on first start.
 	QBittorrentTempPassword func(context.Context) (string, error)
+	// ForwardedPort returns the port that the VPN forwarded, or 0 when there
+	// is none yet. Optional.
+	ForwardedPort func(context.Context) (int, error)
 	// SyncProfiles runs Recyclarr once, so its quality profiles exist before
 	// Seerr picks them. Optional: without it, Recyclarr makes them within a day.
 	SyncProfiles func(context.Context) error
@@ -234,6 +237,32 @@ func configureQBittorrent(ctx context.Context, cfg Config, qbit *qbittorrent) er
 		}
 	}
 
+	return giveForwardedPort(ctx, cfg, qbit)
+}
+
+// vpnInterface is Gluetun's tunnel, its default VPN_INTERFACE in v3.41.3.
+const vpnInterface = "tun0"
+
+// giveForwardedPort gives qBittorrent the port that the VPN forwarded, as
+// Gluetun's port-forward hook does. That hook runs once, when the port is
+// new, and can run before the bypass of the local login above. qBittorrent
+// then answers 403 and keeps its default port, which no peer can reach. Seen
+// on the first real host on 7 November 2026. Without a port yet, the hook
+// sends it later, now that it may.
+func giveForwardedPort(ctx context.Context, cfg Config, qbit *qbittorrent) error {
+	if cfg.ForwardedPort == nil {
+		return nil
+	}
+	port, err := cfg.ForwardedPort(ctx)
+	if err != nil || port < 1 || port > 65535 {
+		return nil
+	}
+	if err := qbit.setPreferences(ctx, map[string]any{
+		"listen_port": port, "current_network_interface": vpnInterface, "random_port": false, "upnp": false,
+	}); err != nil {
+		return err
+	}
+	cfg.Logf("Gave qBittorrent the forwarded port %d", port)
 	return nil
 }
 
