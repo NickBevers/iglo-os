@@ -83,7 +83,12 @@ func (f *fakeInstalls) start(script string, args []string, cleanup, logPath, exi
 			return err
 		}
 		os.Remove(cleanup)
-		play = func() { f.play(stack, string(answers), logPath, exitPath) }
+		// The Jellyfin install gets a file for its API key.
+		keyFile := ""
+		if len(args) == 4 && args[2] == "--key-file" {
+			keyFile = args[3]
+		}
+		play = func() { f.play(stack, string(answers), logPath, exitPath, keyFile) }
 	}
 
 	f.mu.Lock()
@@ -384,7 +389,7 @@ func addMount(path, binding, destination string) error {
 	return os.WriteFile(path, append(conf, line...), 0o600)
 }
 
-func (f *fakeInstalls) play(stack, answers, logPath, exitPath string) {
+func (f *fakeInstalls) play(stack, answers, logPath, exitPath, keyFile string) {
 	defer func() {
 		f.mu.Lock()
 		f.running = false
@@ -486,7 +491,7 @@ func (f *fakeInstalls) play(stack, answers, logPath, exitPath string) {
 		write(fmt.Sprintf("IGLO app %s %d %s", stack, id, ip))
 		os.WriteFile(statePath(stack+"-installed"), nil, 0600)
 	case "jellyfin":
-		write("IGLO jellyfin-key 0123456789abcdef0123456789abcdef")
+		os.WriteFile(keyFile, []byte("0123456789abcdef0123456789abcdef\n"), 0o600)
 		write("==> Done")
 		write("IGLO app jellyfin 140 192.168.1.160")
 		os.WriteFile(statePath("jellyfin-installed"), nil, 0o600)

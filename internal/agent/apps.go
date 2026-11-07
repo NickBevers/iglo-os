@@ -85,6 +85,8 @@ var (
 	// The Jellyfin installer prints the API key it made for Iglo-OS. The
 	// agent takes it out of the log, so the browser never sees it.
 	jellyfinKeyPattern = regexp.MustCompile(`(?m)^IGLO jellyfin-key ([A-Za-z0-9]+)\n?`)
+	// The Jellyfin installer writes the key alone to a file (keyPath).
+	jellyfinKeyFile = regexp.MustCompile(`^[A-Za-z0-9]{1,128}\n?$`)
 )
 
 // MediaStackAnswers are the questions of stacks/arr/install.sh. Every value
@@ -403,6 +405,10 @@ func (i *AppInstaller) statusPath() string { return filepath.Join(i.Dir, "status
 func (i *AppInstaller) logPath() string    { return filepath.Join(i.Dir, "install.log") }
 func (i *AppInstaller) exitPath() string   { return filepath.Join(i.Dir, "exit-code") }
 
+// keyPath is where the Jellyfin installer writes the API key it made for
+// Iglo-OS, readable by root only, so the key stays out of install.log.
+func (i *AppInstaller) keyPath() string { return filepath.Join(i.Dir, "jellyfin-key") }
+
 func (i *AppInstaller) savedPath(app string) string {
 	return filepath.Join(i.Dir, app+".saved.json")
 }
@@ -506,7 +512,11 @@ func (i *AppInstaller) installLocked(app string, saved savedFile) error {
 		return err
 	}
 
-	return i.run(app, ActionInstall, script, []string{"--answers", answersPath}, answersPath)
+	args := []string{"--answers", answersPath}
+	if app == JellyfinApp {
+		args = append(args, "--key-file", i.keyPath())
+	}
+	return i.run(app, ActionInstall, script, args, answersPath)
 }
 
 // Update updates the packages, the stack and the images of an installed app.
@@ -617,8 +627,10 @@ func (i *AppInstaller) prepare(app string) (string, error) {
 	if err := os.MkdirAll(i.Dir, 0o700); err != nil {
 		return "", err
 	}
-	if err := os.Remove(i.exitPath()); err != nil && !errors.Is(err, os.ErrNotExist) {
-		return "", err
+	for _, path := range []string{i.exitPath(), i.keyPath()} {
+		if err := os.Remove(path); err != nil && !errors.Is(err, os.ErrNotExist) {
+			return "", err
+		}
 	}
 	if err := os.WriteFile(i.logPath(), nil, 0o600); err != nil {
 		return "", err
@@ -673,6 +685,9 @@ func (i *AppInstaller) Status() AppInstallStatus {
 	var result []string
 	if log, apiKey, match, ok := i.log.read(i.logPath(), status.StartedAt); ok {
 		status.Log, status.APIKey, result = log, apiKey, match
+	}
+	if key, err := os.ReadFile(i.keyPath()); err == nil && jellyfinKeyFile.Match(key) {
+		status.APIKey = strings.TrimSpace(string(key))
 	}
 
 	if status.State != UpgradeRunning {
