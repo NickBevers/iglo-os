@@ -2,6 +2,7 @@ package arr
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net/http"
 	"net/http/cookiejar"
@@ -51,6 +52,27 @@ func newSeerr(baseURL string, timeout time.Duration) *apiClient {
 	}
 }
 
+// seerrSyncDelay is the wait between tries of the library sync.
+var seerrSyncDelay = 3 * time.Second
+
+// syncSeerrLibraries has Seerr read the libraries of Jellyfin. It tries for
+// about 30 seconds: the media stack restarts Jellyfin just before, and on the
+// first real host the sync failed and stopped the setup of Seerr.
+func syncSeerrLibraries(ctx context.Context, seerr *apiClient, libraries any) error {
+	var err error
+	for range 10 {
+		if err = seerr.do(ctx, http.MethodPost, "/settings/jellyfin/library/sync", nil, libraries); err == nil {
+			return nil
+		}
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case <-time.After(seerrSyncDelay):
+		}
+	}
+	return err
+}
+
 type seerrService struct {
 	ID       int    `json:"id"`
 	Hostname string `json:"hostname"`
@@ -96,7 +118,17 @@ func configureSeerr(ctx context.Context, cfg Config, seerr *apiClient, tags anim
 		"email":      "",
 		"serverType": mediaServerJellyfin,
 	}
-	if err := seerr.do(ctx, http.MethodPost, "/auth/jellyfin", login, nil); err != nil {
+	err = seerr.do(ctx, http.MethodPost, "/auth/jellyfin", login, nil)
+	// An earlier run set the server, then stopped. Seerr then refuses a login
+	// that names a server, and takes one without it (v3.5.1,
+	// server/routes/auth.ts, checked 7 November 2026).
+	var status *statusError
+	if errors.As(err, &status) && strings.Contains(status.body, "hostname already configured") {
+		err = seerr.do(ctx, http.MethodPost, "/auth/jellyfin", map[string]any{
+			"username": cfg.JellyfinAdminUsername, "password": cfg.JellyfinAdminPassword, "email": "",
+		}, nil)
+	}
+	if err != nil {
 		return fmt.Errorf("log in to Seerr with the Jellyfin admin: %w", err)
 	}
 
@@ -104,7 +136,7 @@ func configureSeerr(ctx context.Context, cfg Config, seerr *apiClient, tags anim
 		ID   string `json:"id"`
 		Type string `json:"type"`
 	}
-	if err := seerr.do(ctx, http.MethodPost, "/settings/jellyfin/library/sync", nil, &libraries); err != nil {
+	if err := syncSeerrLibraries(ctx, seerr, &libraries); err != nil {
 		return err
 	}
 	for _, library := range libraries {

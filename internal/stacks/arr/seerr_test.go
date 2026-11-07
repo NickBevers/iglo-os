@@ -24,6 +24,11 @@ type fakeSeerr struct {
 	noAnimeFilms bool
 	// noTVDB fails the metadata change, like Seerr does when TheTVDB can't be reached.
 	noTVDB bool
+	// hasServer is a Seerr whose Jellyfin server an earlier run set, which
+	// then refuses a login that names a server (v3.5.1, server/routes/auth.ts).
+	hasServer bool
+	// syncFailures fails that many library syncs first, like while Jellyfin restarts.
+	syncFailures int
 }
 
 func (f *fakeSeerr) ServeHTTP(w http.ResponseWriter, r *http.Request) {
@@ -48,9 +53,18 @@ func (f *fakeSeerr) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	case "GET /settings/public":
 		json.NewEncoder(w).Encode(map[string]bool{"initialized": f.initialized})
 	case "POST /auth/jellyfin":
+		if f.hasServer && body["hostname"] != nil {
+			http.Error(w, `{"error":"Jellyfin hostname already configured"}`, http.StatusInternalServerError)
+			return
+		}
 		http.SetCookie(w, &http.Cookie{Name: "connect.sid", Value: "admin", Path: "/"})
 		w.Write([]byte(`{"id":1}`))
 	case "POST /settings/jellyfin/library/sync":
+		if f.syncFailures > 0 {
+			f.syncFailures--
+			http.Error(w, `{"message":"Unable to connect to Jellyfin"}`, http.StatusInternalServerError)
+			return
+		}
 		w.Write([]byte(`[{"id":"m1","type":"movie"},{"id":"s1","type":"show"},{"id":"x1","type":"music"}]`))
 	case "GET /settings/radarr":
 		json.NewEncoder(w).Encode(f.radarr)
@@ -139,6 +153,29 @@ func TestConfigureSeerr(t *testing.T) {
 		sonarr["activeAnimeProfileId"] != float64(9) || sonarr["activeAnimeDirectory"] != "/data/media/Anime" ||
 		!slices.Equal(sonarr["animeTags"].([]any), []any{float64(2)}) {
 		t.Fatalf("sonarr = %v", sonarr)
+	}
+}
+
+// A run that set the Jellyfin server but stopped later, like at a library
+// sync while Jellyfin restarted, can be run again.
+func TestConfigureSeerrFinishesAnEarlierRun(t *testing.T) {
+	fake := &fakeSeerr{bodies: map[string]map[string]any{}, hasServer: true, syncFailures: 2}
+	server := httptest.NewServer(fake)
+	defer server.Close()
+
+	delay := seerrSyncDelay
+	seerrSyncDelay = time.Millisecond
+	defer func() { seerrSyncDelay = delay }()
+	if err := configureSeerr(context.Background(), seerrConfig(), newSeerr(server.URL, 5*time.Second), animeTags{Sonarr: 2, Radarr: 5}); err != nil {
+		t.Fatal(err)
+	}
+	if login := fake.bodies["POST /auth/jellyfin"]; login["hostname"] != nil || login["username"] != "dries" {
+		t.Fatalf("second login = %v", login)
+	}
+	for _, call := range []string{"PUT /settings/jellyfin/library/m1", "POST /settings/sonarr", "POST /settings/initialize"} {
+		if !slices.Contains(fake.calls, call) {
+			t.Errorf("missing %s in %v", call, fake.calls)
+		}
 	}
 }
 
