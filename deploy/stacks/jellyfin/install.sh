@@ -40,6 +40,8 @@ GPU_DEVICE="/dev/dri/renderD128"
 VAINFO_FILE=""
 # HUC is y when the HuC firmware of the GPU runs, for the Intel low-power encoders.
 HUC=""
+# KEY_FILE is where the API key for Iglo-OS goes, so it stays out of the log.
+KEY_FILE=""
 
 while [[ $# -gt 0 ]]; do
     case "$1" in
@@ -47,6 +49,7 @@ while [[ $# -gt 0 ]]; do
         --bridge) BRIDGE="$2"; shift 2 ;;
         --ctid) CT_ID="$2"; shift 2 ;;
         --answers) ANSWERS="$2"; shift 2 ;;
+        --key-file) KEY_FILE="$2"; shift 2 ;;
         --update) MODE="update"; shift ;;
         --remove) MODE="remove"; shift ;;
         *) die "unknown option: $1" ;;
@@ -380,6 +383,7 @@ configure_jellyfin() {
     [[ -z "$ANIME_MOVIES_FOLDER" ]] || flags+=(--anime-movies "/data/media/$ANIME_MOVIES_FOLDER")
     extra_libraries
     flags+=("${LIBRARY_FLAGS[@]}")
+    [[ -z "$KEY_FILE" ]] || flags+=(--key-file "$KEY_FILE")
 
     # The password goes on stdin, so it is not in the process list.
     printf '%s\n' "$JELLYFIN_ADMIN_PASSWORD" | "$STACK_DIR/iglo-jellyfin" setup \

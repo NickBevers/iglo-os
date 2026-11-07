@@ -427,10 +427,16 @@ func TestJellyfinInstall(t *testing.T) {
 		t.Errorf("answers ask about a theme:\n%s", answers)
 	}
 
+	// The installer gets a file for the key, so the key stays out of the log.
+	if len(unit.args) != 4 || unit.args[2] != "--key-file" || unit.args[3] != installer.keyPath() {
+		t.Fatalf("args = %v", unit.args)
+	}
+
 	// While it runs or after a failure, the key never shows.
-	log := "==> Setting up Jellyfin\nIGLO jellyfin-key 0123456789abcdef0123456789abcdef\n==> Done\nIGLO app jellyfin 140 192.168.1.60\n"
+	log := "==> Setting up Jellyfin\n==> Done\nIGLO app jellyfin 140 192.168.1.60\n"
 	os.WriteFile(installer.logPath(), []byte(log), 0o600)
-	if status := installer.Status(); status.APIKey != "" || strings.Contains(status.Log, "jellyfin-key") {
+	os.WriteFile(installer.keyPath(), []byte("0123456789abcdef0123456789abcdef\n"), 0o600)
+	if status := installer.Status(); status.APIKey != "" {
 		t.Fatalf("running status = %+v", status)
 	}
 
@@ -440,8 +446,19 @@ func TestJellyfinInstall(t *testing.T) {
 	if status.State != UpgradeSucceeded || status.APIKey != "0123456789abcdef0123456789abcdef" || status.IP != "192.168.1.60" {
 		t.Fatalf("done status = %+v", status)
 	}
-	if strings.Contains(status.Log, "jellyfin-key") || !strings.Contains(status.Log, "==> Done") {
+
+	// A key line from an older installer is still taken out of the log.
+	os.WriteFile(installer.logPath(), []byte("IGLO jellyfin-key 0123456789abcdef0123456789abcdef\n==> Done\n"), 0o600)
+	if status := installer.Status(); strings.Contains(status.Log, "jellyfin-key") || !strings.Contains(status.Log, "==> Done") {
 		t.Fatalf("the key is in the log:\n%s", status.Log)
+	}
+
+	// The next operation removes the key file.
+	if _, err := installer.prepare(JellyfinApp); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := os.Stat(installer.keyPath()); !os.IsNotExist(err) {
+		t.Fatalf("key file stays: %v", err)
 	}
 }
 
