@@ -33,6 +33,9 @@ type fakeHost struct {
 	space     map[string]apps.StorageSpace
 	// flareSolverr is the FlareSolverr switch of an installed media stack.
 	flareSolverr *bool
+	// finished are the apps that Install installed. Like the Apps page, their
+	// install stays in the view as succeeded for a while.
+	finished map[string]bool
 }
 
 func (f *fakeHost) StorageBindings(context.Context) (agent.BindingView, error) {
@@ -67,6 +70,9 @@ func (f *fakeHost) Status(context.Context) (apps.View, error) {
 	view := apps.View{Defaults: apps.Defaults{Storage: "local-lvm", Storages: []string{"local-lvm"}, StorageSpace: f.space}}
 	for _, id := range Apps {
 		app := apps.AppView{App: apps.App{ID: id, Name: id}, Installed: f.installed[id]}
+		if f.finished[id] {
+			app.Operation = &agent.AppInstallStatus{App: id, Action: agent.ActionInstall, State: agent.UpgradeSucceeded}
+		}
 		if id == agent.MediaStackApp && app.Installed {
 			app.FlareSolverr = f.flareSolverr
 		}
@@ -84,6 +90,10 @@ func (f *fakeHost) Install(_ context.Context, _ context.Context, id string, requ
 	f.order = append(f.order, id)
 	f.requests[id] = request
 	f.installed[id] = true
+	if f.finished == nil {
+		f.finished = map[string]bool{}
+	}
+	f.finished[id] = true
 	return nil
 }
 
