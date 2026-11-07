@@ -33,7 +33,7 @@ export function ScopedForm({
                   backupBinding: '',
                   cores: id === 'photos' || id === 'gaming' ? 4 : 2,
                   memoryMiB: id === 'photos' ? 8192 : id === 'music' ? 1024 : id === 'gaming' ? 6144 : 2048,
-                  diskGB: id === 'gaming' ? 96 : 64,
+                  diskGB: id === 'photos' || id === 'gaming' ? 64 : id === 'inbox' ? 48 : 32,
                   privileged: false,
               },
     )

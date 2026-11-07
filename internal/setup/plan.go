@@ -46,10 +46,20 @@ var memoryMiB = map[string]int{
 // the media stack's container disks are fixed in their installers
 // (deploy/stacks/jellyfin/install.sh and deploy/stacks/arr/install.sh); the
 // media stack also gets a disk for its downloads.
+//
+// Together they fit a 512 GB NVMe with Gaming: 16 + 16 + 120 for Jellyfin and
+// the media stack, 64 for Photos, 32 for Music, 48 for Inbox and 64 for
+// Gaming, which is 360 GiB. The libraries are on the NAS: Music and Inbox keep
+// only their work here, and Gaming its images and saves. Inbox needs room for
+// a 16 GiB source, a 16 GiB output and 4 GiB of headroom (internal/inbox). A
+// disk that needs more grows later with pct resize.
 const (
 	jellyfinDiskGiB  = 16
 	mediaDiskGiB     = 16
-	downloadsDiskGiB = 200
+	downloadsDiskGiB = 120
+	musicDiskGiB     = 32
+	inboxDiskGiB     = 48
+	gamingDiskGiB    = 64
 )
 
 // diskGiB is the local disk an app of the setup takes, for the disk budget.
@@ -221,11 +231,11 @@ func (p Plan) scopedAnswers(app string, bindings map[string]string) agent.Scoped
 		answers.LibraryBinding, answers.BackupBinding, answers.Cores = bindings["photos"], bindings["backups"], 4
 		answers.BackupPassword = p.BackupPassword
 	case agent.MusicApp:
-		answers.LibraryBinding = bindings["music"]
+		answers.LibraryBinding, answers.DiskGB = bindings["music"], musicDiskGiB
 	case agent.InboxApp:
-		answers.LibraryBinding, answers.OutputBinding = bindings["inbox"], bindings["videos"]
+		answers.LibraryBinding, answers.OutputBinding, answers.DiskGB = bindings["inbox"], bindings["videos"], inboxDiskGiB
 	case agent.GamingApp:
-		answers.LibraryBinding, answers.Cores, answers.DiskGB, answers.Privileged = bindings["games"], 4, 96, true
+		answers.LibraryBinding, answers.Cores, answers.DiskGB, answers.Privileged = bindings["games"], 4, gamingDiskGiB, true
 	}
 	return answers
 }

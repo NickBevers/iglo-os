@@ -465,7 +465,7 @@ func (s *Service) defaults(ctx context.Context, node string, resources []proxmox
 		VPNLocations:      "Netherlands",
 		SubtitleLanguages: "en",
 		Username:          "iglo",
-		DownloadsSize:     200,
+		DownloadsSize:     120,
 	}
 
 	storages, err := s.storages.get(node, 5*time.Minute, func() ([]proxmox.BackupStorage, error) {

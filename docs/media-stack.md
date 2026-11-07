@@ -41,7 +41,7 @@ Media stacks that were installed before you could choose the folders use `movies
 ## What the installer does
 
 - checks that the containers can write to the movies and series folders on the Videos share, and gives the share to the new LXC as `/data/media`, and to Jellyfin read-only when it does not have it yet;
-- keeps downloads on a local disk (`/data/downloads`);
+- keeps downloads on a local disk (`/data/downloads`), 120 GB by default. Grow it later on the host with `pct resize <container> mp1 +<size>G`;
 - connects all apps: logins, root folders, qBittorrent, Prowlarr sync, FlareSolverr, subtitles and Jellyfin libraries.
 
 FlareSolverr is a switch in the form, off by default. It runs a browser for indexers behind Cloudflare, which can take up to 1 GB of memory. Turn it on when an indexer needs it, at the install or later (see [FlareSolverr](#flaresolverr)). While it is off, it is a Docker Compose profile that doesn't start, and Prowlarr gets no FlareSolverr proxy. Indexers that need it get the `flaresolverr` tag in Prowlarr. A stack from before the switch keeps FlareSolverr after an update.

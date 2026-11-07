@@ -579,7 +579,7 @@ function ReviewPage({ setup, draft, roles }: { setup: Setup; draft: Draft; roles
                         `, which holds ${formatBytes(space.totalBytes)} with ${formatBytes(space.freeBytes)} free`}
                     .
                     {draft.apps.includes('media') &&
-                        ` The media stack takes ${formatBytes(200 * 2 ** 30)} of it for downloads.`}
+                        ` The media stack takes ${formatBytes(120 * 2 ** 30)} of it for downloads.`}
                 </Row>
                 {space && diskBytes > space.totalBytes && (
                     <p className="text-destructive">
