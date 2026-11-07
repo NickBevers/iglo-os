@@ -400,9 +400,22 @@ var animeIndexers = []struct{ definition, name string }{
 	{"animetosho-xyz", "Anime Tosho"},
 }
 
+// animeSeasonFields let Sonarr find season packs on the anime trackers. A
+// season search sends the title with season=1, which both definitions turn
+// into "S01"; batches are named "Season 1" or "S1", or have no season at all,
+// so the search found nothing. strip_s01 searches the bare title for season
+// 1, and sonarr_compatibility writes the season into the release titles, so
+// Sonarr sees a season pack. Both default to false in the definitions
+// (Prowlarr/Indexers definitions/v11 nyaasi.yml and animetosho-xyz.yml,
+// checked 7 November 2026). On the first real host, a season 1 search for
+// Sword Art Online then went from 0 results to 44 on Nyaa and 94 on Anime
+// Tosho, and Sonarr took a season pack.
+var animeSeasonFields = map[string]any{"sonarr_compatibility": true, "strip_s01": true}
+
 // addAnimeIndexers adds the anime trackers to Prowlarr, which syncs them to
 // Sonarr and Radarr. A tracker that fails only gets a warning: the stack
-// works without it, and you can add it in Prowlarr later.
+// works without it, and you can add it in Prowlarr later. A tracker that is
+// there already gets the season fields too.
 func addAnimeIndexers(ctx context.Context, cfg Config, prowlarr *servarr) {
 	for _, indexer := range animeIndexers {
 		err := prowlarr.ensure(ctx, provider{
@@ -411,6 +424,7 @@ func addAnimeIndexers(ctx context.Context, cfg Config, prowlarr *servarr) {
 			definition:     indexer.definition,
 			name:           indexer.name,
 			forceSave:      true,
+			fields:         animeSeasonFields,
 			// 1 is the Standard sync profile of Prowlarr.
 			settings: map[string]any{"enable": true, "appProfileId": 1},
 		})
