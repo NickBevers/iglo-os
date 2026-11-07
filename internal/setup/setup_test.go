@@ -393,6 +393,19 @@ func TestViewShowsGamingAsNotReady(t *testing.T) {
 	}
 }
 
+// Every app of the setup, Gaming too, must fit the LVM-thin pool of a 512 GB
+// NVMe. With a 32 GiB root, 4 GiB swap and 4 GiB free, that pool is about
+// 430 GiB; with the installer's defaults it is about 349 GiB.
+func TestSetupDisksFitOneNVMe(t *testing.T) {
+	total := 0
+	for _, id := range []string{agent.JellyfinApp, agent.MediaStackApp, agent.PhotosApp, agent.MusicApp, agent.InboxApp, agent.GamingApp} {
+		total += diskGiB(id)
+	}
+	if total != 360 {
+		t.Errorf("the apps take %d GiB of local disk, want 360; check them against a 512 GB NVMe", total)
+	}
+}
+
 func TestSetupRefusesDisksThatDontFit(t *testing.T) {
 	host := &fakeHost{installed: map[string]bool{}, requests: map[string]agent.InstallRequest{}}
 	service := New(Options{Apps: host, Agent: host, Backups: fakeBackups{host}, Workloads: fakeWorkloads{host, ""}})

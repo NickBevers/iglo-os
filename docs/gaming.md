@@ -33,8 +33,9 @@ step and stops if one is missing.
 
 Choose **Install** on the Gaming card. The form asks for the Games share, the
 local container storage, CPU, RAM and disk. It starts at four cores,
-**6144 MiB** RAM and a 96 GB disk, and needs at least 4096 MiB, two cores and
-64 GB. The host also needs another 4096 MiB of available RAM. Nothing installs
+**6144 MiB** RAM and a 64 GB disk, and needs at least 4096 MiB, two cores and
+64 GB. The disk holds the images, saves, states and caches, about 20 GB at
+most; the games stay on the Games share. The host also needs another 4096 MiB of available RAM. Nothing installs
 until you confirm the privileged container in the form; the host agent refuses
 the answers without that confirmation.
 
