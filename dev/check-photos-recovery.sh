@@ -94,7 +94,7 @@ EOF
 fake systemd-creds <<'EOF'
 #!/bin/bash
 case "$1" in
-    encrypt) cat > "$4";;
+    encrypt) cat > "${*: -1}";;
     decrypt) cat "$3";;
 esac
 EOF

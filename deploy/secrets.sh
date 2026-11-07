@@ -5,7 +5,15 @@
 # never lie on the disk of the container, so its backups don't have them.
 # When the container starts, iglo-secrets@<id>.service unseals them into
 # RAM, and the container reads them there.
-# Checked against man/systemd-creds.xml of systemd v257 on 27 October 2026.
+#
+# The seal is bound to no PCRs (--tpm2-pcrs=). The default, PCR 7, is the
+# Secure Boot state and its keys, so a BIOS update or a change of trusted
+# keys would leave every secret unreadable and its container stopped. It
+# would protect little: the boot loader of Proxmox has no password, so
+# whoever holds the whole machine can boot it into a root shell anyway. The
+# seal still keeps the secrets off a disk or a backup that leaves the host.
+# Checked against man/systemd-creds.xml of systemd v257 on 27 October 2026,
+# and the empty PCR list on systemd 257.13 on 7 November 2026.
 
 SECRETS_ROOT=/etc/iglo/credentials
 SECRETS_RUN=/run/iglo/secrets
@@ -37,7 +45,7 @@ secret_put() {
         rm -f "$file"
         return 0
     fi
-    printf '%s' "$value" | systemd-creds encrypt --name="$name" - "$file.new"
+    printf '%s' "$value" | systemd-creds encrypt --tpm2-pcrs= --name="$name" - "$file.new"
     mv -f "$file.new" "$file"
 }
 
@@ -70,7 +78,7 @@ host_secret_put() {
     [[ -n "$value" ]] || return 1
     file="$(host_secret_file "$name")"
     install -d -m 0700 "$SECRETS_ROOT" "$SECRETS_ROOT/host"
-    printf '%s' "$value" | systemd-creds encrypt --name="$name" - "$file.new"
+    printf '%s' "$value" | systemd-creds encrypt --tpm2-pcrs= --name="$name" - "$file.new"
     mv -f "$file.new" "$file"
 }
 

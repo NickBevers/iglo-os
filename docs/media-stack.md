@@ -142,7 +142,7 @@ The login never lies on a disk in plain text:
 
 1. The browser sends it to Iglo-OS over HTTPS, and Iglo-OS to the host agent over its Unix socket.
 2. The installer passes it to `iglo-arr` in the container on stdin, which checks it and sends back the files that Gluetun reads, also on stdout. Nothing goes through a file or the process list.
-3. The host seals each secret with `systemd-creds` in `/etc/iglo/credentials/<container>`: bound to the TPM2 chip and the host key when the host has a TPM2, otherwise to the host key (systemd v257, `--with-key=auto`).
+3. The host seals each secret with `systemd-creds` in `/etc/iglo/credentials/<container>`: bound to the TPM2 chip and the host key when the host has a TPM2, otherwise to the host key (systemd v257, `--with-key=auto`). The seal is bound to no PCRs, so a BIOS update or a change of the Secure Boot keys leaves the secrets readable.
 4. Before Proxmox starts the container, `iglo-secrets@<container>.service` unseals them into RAM, in `/run/iglo/secrets/<container>`. The container sees that folder read-only at `/mnt/iglo-secrets`, and Gluetun reads it as `/run/secrets`, which it prefers to environment variables (v3.41.3).
 5. `.env` in the container has no secrets, and a backup of the container doesn't have the folder, so backups on the NAS hold no VPN login.
 6. The answers kept for a retry leave the VPN login out.
