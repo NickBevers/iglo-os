@@ -701,9 +701,18 @@ func TestChangeFlareSolverr(t *testing.T) {
 	case <-time.After(2 * time.Second):
 		t.Fatal("no message")
 	}
-	// The finished operation forgot the old answer.
-	if on, reads := flareSolverr(); on == nil || *on || reads != 2 {
-		t.Fatalf("after the change: flareSolverr = %v, reads = %d", on, reads)
+	// The finished operation forgot the old answer. The notice comes from the
+	// monitor before it lets go of the operation, so give the view a moment.
+	deadline := time.Now().Add(2 * time.Second)
+	for {
+		on, reads := flareSolverr()
+		if on != nil && !*on && reads == 2 {
+			break
+		}
+		if time.Now().After(deadline) {
+			t.Fatalf("after the change: flareSolverr = %v, reads = %d", on, reads)
+		}
+		time.Sleep(10 * time.Millisecond)
 	}
 }
 
