@@ -741,7 +741,8 @@ main() {
     cat <<EOF
 
   Open:      https://$CT_HOSTNAME.local  (or https://$ct_ip)
-  Trust it:  download http://$CT_HOSTNAME.local/ca.crt and install it as a trusted root on each device.
+  Trust it:  download http://$ct_ip/ca.crt and install it as a trusted root on each device.
+             Use the IP: a browser that opened an earlier Iglo-OS keeps HTTPS for $CT_HOSTNAME.local.
   Tip:       give container $CT_ID a fixed IP (DHCP reservation) in your router.
 EOF
     zfs_arc_note

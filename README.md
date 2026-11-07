@@ -21,7 +21,7 @@ make deploy HOST=root@192.168.1.10
 On a host without Iglo-OS, that runs the first install.
 
 1. Create your admin account when the installer asks. Add the secret it shows to an authenticator app.
-2. Download `http://iglo.local/ca.crt` and install it as a trusted root certificate on each device.
+2. Download `http://<manager IP>/ca.crt`, with the IP that the installer prints, and install it as a trusted root certificate on each device. Use the IP, not `iglo.local`. Iglo-OS sends HSTS, so a browser that opened an earlier install keeps `iglo.local` on HTTPS. After a new install, with a new CA, it then checks against the old CA and fails with `SEC_ERROR_BAD_SIGNATURE` or similar. Browsers never apply HSTS to an IP address (RFC 6797, section 8.1.1). Remove the old Iglo-OS CA from the device, trust the new one, and restart the browser. Restoring the data backup of Iglo-OS keeps the old CA.
 3. Open `https://iglo.local` and go to **Setup**. It installs the whole stack in one go, or the apps you choose. See [docs/setup.md](docs/setup.md).
 
 Options: `./install.sh --storage local-lvm --bridge vmbr0 --hostname iglo --ctid 120 --zram`. With `--zram`, the host gets compressed swap in RAM (zstd, up to a quarter of the RAM) as a safety net when everything peaks at once. On a host with ZFS and no limit on its read cache, the installer prints how to set one.
