@@ -29,7 +29,12 @@ install_stack() {
         install -m 0755 /opt/music/iglo-music /usr/local/bin/iglo-music
         install -m 0644 /opt/music/iglo-music.service /etc/systemd/system/iglo-music.service
         systemctl daemon-reload;systemctl enable --now iglo-music
-        curl --fail --silent http://127.0.0.1:8788/jobs >/dev/null
+        # The service needs a moment before it listens, like Inbox.
+        for _ in $(seq 1 30); do
+            if curl --fail --silent --max-time 2 http://127.0.0.1:8788/jobs >/dev/null; then exit 0; fi
+            sleep 1
+        done
+        exit 1
     '
 }
 update_stack() {
@@ -39,7 +44,12 @@ update_stack() {
         install -m 0755 /opt/music/iglo-music /usr/local/bin/iglo-music
         install -m 0644 /opt/music/iglo-music.service /etc/systemd/system/iglo-music.service
         systemctl daemon-reload;systemctl start iglo-music
-        curl --fail --silent http://127.0.0.1:8788/jobs >/dev/null
+        # The service needs a moment before it listens, like Inbox.
+        for _ in $(seq 1 30); do
+            if curl --fail --silent --max-time 2 http://127.0.0.1:8788/jobs >/dev/null; then exit 0; fi
+            sleep 1
+        done
+        exit 1
     '
 }
 scoped_main
