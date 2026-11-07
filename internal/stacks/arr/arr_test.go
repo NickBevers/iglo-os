@@ -240,3 +240,35 @@ func TestEnsurePicksAnIndexerByDefinition(t *testing.T) {
 		t.Fatal("added an indexer without its definition")
 	}
 }
+
+// Gluetun's hook can call qBittorrent before its local login is bypassed, so
+// the setup gives qBittorrent the forwarded port itself.
+func TestGiveForwardedPort(t *testing.T) {
+	var got []map[string]any
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		r.ParseForm()
+		if strings.HasSuffix(r.URL.Path, "/app/setPreferences") {
+			var preferences map[string]any
+			json.Unmarshal([]byte(r.Form.Get("json")), &preferences)
+			got = append(got, preferences)
+		}
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer server.Close()
+	qbit := newQBittorrent(server.URL, server.Client())
+	cfg := Config{Logf: func(string, ...any) {}}
+
+	for _, port := range []int{0, 70000} {
+		cfg.ForwardedPort = func(context.Context) (int, error) { return port, nil }
+		if err := giveForwardedPort(context.Background(), cfg, qbit); err != nil || len(got) != 0 {
+			t.Fatalf("port %d: err %v, sent %v", port, err, got)
+		}
+	}
+	cfg.ForwardedPort = func(context.Context) (int, error) { return 49491, nil }
+	if err := giveForwardedPort(context.Background(), cfg, qbit); err != nil {
+		t.Fatal(err)
+	}
+	if len(got) != 1 || got[0]["listen_port"] != float64(49491) || got[0]["current_network_interface"] != "tun0" || got[0]["upnp"] != false {
+		t.Fatalf("sent %v", got)
+	}
+}
