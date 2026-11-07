@@ -132,16 +132,25 @@ func (s *Bindings) consumers(path string) ([]string, error) {
 // point to source. findmnt fails when there is none.
 func (s *Bindings) mountedShares(ctx context.Context) map[string]string {
 	result := map[string]string{}
-	out, err := s.run(ctx, "findmnt", "--types", "cifs", "--list", "--noheadings", "--output", "TARGET,SOURCE")
+	out, err := s.run(ctx, "findmnt", "--types", "cifs", "--raw", "--noheadings", "--output", "TARGET,SOURCE")
 	if err != nil {
 		return result
 	}
 	for line := range strings.Lines(string(out)) {
 		if fields := strings.Fields(line); len(fields) == 2 {
-			result[fields[0]] = fields[1]
+			result[unescapeRaw(fields[0])] = unescapeRaw(fields[1])
 		}
 	}
 	return result
+}
+
+// mountedSMB is true when path is an SMB mount of source. It reads findmnt
+// --raw, which escapes the spaces in a share name like "Videos (Umbrel)" as
+// \x20, so the two columns split safely.
+func (s *Bindings) mountedSMB(ctx context.Context, path, source string) bool {
+	out, err := s.run(ctx, "findmnt", "--mountpoint", path, "--raw", "--noheadings", "--output", "FSTYPE,SOURCE")
+	fields := strings.Fields(string(out))
+	return err == nil && len(fields) == 2 && fields[0] == "cifs" && unescapeRaw(fields[1]) == source
 }
 
 func (s *Bindings) List(ctx context.Context) ([]Binding, error) {
@@ -243,9 +252,7 @@ func (s *Bindings) Create(ctx context.Context, in BindingInput) error {
 		return errors.New("could not mount the SMB share; check NAS access and credentials")
 	}
 	if !s.Simulation {
-		out, err := s.run(ctx, "findmnt", "--mountpoint", path, "--noheadings", "--output", "FSTYPE,SOURCE")
-		f := strings.Fields(string(out))
-		if err != nil || len(f) != 2 || f[0] != "cifs" || f[1] != "//"+in.Server+"/"+in.Share {
+		if !s.mountedSMB(ctx, path, "//"+in.Server+"/"+in.Share) {
 			return errors.New("mounted source does not match this SMB binding")
 		}
 	}

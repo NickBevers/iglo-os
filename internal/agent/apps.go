@@ -76,8 +76,11 @@ var (
 	jellyfinUserPattern = regexp.MustCompile(`^[A-Za-z0-9._@-]([A-Za-z0-9 ._@-]{0,62}[A-Za-z0-9._@-])?$`)
 	ansiPattern         = regexp.MustCompile(`\x1b\[[0-9;]*m`)
 	appResultPattern    = regexp.MustCompile(`(?m)^IGLO app (\w+) (\d+) (\S+)$`)
-	// One share name, without spaces or slashes, so it is safe in a mount unit.
-	smbSharePattern = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9._-]{0,79}$`)
+	// One share name, safe in a mount unit: no slashes, commas, quotes or %,
+	// and no space at either end. Spaces and parentheses are allowed, because
+	// umbrelOS names each share like "Videos (Umbrel)" (umbrelOS 2.0.0,
+	// packages/umbreld/source/modules/files/samba.ts, checked 7 November 2026).
+	smbSharePattern = regexp.MustCompile(`^[A-Za-z0-9]([A-Za-z0-9 ._()-]{0,78}[A-Za-z0-9._()-])?$`)
 	smbUserPattern  = regexp.MustCompile(`^[A-Za-z0-9._@-]{1,64}$`)
 	// The Jellyfin installer prints the API key it made for Iglo-OS. The
 	// agent takes it out of the log, so the browser never sees it.

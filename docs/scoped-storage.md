@@ -42,6 +42,12 @@ In **Settings > File sharing**, choose **Specific folders** and add only the
 folders that Iglo-OS needs. Don't share the whole Home folder, or that one
 login opens all of it.
 
+Umbrel names each share after its folder, with ` (Umbrel)` after it: the
+Videos folder is the share `Videos (Umbrel)`. Type that whole name in the
+setup and on the Storage page. Share names may have spaces and parentheses,
+but not at either end. Checked against umbrelOS 2.0.0 (`samba.ts`) on
+7 November 2026, and seen on umbrelOS 2.0.1.
+
 Member accounts have their own SMB login, but a member can only share folders
 in its own Home over SMB, not the owner's Videos or Photos. Iglo-OS doesn't make
 these accounts for you, because umbrelOS has no public API for it. Checked

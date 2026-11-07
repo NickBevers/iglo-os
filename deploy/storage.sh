@@ -11,8 +11,11 @@ require_binding() {
     [[ "$found_role" == "$role" ]] || die "The selected share must have the $role role"
     [[ "$access" == ro || "$read_only" == false ]] || die "The $role share needs write access"
     BINDING_PATH="/mnt/iglo/shares/$id" BINDING_READ_ONLY="$read_only"
-    actual=$(findmnt --mountpoint "$BINDING_PATH" --noheadings --output FSTYPE,SOURCE) || die "The $role share is unavailable"
+    # --raw escapes the spaces of a share like "Videos (Umbrel)" as \x20, and
+    # printf %b turns them back.
+    actual=$(findmnt --mountpoint "$BINDING_PATH" --raw --noheadings --output FSTYPE,SOURCE) || die "The $role share is unavailable"
     read -r fs mounted_source <<< "$actual"
+    mounted_source=$(printf '%b' "$mounted_source")
     [[ "$fs" == cifs && "$mounted_source" == "$source" ]] || die "The $role share has the wrong mounted source"
     BINDING_UNIT="mnt-iglo-shares-$id.mount"
 }

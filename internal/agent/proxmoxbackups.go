@@ -83,8 +83,7 @@ func (s *Bindings) UseForProxmoxBackups(ctx context.Context, id string, on bool)
 			return fmt.Errorf("Proxmox already uses this share as the storage %s", current)
 		}
 		if !s.Simulation {
-			out, err := s.run(ctx, "findmnt", "--mountpoint", binding.Path, "--noheadings", "--output", "FSTYPE,SOURCE")
-			if fields := strings.Fields(string(out)); err != nil || len(fields) != 2 || fields[0] != "cifs" || fields[1] != binding.Source {
+			if !s.mountedSMB(ctx, binding.Path, binding.Source) {
 				return errors.New("the share is not mounted; check it on the Storage page")
 			}
 		}
