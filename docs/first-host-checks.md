@@ -11,9 +11,11 @@ check doesn't depend on it.
 
 ## 1. The host
 
-- [ ] **TPM.** On the host, `systemd-creds has-tpm2` says yes for firmware,
-      driver and system. Without a TPM, secrets are still sealed, but only with
-      the host key. (#93)
+- [ ] **TPM.** After the first install, `systemd-analyze has-tpm2` on the host
+      says yes, with a plus for firmware, driver, system, subsystem and
+      libraries. Proxmox VE 9.2 lacks the libraries, so the installer adds
+      them. Without a TPM, secrets are still sealed, but only with the host
+      key. (#93)
 - [ ] **Disk budget.** On the setup's review page, the storage total and free
       space match what Proxmox shows for the LVM-thin pool. A plan bigger than
       the storage is refused. (#81)
