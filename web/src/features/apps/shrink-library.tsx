@@ -12,6 +12,7 @@ import {
     DialogTitle,
 } from '@/components/ui/dialog'
 import { api, type LibraryFile, type LibraryFolder, type ShrinkProfile, type ShrinkRefusal } from '@/lib/api'
+import { workloadsQuery } from '@/lib/queries'
 import {
     folderStats,
     gb,
@@ -115,6 +116,8 @@ export default function ShrinkLibrarySection() {
         queryFn: api.shrinkJobs,
         refetchInterval: (q) => shrinkInterval(q.state.data?.jobs),
     })
+    const waiting = Boolean(queue.data && !queue.data.paused && !queue.data.admitted)
+    const workloads = useQuery({ ...workloadsQuery, enabled: waiting })
     const terminalChanges = queue.data?.jobs
         .filter((job) => !['queued', 'running'].includes(job.state))
         .map((job) => `${job.id}:${job.state}`)
@@ -284,6 +287,35 @@ export default function ShrinkLibrarySection() {
                 <Card>
                     <CardHeader>
                         <CardTitle>Shrink jobs</CardTitle>
+                        <div role="status" className="flex flex-col gap-1 text-sm">
+                            <p className="font-medium">
+                                {queue.data.paused
+                                    ? 'Paused'
+                                    : !queue.data.admitted
+                                      ? 'Waiting for background work'
+                                      : queue.data.jobs.some((job) => job.state === 'running')
+                                        ? 'Working'
+                                        : 'Ready'}
+                            </p>
+                            {waiting && (
+                                <>
+                                    <p className="text-muted-foreground">
+                                        {workloads.data?.workerReason ||
+                                            'Gaming, the work window and host memory can hold shrinking.'}
+                                    </p>
+                                    {workloads.data?.settings.workers && workloads.data.settings.window && (
+                                        <p className="text-muted-foreground">
+                                            Shrinking runs between {workloads.data.settings.start} and{' '}
+                                            {workloads.data.settings.end}
+                                            {workloads.data.settings.timezone
+                                                ? ` (${workloads.data.settings.timezone})`
+                                                : ''}
+                                            .
+                                        </p>
+                                    )}
+                                </>
+                            )}
+                        </div>
                     </CardHeader>
                     <CardContent className="flex flex-col gap-4">
                         <Button

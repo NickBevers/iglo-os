@@ -68,6 +68,11 @@ let toasts = []
 let jobs = []
 let libraryData = { kinds: [kind], scannedAt: '2026-11-08T12:00:00Z' }
 let libraryOptions
+let queuePaused = true
+let queueAdmitted = true
+let workloadsData
+let workloadOptions
+const workloadsQuery = { queryKey: ['workloads'], queryFn: api.workloads, refetchInterval: () => 60000 }
 const useState = (initial) => {
     const i = hookIndex++
     if (!(i in state)) state[i] = initial
@@ -95,7 +100,11 @@ const services = {
             libraryOptions = options
             return { data: libraryData }
         }
-        return { data: { paused: true, jobs } }
+        if (options.queryKey[0] === 'workloads') {
+            workloadOptions = options
+            return { data: workloadsData }
+        }
+        return { data: { paused: queuePaused, admitted: queueAdmitted, jobs } }
     },
     useMutation: (options) => ({
         isPending: false,
@@ -109,6 +118,7 @@ const services = {
     useQueryClient: () => ({ invalidateQueries: () => Promise.resolve() }),
     toast: { error: (message) => toasts.push(message) },
     api,
+    workloadsQuery,
     Button,
     Card: 'div',
     CardContent: 'div',
@@ -223,7 +233,7 @@ class Stream {
     close() {}
 }
 
-test('library and shrink events invalidate their own queries', async () => {
+test('library, shrink and workloads events invalidate their existing queries', async () => {
     const client = {}
     const calls = []
     client.invalidateQueries = ({ queryKey }) => {
@@ -235,8 +245,9 @@ test('library and shrink events invalidate their own queries', async () => {
     try {
         Stream.current.onmessage({ data: 'library' })
         Stream.current.onmessage({ data: 'shrink' })
+        Stream.current.onmessage({ data: 'workloads' })
         await new Promise((resolve) => setTimeout(resolve, 240))
-        assert.deepEqual(calls, [['shrink-library'], ['shrink-jobs']])
+        assert.deepEqual(calls, [['shrink-library'], ['shrink-jobs'], ['workloads']])
     } finally {
         stop()
     }
@@ -376,4 +387,88 @@ test('a full queue error is shown and never resumes work', async (t) => {
     assert.equal(calls.length, 1)
     assert.match(toasts[0], /The queue is full/)
     assert.match(render(), /role="dialog"/)
+})
+
+test('waiting shrink jobs show the manager reason and configured processing window', () => {
+    state = []
+    jobs = [{ id: 'queued', path: ready.path, state: 'queued' }]
+    queuePaused = false
+    queueAdmitted = false
+    workloadsData = {
+        workerReason: 'Outside processing window',
+        settings: { workers: true, window: true, start: '02:00', end: '07:00', timezone: 'Europe/Brussels' },
+    }
+    try {
+        const html = render()
+        assert.match(html, /Waiting for background work/)
+        assert.match(html, /Outside processing window/)
+        assert.match(html, /Shrinking runs between 02:00 and 07:00 \(Europe\/Brussels\)/)
+        assert.equal(workloadOptions.enabled, true)
+        assert.deepEqual(workloadOptions.queryKey, workloadsQuery.queryKey)
+        assert.equal(workloadOptions.queryFn, workloadsQuery.queryFn)
+        assert.equal(workloadOptions.refetchInterval, workloadsQuery.refetchInterval)
+    } finally {
+        queuePaused = true
+        queueAdmitted = true
+        workloadsData = undefined
+    }
+})
+
+test('queue status distinguishes pause, admission, working and ready', () => {
+    state = []
+    jobs = []
+    workloadsData = {
+        workerReason: 'Outside processing window',
+        settings: { workers: true, window: true, start: '02:00', end: '07:00' },
+    }
+    try {
+        for (const entry of [
+            { paused: true, admitted: false, running: false, label: 'Paused' },
+            { paused: true, admitted: true, running: true, label: 'Paused' },
+            { paused: false, admitted: false, running: false, label: 'Waiting for background work' },
+            { paused: false, admitted: true, running: true, label: 'Working' },
+            { paused: false, admitted: true, running: false, label: 'Ready' },
+        ]) {
+            queuePaused = entry.paused
+            queueAdmitted = entry.admitted
+            jobs = entry.running ? [{ id: 'run', path: ready.path, state: 'running', progress: 0.3 }] : []
+            const html = render()
+            assert.match(html, new RegExp(`<p class="font-medium">${entry.label}</p>`))
+            const waiting = !entry.paused && !entry.admitted
+            assert.equal(workloadOptions.enabled, waiting)
+            if (!waiting) {
+                assert.doesNotMatch(html, /Outside processing window|Shrinking runs between/)
+            }
+        }
+    } finally {
+        queuePaused = true
+        queueAdmitted = true
+        workloadsData = undefined
+        jobs = []
+    }
+})
+
+test('waiting has useful help without workloads data and hides inactive windows', () => {
+    state = []
+    jobs = []
+    queuePaused = false
+    queueAdmitted = false
+    try {
+        workloadsData = undefined
+        assert.match(render(), /Gaming, the work window and host memory can hold shrinking/)
+        workloadsData = {
+            workerReason: 'Gaming protection',
+            settings: { workers: true, window: false, start: '02:00', end: '07:00' },
+        }
+        assert.match(render(), /Gaming protection/)
+        assert.doesNotMatch(render(), /Shrinking runs between/)
+        workloadsData.settings = { ...workloadsData.settings, workers: false, window: true }
+        assert.doesNotMatch(render(), /Shrinking runs between/)
+        workloadsData.settings = { ...workloadsData.settings, workers: true, start: '22:00', end: '03:00' }
+        assert.match(render(), /Shrinking runs between 22:00 and 03:00/)
+    } finally {
+        queuePaused = true
+        queueAdmitted = true
+        workloadsData = undefined
+    }
 })

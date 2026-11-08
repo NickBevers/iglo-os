@@ -44,6 +44,14 @@ queue. You can pause it or cancel a queued or encoding job. Once replacement
 has been recorded and the swap starts, cancellation no longer applies. Jobs show progress and saved space. A source that changed or an
 output that did not save enough space stays untouched, with a reason.
 
+Shrink jobs run only while background work is admitted, usually during the
+processing window. A queued job can wait because of the work window, gaming,
+low host memory, a backup or an update. The queue header shows the hold reason
+and the configured window. To change it, open **Background work** in Iglo-OS,
+keep **Control Music and Video tools admission** enabled, and edit the daily
+window's start, end and timezone. Resume releases a manual pause; it does not
+override background work admission.
+
 ## Media apps after shrinking
 
 Before adding jobs, the manager asks Sonarr and Radarr whether the selected

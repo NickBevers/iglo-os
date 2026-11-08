@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"io/fs"
 	"log"
+	"maps"
 	"math"
 	"os"
 	"os/exec"
@@ -28,15 +29,17 @@ const maxJobs = 100
 
 type cached struct {
 	Bytes    int64     `json:"bytes"`
+	Inode    uint64    `json:"inode,omitempty"`
 	Modified time.Time `json:"modified"`
 	Probe    Probe     `json:"probe"`
 	Done     bool      `json:"done"`
 }
 type state struct {
-	Paused bool                  `json:"paused"`
-	Jobs   []Job                 `json:"jobs"`
-	Cache  map[string]cached     `json:"cache"`
-	Swaps  map[string]swapIntent `json:"swaps,omitempty"`
+	Paused  bool                    `json:"paused"`
+	Jobs    []Job                   `json:"jobs"`
+	Cache   map[string]cached       `json:"cache"`
+	Swaps   map[string]swapIntent   `json:"swaps,omitempty"`
+	Sources map[string]fileIdentity `json:"sources,omitempty"`
 }
 type Service struct {
 	Dir, Root, AdmissionDir string
@@ -87,7 +90,7 @@ func newService(dir, root string, configure func(*Service)) (*Service, error) {
 		ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
 		defer cancel()
 		b, err := exec.CommandContext(ctx, "findmnt", "--mountpoint", root, "--noheadings", "--output", "FSTYPE").Output()
-		return err == nil && strings.TrimSpace(string(b)) == "cifs"
+		return err == nil && topMountIsCIFS(string(b))
 	}
 	data, err := os.ReadFile(filepath.Join(dir, "queue.json"))
 	if err != nil && !os.IsNotExist(err) {
@@ -109,6 +112,9 @@ func newService(dir, root string, configure func(*Service)) (*Service, error) {
 	}
 	if s.state.Swaps == nil {
 		s.state.Swaps = map[string]swapIntent{}
+	}
+	if s.state.Sources == nil {
+		s.state.Sources = map[string]fileIdentity{}
 	}
 	for _, j := range s.state.Jobs {
 		if ValidatePath(j.Path) != nil || (j.Profile != "standard" && j.Profile != "high") || !validID(j.ID) {
@@ -161,7 +167,7 @@ func (s *Service) saveDurable() error {
 func (s *Service) Status() View {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	return View{Paused: s.state.Paused, Jobs: slices.Clone(s.state.Jobs)}
+	return View{Paused: s.state.Paused, Admitted: worker.Admitted(s.AdmissionDir), Jobs: slices.Clone(s.state.Jobs)}
 }
 func (s *Service) Library() Library {
 	s.mu.Lock()
@@ -383,7 +389,11 @@ func (s *Service) scan(ctx context.Context, prefix string) error {
 			s.mu.Lock()
 			c, ok := s.state.Cache[rel]
 			s.mu.Unlock()
-			if !ok || c.Bytes != info.Size() || !c.Modified.Equal(info.ModTime()) {
+			matches := (fileIdentity{Bytes: c.Bytes, Inode: c.Inode, Modified: c.Modified}).matches(info)
+			if c.Done {
+				matches = (fileIdentity{Bytes: c.Bytes, Inode: c.Inode, Modified: c.Modified}).matchesResult(info)
+			}
+			if !ok || !matches || (!c.Done && !c.Modified.Equal(info.ModTime())) {
 				s.probeMu.Lock()
 				probe, err := s.Inspect(ctx, f)
 				s.probeMu.Unlock()
@@ -400,7 +410,15 @@ func (s *Service) scan(ctx context.Context, prefix string) error {
 				if err != nil || SourceChanged(info, after) {
 					return nil
 				}
-				c = cached{Bytes: info.Size(), Modified: info.ModTime(), Probe: probe}
+				c = cached{Bytes: info.Size(), Inode: fileInode(info), Modified: info.ModTime(), Probe: probe}
+			}
+			// Populate identities for probe caches written before inode tracking.
+			if c.Inode == 0 {
+				c.Inode = fileInode(info)
+			}
+			if c.Done {
+				// Keep completed output marked done through CIFS attribute drift.
+				c.Modified = info.ModTime()
 			}
 			cache[rel] = c
 			v, err := c.Probe.Video()
@@ -523,6 +541,7 @@ func (s *Service) Submit(in Input) ([]Job, error) {
 		return nil, fmt.Errorf("shrink queue has room for %d of %d selected files under its 100-job limit; no files were queued. Wait for active jobs and media rescans, or select fewer files", available, len(paths))
 	}
 	jobs := slices.Clone(s.state.Jobs)
+	sources := maps.Clone(s.state.Sources)
 	added := []Job{}
 	for _, p := range paths {
 		for len(jobs) >= maxJobs {
@@ -530,6 +549,7 @@ func (s *Service) Submit(in Input) ([]Job, error) {
 			if i < 0 {
 				return nil, fmt.Errorf("shrink queue cannot fit %d selected files within its 100-job limit; no files were queued. Wait for active jobs and media rescans, or select fewer files", len(paths))
 			}
+			delete(sources, jobs[i].ID)
 			jobs = slices.Delete(jobs, i, i+1)
 		}
 		var id [16]byte
@@ -538,6 +558,7 @@ func (s *Service) Submit(in Input) ([]Job, error) {
 		}
 		f := s.files[p]
 		j := Job{ID: hex.EncodeToString(id[:]), Path: p, Profile: in.Profile, State: "queued", SourceBytes: f.Bytes, Modified: f.Modified}
+		sources[j.ID] = fileIdentity{Bytes: f.Bytes, Inode: s.state.Cache[p].Inode, Modified: f.Modified}
 		jobs = append(jobs, j)
 		added = append(added, j)
 	}
@@ -545,9 +566,12 @@ func (s *Service) Submit(in Input) ([]Job, error) {
 		return added, nil
 	}
 	old := s.state.Jobs
+	oldSources := s.state.Sources
 	s.state.Jobs = jobs
+	s.state.Sources = sources
 	if err := s.save(); err != nil {
 		s.state.Jobs = old
+		s.state.Sources = oldSources
 		return nil, err
 	}
 	s.emit("shrink")
@@ -640,7 +664,7 @@ func (s *Service) Run(ctx context.Context) {
 	}
 }
 func SourceChanged(before, after fs.FileInfo) bool {
-	return before == nil || after == nil || before.Size() != after.Size() || !before.ModTime().Equal(after.ModTime())
+	return before == nil || !identifyFile(before).matches(after)
 }
 func (s *Service) step(ctx context.Context) bool {
 	s.mu.Lock()
@@ -682,7 +706,7 @@ func (s *Service) step(ctx context.Context) bool {
 			}
 		}
 	}()
-	result, probe, outInfo, err := s.process(process, job)
+	result, err := s.process(process, job)
 	cancel()
 	<-watchDone
 	s.mu.Lock()
@@ -706,11 +730,9 @@ func (s *Service) step(ctx context.Context) bool {
 			job.State = "failed"
 			job.Error = err.Error()
 		default:
-			job.State = "done"
-			job.Progress = 1
-			job.ResultBytes = result
-			job.SavedBytes = job.SourceBytes - result
-			s.state.Cache[job.Path] = cached{Bytes: result, Modified: outInfo.ModTime(), Probe: probe, Done: true}
+			// A successful swap records done and installed metadata itself.
+			job.State = "failed"
+			job.Error = "replacement did not record completion"
 		}
 		if job.State != "queued" {
 			job.FinishedAt = time.Now()
@@ -734,8 +756,8 @@ func (s *Service) step(ctx context.Context) bool {
 
 var errChanged = errors.New("source changed since the job was queued")
 
-func (s *Service) process(ctx context.Context, j Job) (int64, Probe, fs.FileInfo, error) {
-	fail := func(err error) (int64, Probe, fs.FileInfo, error) { return 0, Probe{}, nil, err }
+func (s *Service) process(ctx context.Context, j Job) (int64, error) {
+	fail := func(err error) (int64, error) { return 0, err }
 	if s.Gate != nil {
 		select {
 		case s.Gate <- struct{}{}:
@@ -760,7 +782,10 @@ func (s *Service) process(ctx context.Context, j Job) (int64, Probe, fs.FileInfo
 	if err != nil {
 		return fail(err)
 	}
-	if before.Size() != j.SourceBytes || !before.ModTime().Equal(j.Modified) {
+	s.mu.Lock()
+	sourceMatches := s.originalMatches(before, j)
+	s.mu.Unlock()
+	if !sourceMatches {
 		return fail(errChanged)
 	}
 	s.probeMu.Lock()
@@ -842,7 +867,7 @@ func (s *Service) process(ctx context.Context, j Job) (int64, Probe, fs.FileInfo
 		return fail(err)
 	}
 	if err = CheckSize(before.Size(), outInfo.Size()); err != nil {
-		return outInfo.Size(), after, outInfo, err
+		return outInfo.Size(), err
 	}
 	// Release every media-file handle before the first CIFS rename. Directory
 	// handles remain pinned so replacement cannot follow a new path or symlink.
@@ -852,6 +877,17 @@ func (s *Service) process(ctx context.Context, j Job) (int64, Probe, fs.FileInfo
 	if err = output.Close(); err != nil {
 		return fail(err)
 	}
+	s.checkpointAt("result-closed")
+	// CIFS finalizes write time at close. The fallback identity must start
+	// from a path stat after both the encoder and probe handles have closed.
+	closedInfo, err := statAt(tempDir, base)
+	if err != nil {
+		return fail(err)
+	}
+	if closedInfo.Size() != outInfo.Size() || inodeChanged(fileInode(outInfo), fileInode(closedInfo)) {
+		return fail(errors.New("verified output changed after close"))
+	}
+	outInfo = closedInfo
 	s.checkpointAt("result-verified")
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -868,11 +904,12 @@ func (s *Service) process(ctx context.Context, j Job) (int64, Probe, fs.FileInfo
 	currentInfo, err := current.Stat()
 	current.Close()
 	visibleParent.Close()
-	if err != nil || SourceChanged(before, currentInfo) || !os.SameFile(before, currentInfo) {
+	if err != nil || SourceChanged(before, currentInfo) {
 		return fail(errChanged)
 	}
-	intent := swapIntent{Result: cached{Bytes: outInfo.Size(), Modified: outInfo.ModTime(), Probe: after, Done: true}}
+	intent := swapIntent{Original: identifyFile(before), Result: cached{Bytes: outInfo.Size(), Inode: fileInode(outInfo), Modified: outInfo.ModTime(), Probe: after, Done: true}}
 	protectTemp = true
+	s.state.Sources[j.ID] = intent.Original
 	s.state.Swaps[j.ID] = intent
 	if err = s.saveDurable(); err != nil {
 		return fail(s.recoveryErrorLocked(j, err))
@@ -882,7 +919,7 @@ func (s *Service) process(ctx context.Context, j Job) (int64, Probe, fs.FileInfo
 		return fail(err)
 	}
 
-	return outInfo.Size(), after, outInfo, nil
+	return s.state.Cache[j.Path].Bytes, nil
 }
 
 const progressEventEvery = 30 * time.Second
@@ -918,4 +955,12 @@ func evictable(j Job, swaps map[string]swapIntent) bool {
 	default:
 		return false
 	}
+}
+
+// topMountIsCIFS reads findmnt's FSTYPE lines for one mount point. Mounts can
+// be stacked there, for example by systemd's namespace setup; the last line is
+// the mount that paths under it resolve to.
+func topMountIsCIFS(out string) bool {
+	lines := strings.Fields(out)
+	return len(lines) > 0 && lines[len(lines)-1] == "cifs"
 }

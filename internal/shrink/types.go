@@ -77,8 +77,9 @@ type Job struct {
 	Rescanned   bool      `json:"rescanned"`
 }
 type View struct {
-	Paused bool  `json:"paused"`
-	Jobs   []Job `json:"jobs"`
+	Paused   bool  `json:"paused"`
+	Admitted bool  `json:"admitted"`
+	Jobs     []Job `json:"jobs"`
 }
 
 func ValidatePath(p string) error {

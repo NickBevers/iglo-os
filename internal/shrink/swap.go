@@ -17,7 +17,8 @@ import (
 // change the job. Recovery checks the files themselves, so a crash between a
 // rename and the next state write does not require guessing which call ran.
 type swapIntent struct {
-	Result cached `json:"result"`
+	Original fileIdentity `json:"original,omitzero"`
+	Result   cached       `json:"result"`
 }
 
 var errSwapPending = errors.New("replacement needs recovery")
@@ -84,16 +85,15 @@ func (s *Service) openParent(p string) (*os.File, error) {
 	return root.Open(filepath.Dir(strings.Join(parts[1:], "/")))
 }
 
-// statAt closes its file before returning. No handle on either file remains
-// open during a CIFS rename, including during startup recovery.
+// statAt reads attributes by path without opening a media file. In particular,
+// fresh CIFS output must be statted after its writing and probing handles close.
 func statAt(dir *os.File, name string) (fs.FileInfo, error) {
-	fd, err := unix.Openat(int(dir.Fd()), name, unix.O_RDONLY|unix.O_NOFOLLOW|unix.O_NONBLOCK, 0)
+	root, err := os.OpenRoot(fmt.Sprintf("/dev/fd/%d", dir.Fd()))
 	if err != nil {
 		return nil, err
 	}
-	f := os.NewFile(uintptr(fd), name)
-	defer f.Close()
-	info, err := f.Stat()
+	defer root.Close()
+	info, err := root.Lstat(name)
 	if err != nil {
 		return nil, err
 	}
@@ -101,12 +101,6 @@ func statAt(dir *os.File, name string) (fs.FileInfo, error) {
 		return nil, ErrInvalid
 	}
 	return info, nil
-}
-func originalMatches(info fs.FileInfo, j Job) bool {
-	return info != nil && info.Size() == j.SourceBytes && info.ModTime().Equal(j.Modified)
-}
-func resultMatches(info fs.FileInfo, intent swapIntent) bool {
-	return info != nil && info.Size() == intent.Result.Bytes && info.ModTime().Equal(intent.Result.Modified)
 }
 
 // cleanUncommitted removes only this job's output, and only after confirming
@@ -119,7 +113,7 @@ func (s *Service) cleanUncommitted(j Job, stage *os.File) {
 	}
 	defer parent.Close()
 	info, err := statAt(parent, filepath.Base(j.Path))
-	if err != nil || !originalMatches(info, j) {
+	if err != nil || !s.originalMatches(info, j) {
 		s.logf("shrink %s: preserving temporary output because the original changed or is missing", j.ID)
 		return
 	}
@@ -177,15 +171,21 @@ func (s *Service) completeSwapLocked(j Job, parent, stage *os.File, intent swapI
 	job.State = "done"
 	job.Progress = 1
 	job.Error = ""
-	job.ResultBytes = intent.Result.Bytes
+	job.ResultBytes = info.Size()
 	job.SavedBytes = job.SourceBytes - job.ResultBytes
 	if job.FinishedAt.IsZero() {
 		job.FinishedAt = time.Now()
 	}
 	s.state.Jobs[i] = job
 	done := intent.Result
+	// Record the installed file's actual attributes after a CIFS rename rather
+	// than carrying the staging timestamp into the completed-file cache.
+	done.Modified = info.ModTime()
+	done.Inode = fileInode(info)
 	done.Done = true
 	s.state.Cache[j.Path] = done
+	intent.Result = done
+	s.state.Swaps[j.ID] = intent
 	if err = s.saveDurable(); err != nil {
 		return s.recoveryErrorLocked(j, err)
 	}
@@ -198,7 +198,7 @@ func (s *Service) completeSwapLocked(j Job, parent, stage *os.File, intent swapI
 	}
 	backup, err := statAt(stage, backupName(j.ID))
 	if err == nil {
-		if !originalMatches(backup, j) {
+		if !s.originalMatches(backup, j) {
 			return s.recoveryErrorLocked(j, errors.New("backup differs from the original"))
 		}
 		if err = s.removeAt(stage, backupName(j.ID)); err != nil {
@@ -226,7 +226,7 @@ func (s *Service) rollbackSwapLocked(j Job, parent, stage *os.File, intent swapI
 		return s.completeSwapLocked(j, parent, stage, intent)
 	}
 	backup, backupErr := statAt(stage, backupName(j.ID))
-	if os.IsNotExist(originalErr) && backupErr == nil && originalMatches(backup, j) {
+	if os.IsNotExist(originalErr) && backupErr == nil && s.originalMatches(backup, j) {
 		if err := s.renameAt(stage, backupName(j.ID), parent, filepath.Base(j.Path)); err != nil {
 			return s.recoveryErrorLocked(j, fmt.Errorf("restore original: %w", err))
 		}
@@ -235,7 +235,7 @@ func (s *Service) rollbackSwapLocked(j Job, parent, stage *os.File, intent swapI
 		original, originalErr = statAt(parent, filepath.Base(j.Path))
 		_, backupErr = statAt(stage, backupName(j.ID))
 	}
-	if originalErr == nil && originalMatches(original, j) && os.IsNotExist(backupErr) {
+	if originalErr == nil && s.originalMatches(original, j) && os.IsNotExist(backupErr) {
 		return s.abortSwapLocked(j, stage, cause)
 	}
 	return s.recoveryErrorLocked(j, cause)
@@ -251,7 +251,7 @@ func (s *Service) finishSwapLocked(j Job, parent, stage *os.File, intent swapInt
 	if originalErr == nil && resultMatches(original, intent) && os.IsNotExist(tempErr) {
 		return s.completeSwapLocked(j, parent, stage, intent)
 	}
-	if os.IsNotExist(originalErr) && backupErr == nil && originalMatches(backup, j) {
+	if os.IsNotExist(originalErr) && backupErr == nil && s.originalMatches(backup, j) {
 		if err := s.renameAt(stage, backupName(j.ID), parent, filepath.Base(j.Path)); err != nil {
 			return s.recoveryErrorLocked(j, fmt.Errorf("restore original: %w", err))
 		}
@@ -260,7 +260,7 @@ func (s *Service) finishSwapLocked(j Job, parent, stage *os.File, intent swapInt
 		original, originalErr = statAt(parent, filepath.Base(j.Path))
 		_, backupErr = statAt(stage, backupName(j.ID))
 	}
-	if originalErr != nil || !originalMatches(original, j) {
+	if originalErr != nil || !s.originalMatches(original, j) {
 		return s.recoveryErrorLocked(j, errors.New("original is missing or changed"))
 	}
 	if !os.IsNotExist(backupErr) {
@@ -274,7 +274,7 @@ func (s *Service) finishSwapLocked(j Job, parent, stage *os.File, intent swapInt
 	}
 	s.checkpointAt("original-backed-up")
 	backup, backupErr = statAt(stage, backupName(j.ID))
-	if backupErr != nil || !originalMatches(backup, j) {
+	if backupErr != nil || !s.originalMatches(backup, j) {
 		return s.recoveryErrorLocked(j, errors.New("could not verify the original backup"))
 	}
 	if err := s.renameAt(stage, tempName(j.ID), parent, filepath.Base(j.Path)); err != nil {

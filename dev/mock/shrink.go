@@ -18,6 +18,28 @@ import (
 	"iglo/internal/stacks/arr"
 )
 
+const mockShrinkAdmissionDelay = 3 * time.Second
+
+// Hold briefly so the admission state can be seen before simulated work runs.
+func mockShrinkAdmission(dir string) error {
+	if err := os.MkdirAll(dir, 0700); err != nil {
+		return err
+	}
+	lease, err := filepath.Abs(filepath.Join(dir, "admit-until"))
+	if err != nil {
+		return err
+	}
+	if err = os.WriteFile(lease, []byte("0"), 0600); err != nil {
+		return err
+	}
+	time.AfterFunc(mockShrinkAdmissionDelay, func() {
+		if err := os.WriteFile(lease, []byte("-1"), 0600); err != nil {
+			slog.Warn("mock shrink admission", "error", err)
+		}
+	})
+	return nil
+}
+
 // These sparse files and probes simulate the pipeline. They contain no video.
 func addShrinkRoutes(mux *http.ServeMux, in *inbox.Service) (*shrink.Service, error) {
 	root, err := filepath.Abs(statePath("shrink-videos"))
@@ -70,6 +92,9 @@ func addShrinkRoutes(mux *http.ServeMux, in *inbox.Service) (*shrink.Service, er
 		return nil, err
 	}
 	s.AdmissionDir = in.AdmissionDir
+	if err = mockShrinkAdmission(s.AdmissionDir); err != nil {
+		return nil, err
+	}
 	s.MountOK = func() bool { return true }
 	s.Inspect = func(_ context.Context, f *os.File) (shrink.Probe, error) {
 		info, err := f.Stat()

@@ -58,7 +58,7 @@ func restoredSize(t *testing.T, s *Service, p string, want int64) {
 
 }
 func TestSwapCrashRecoveryAtEveryStep(t *testing.T) {
-	for _, point := range []string{"temp-created", "encoded", "result-verified", "swap-recorded", "original-backed-up", "result-installed", "result-confirmed", "done-recorded", "backup-removed", "swap-cleared"} {
+	for _, point := range []string{"temp-created", "encoded", "result-closed", "result-verified", "swap-recorded", "original-backed-up", "result-installed", "result-confirmed", "done-recorded", "backup-removed", "swap-cleared"} {
 		t.Run(point, func(t *testing.T) {
 			s, p := fixture(t)
 			j := submit(t, s, p)
@@ -73,7 +73,7 @@ func TestSwapCrashRecoveryAtEveryStep(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			preCommit := point == "temp-created" || point == "encoded" || point == "result-verified"
+			preCommit := point == "temp-created" || point == "encoded" || point == "result-closed" || point == "result-verified"
 			wantState := "done"
 			wantSize := int64(40000000)
 			if preCommit {

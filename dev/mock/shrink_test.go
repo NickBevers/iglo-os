@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"testing/synctest"
 	"time"
 
 	"iglo/internal/inbox"
@@ -44,7 +45,7 @@ func TestLibraryShrinkMockFlow(t *testing.T) {
 	}
 	until := func(ready func() bool) {
 		t.Helper()
-		limit := time.NewTimer(8 * time.Second)
+		limit := time.NewTimer(12 * time.Second)
 		defer limit.Stop()
 		tick := time.NewTicker(10 * time.Millisecond)
 		defer tick.Stop()
@@ -125,4 +126,46 @@ func TestShrinkMockThrottlesOnlyProgress(t *testing.T) {
 	if mockShrinkChanged(after, after, time.Hour) {
 		t.Fatal("idle queue notified")
 	}
+	before = after
+	after.Admitted = true
+	if !mockShrinkChanged(before, after, time.Second) {
+		t.Fatal("admission change was throttled")
+	}
+}
+
+func TestShrinkMockAdmissionBecomesAvailable(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		t.Chdir(t.TempDir())
+		mux := http.NewServeMux()
+		if _, err := addShrinkRoutes(mux, &inbox.Service{AdmissionDir: t.TempDir()}); err != nil {
+			t.Fatal(err)
+		}
+		admitted := func() bool {
+			t.Helper()
+			w := httptest.NewRecorder()
+			mux.ServeHTTP(w, httptest.NewRequest("GET", "/v1/inbox/104/shrink", nil))
+			var view struct {
+				Admitted *bool `json:"admitted"`
+			}
+			if w.Code != 200 {
+				t.Fatal(w.Code, w.Body)
+			}
+			if err := json.Unmarshal(w.Body.Bytes(), &view); err != nil || view.Admitted == nil {
+				t.Fatal(w.Body, err)
+			}
+			return *view.Admitted
+		}
+		if admitted() {
+			t.Fatal("mock admission was not initially held")
+		}
+		time.Sleep(mockShrinkAdmissionDelay - time.Nanosecond)
+		if admitted() {
+			t.Fatal("mock admitted work early")
+		}
+		time.Sleep(time.Nanosecond)
+		synctest.Wait()
+		if !admitted() {
+			t.Fatal("mock admission did not become available")
+		}
+	})
 }

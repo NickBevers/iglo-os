@@ -891,7 +891,7 @@ export type ShrinkJob = {
     finishedAt?: string
     rescanned: boolean
 }
-export type ShrinkQueue = { paused: boolean; jobs: ShrinkJob[] }
+export type ShrinkQueue = { paused: boolean; admitted: boolean; jobs: ShrinkJob[] }
 export type ShrinkRefusal = { path: string; paths: string[]; title: string; state: 'refused'; reason?: string }
 export type ShrinkSubmission = { jobs: ShrinkJob[]; refused: ShrinkRefusal[] }
 
