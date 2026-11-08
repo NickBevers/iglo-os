@@ -30,6 +30,7 @@ import (
 	"os"
 	"os/exec"
 	"os/signal"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"syscall"
@@ -118,8 +119,8 @@ func setFlareSolverr(args []string) error {
 // mediaSettings uses the stack folder of --env for state and app configs.
 // Get reads Bazarr when no choices have been saved. Its stdout stays JSON.
 func mediaSettings(args []string) error {
-	if len(args) == 0 || (args[0] != "get" && args[0] != "set") {
-		return errors.New("usage: iglo-arr media get|set [--env FILE]")
+	if len(args) == 0 || (args[0] != "get" && args[0] != "set" && args[0] != "render") {
+		return errors.New("usage: iglo-arr media get|set|render [--env FILE]")
 	}
 	action := args[0]
 	flags := flag.NewFlagSet("media "+action, flag.ContinueOnError)
@@ -131,6 +132,10 @@ func mediaSettings(args []string) error {
 		return errors.New("unexpected media command arguments")
 	}
 	settingsPath, bazarrConfig, seerrConfig := arr.MediaSettingsPaths(*envPath)
+	if action == "render" {
+		root := filepath.Dir(settingsPath)
+		return arr.RenderMediaSizes(filepath.Join(root, "recyclarr.template.yml"), filepath.Join(root, "config", "recyclarr", "recyclarr.yml"), settingsPath)
+	}
 	if action == "get" {
 		settings, err := arr.GetMediaSettings(settingsPath, arr.MediaSettingsConfig{EnvPath: *envPath, BazarrConfigPath: bazarrConfig})
 		if err != nil {
@@ -152,7 +157,8 @@ func mediaSettings(args []string) error {
 		Endpoints:    arr.DefaultEndpoints,
 		SonarrAPIKey: env["SONARR_API_KEY"], RadarrAPIKey: env["RADARR_API_KEY"],
 		SettingsPath: settingsPath, BazarrConfigPath: bazarrConfig, SeerrConfigPath: seerrConfig,
-		Logf: func(format string, args ...any) { fmt.Printf("==> "+format+"\n", args...) },
+		SyncRecyclarr: syncProfiles,
+		Logf:          func(format string, args ...any) { fmt.Printf("==> "+format+"\n", args...) },
 	})
 }
 
@@ -265,7 +271,26 @@ func syncProfiles(ctx context.Context) error {
 	if err != nil {
 		return fmt.Errorf("recyclarr sync: %w: %s", err, lastLines(string(output), 5))
 	}
+	return validateRecyclarrSyncOutput(string(output))
+}
 
+// Recyclarr v8.8.0 QualitySizeApiPersistencePhase, checked 2026-11-08,
+// logs one of these size results even when no values changed. ConfigPipeline
+// is absent from the source cache, so parse failures use a broad word match.
+func validateRecyclarrSyncOutput(output string) error {
+	succeeded := false
+	for line := range strings.Lines(strings.ToLower(output)) {
+		if strings.Contains(line, "config") && (strings.Contains(line, "fail") || strings.Contains(line, "error") || strings.Contains(line, "invalid")) {
+			return errors.New("recyclarr sync: configuration parsing failed; read the Recyclarr log")
+		}
+		if strings.Contains(line, "all sizes for quality definition ") && strings.Contains(line, "already up to date") ||
+			strings.Contains(line, " sizes were synced for quality definition ") {
+			succeeded = true
+		}
+	}
+	if !succeeded {
+		return errors.New("recyclarr sync: no instance reported a successful quality size sync; read the Recyclarr log")
+	}
 	return nil
 }
 

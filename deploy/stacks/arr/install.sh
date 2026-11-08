@@ -353,8 +353,10 @@ migrate_vpn_secrets() {
 # push_stack_files copies the files of this release into the container.
 push_stack_files() {
     pct push "$CT_ID" "$STACK_DIR/compose.yaml" /opt/arr/compose.yaml --perms 0644
-    pct push "$CT_ID" "$STACK_DIR/recyclarr.yml" /opt/arr/config/recyclarr/recyclarr.yml --perms 0644 --user 1000 --group 1000
+    pct push "$CT_ID" "$STACK_DIR/recyclarr.yml" /opt/arr/recyclarr.template.yml --perms 0644
     pct push "$CT_ID" "$STACK_DIR/iglo-arr" /usr/local/bin/iglo-arr --perms 0755
+    # Every copy, including Update and VPN changes, keeps the saved sizes.
+    pct exec "$CT_ID" -- /usr/local/bin/iglo-arr media render
 }
 
 start_stack() {

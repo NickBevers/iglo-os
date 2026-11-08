@@ -15,7 +15,7 @@ import {
 import { api, subtitleLanguageButtons, toggleSubtitleLanguage, type CatalogApp, type MediaSettings } from '@/lib/api'
 import { appsQuery, mediaSettingsQuery } from '@/lib/queries'
 
-const kinds: { key: keyof MediaSettings; name: string; audio: string; help: string }[] = [
+const kinds: { key: Exclude<keyof MediaSettings, 'sizes'>; name: string; audio: string; help: string }[] = [
     {
         key: 'anime',
         name: 'Anime',
@@ -50,7 +50,9 @@ export function MediaSettingsDialog({ app, open, onOpenChange }: MediaSettingsDi
             <DialogContent className="flex max-h-[calc(100dvh-2rem)] flex-col sm:max-w-2xl">
                 <DialogHeader>
                     <DialogTitle>Languages</DialogTitle>
-                    <DialogDescription>Choose subtitle languages for each kind. Audio stays fixed.</DialogDescription>
+                    <DialogDescription>
+                        Choose subtitle languages and maximum download sizes. Audio stays fixed.
+                    </DialogDescription>
                 </DialogHeader>
                 {open && <MediaSettingsLoader app={app} onDone={() => onOpenChange(false)} />}
             </DialogContent>
@@ -86,7 +88,16 @@ function MediaSettingsForm({ app, current, onDone }: { app: CatalogApp; current:
     const id = useId()
     const [settings, setSettings] = useState(current)
     const [openedWith] = useState(current)
-    const changed = kinds.some(({ key }) => settings[key].subtitles.join(',') !== current[key].subtitles.join(','))
+    const sizes = {
+        series: settings.sizes?.series ?? 0,
+        films: settings.sizes?.films ?? 0,
+        films4k: settings.sizes?.films4k ?? 0,
+    }
+    const changed =
+        kinds.some(({ key }) => settings[key].subtitles.join(',') !== current[key].subtitles.join(',')) ||
+        sizes.series !== (current.sizes?.series ?? 0) ||
+        sizes.films !== (current.sizes?.films ?? 0) ||
+        sizes.films4k !== (current.sizes?.films4k ?? 0)
     const change = useMutation({
         mutationFn: () => api.changeMediaSettings(app.id, settings),
         onSuccess: () => {
@@ -94,7 +105,7 @@ function MediaSettingsForm({ app, current, onDone }: { app: CatalogApp; current:
             queryClient.invalidateQueries({ queryKey: mediaSettingsQuery(app.id).queryKey })
             onDone()
         },
-        onError: (error) => toast.error('Could not change languages', { description: error.message }),
+        onError: (error) => toast.error('Could not change media settings', { description: error.message }),
     })
 
     const submit = (event: SubmitEvent) => {
@@ -179,6 +190,85 @@ function MediaSettingsForm({ app, current, onDone }: { app: CatalogApp; current:
                         </section>
                     )
                 })}
+                <section aria-labelledby={`${id}-sizes`} className="flex flex-col gap-3">
+                    <h3 id={`${id}-sizes`} className="font-semibold">
+                        Maximum download size
+                    </h3>
+                    <p id={`${id}-sizes-help`} className="text-xs text-muted-foreground">
+                        Releases above the limit are skipped. If only larger releases exist, nothing is downloaded until
+                        a smaller one appears. Files you already have are not touched.
+                    </p>
+                    {(
+                        [
+                            {
+                                key: 'series',
+                                label: 'Series and anime, per 24-minute episode',
+                                minutes: 24,
+                                gb: [3, 2, 1.5, 1],
+                            },
+                            {
+                                key: 'films',
+                                label: 'Films in HD (1080p and lower), per 2-hour film',
+                                minutes: 120,
+                                gb: [12, 8, 6, 4],
+                            },
+                            {
+                                key: 'films4k',
+                                label: 'Films in 4K, per 2-hour film',
+                                minutes: 120,
+                                gb: [40, 25, 20, 15],
+                            },
+                        ] as const
+                    ).map(({ key, label, minutes, gb }) => {
+                        // Decimal GB, rounded down to integer MB per minute.
+                        const options = [
+                            { value: 0, label: 'No limit' },
+                            ...gb.map((size) => ({ value: Math.floor((size * 1000) / minutes), label: `${size} GB` })),
+                        ]
+                        const saved = openedWith.sizes?.[key] ?? 0
+                        if (!options.some(({ value }) => value === saved)) {
+                            options.push({ value: saved, label: `Custom (${saved} MB per minute)` })
+                        }
+                        return (
+                            <div key={key} className="flex flex-col gap-2">
+                                <label htmlFor={`${id}-size-${key}`} className="text-sm font-medium">
+                                    {label}
+                                </label>
+                                <select
+                                    id={`${id}-size-${key}`}
+                                    value={sizes[key]}
+                                    disabled={change.isPending}
+                                    aria-describedby={
+                                        key === 'films4k' ? `${id}-sizes-help ${id}-sizes-4k-help` : `${id}-sizes-help`
+                                    }
+                                    className="h-9 w-full rounded-md border border-input bg-background px-3 text-sm"
+                                    onChange={(event) =>
+                                        setSettings((now) => ({
+                                            ...now,
+                                            sizes: {
+                                                series: now.sizes?.series ?? 0,
+                                                films: now.sizes?.films ?? 0,
+                                                films4k: now.sizes?.films4k ?? 0,
+                                                [key]: Number(event.target.value),
+                                            },
+                                        }))
+                                    }
+                                >
+                                    {options.map(({ value, label }) => (
+                                        <option key={value} value={value}>
+                                            {label}
+                                        </option>
+                                    ))}
+                                </select>
+                                {key === 'films4k' && (
+                                    <p id={`${id}-sizes-4k-help`} className="text-xs text-muted-foreground">
+                                        4K films are only downloaded when the media settings allow 4K.
+                                    </p>
+                                )}
+                            </div>
+                        )
+                    })}
+                </section>
             </div>
             <DialogFooter>
                 <Button type="submit" disabled={!changed || change.isPending}>

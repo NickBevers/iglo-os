@@ -111,6 +111,24 @@ Titles whose original language is Dutch get the Dutch profile and the `dutch` ta
 
 The settings are saved in `/opt/arr/iglo-media.json`. A media stack from before this feature needs **Update** first. This behavior follows Sonarr v4.0.20.3014, Radarr v6.4.4.10685, Bazarr v1.6.2, Seerr v3.5.1 and Recyclarr v8.8.0, checked 7 November 2026.
 
+## Maximum download size
+
+Open **Languages** on the media stack card for **Maximum download size**. Series, Dutch series and anime share one limit because Sonarr's quality definitions apply to all series. Films have separate Radarr limits for **Films in HD (1080p and lower)** and **Films in 4K**. The choices show sizes per 24-minute episode or 2-hour film. They use decimal GB (1000 MB), rounded down to whole MB per minute of runtime. The 4K choices are 40 GB (333 MB/min), 25 GB (208 MB/min), 20 GB (166 MB/min) and 15 GB (125 MB/min). A saved value outside the choices appears as **Custom** and stays available until you close the dialog.
+
+4K films are only downloaded when the media settings allow 4K. A size limit does not enable 4K downloads.
+
+Releases above the limit are skipped. If only larger releases exist, nothing is downloaded until a smaller one appears. Files you already have are not touched. Smaller releases save space in both the seeding copy on the download disk and the library copy on the NAS.
+
+The settings file stores `sizes.series`, `sizes.films` and `sizes.films4k` as integer MB per minute. Radarr qualities with `2160p` in their name use `films4k`. All other Radarr qualities use `films`. Sonarr keeps its shared series limit at every resolution. Zero means **No limit** for that kind, which keeps the guide's sizes. Old files without `films4k` read as zero, so their HD limit does not cap 4K after these settings are applied. Series and HD film limits must be zero or between 10 and 400. The 4K film limit must be zero or between 10 and 1000.
+
+Iglo-OS writes maximum and preferred size overrides in `/opt/arr/config/recyclarr/recyclarr.yml` for qualities above the relevant limit. Every override also gives an explicit minimum: the smaller of the guide minimum and half that limit. This keeps a later guide increase from making the minimum exceed the maximum. Integer limits have an exact half with at most one decimal place.
+
+Recyclarr carries the guide overrides on its daily sync. Iglo-OS prefers names and sizes from its local TRaSH guide clone under `/opt/arr/config/recyclarr`. The embedded snapshots are a fallback when the clone is absent. The guide updates independently of the pinned Recyclarr image. The loader finds the clone's `docs/Sonarr/quality-size` and `docs/Radarr/quality-size` folders without relying on its cache directory name.
+
+Iglo-OS also caps every quality definition that the guide leaves alone, including SD qualities, through the Sonarr and Radarr APIs after the sync. It uses the smaller of the app's default maximum and your limit, and keeps preferred and minimum sizes below that maximum. **No limit** restores those qualities to the pinned app defaults, including unlimited values stored as `null`. The defaults and API rules follow Sonarr v4.0.20.3014 and Radarr v6.4.4.10685, checked 2026-11-08.
+
+Saving a changed limit runs the stack's existing `docker exec recyclarr recyclarr sync` command immediately for both instances, after the language steps finish. A failed sync, config parse error or missing successful size result fails the settings change. The YAML and live API sizes are restored if a later size update or settings save fails. On install and update, `iglo-arr media render` combines `/opt/arr/recyclarr.template.yml` with the saved choices before Recyclarr starts. If those choices cannot be read, it warns and uses the plain template so Update can continue. VPN and FlareSolverr changes use the same step. With no limit, the rendered file is the template without a `qualities` key. This uses the per-quality override schema of Recyclarr v8.8.0, checked 2026-11-08.
+
 ## FlareSolverr
 
 The card of the media stack on the Apps page says whether FlareSolverr runs. Click **FlareSolverr** to turn it on or off. It needs no password and no reinstall, and the other apps keep running.
