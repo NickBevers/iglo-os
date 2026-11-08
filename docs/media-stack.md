@@ -97,6 +97,20 @@ A media stack from before these changes gets the Radarr anime profile and the fi
 
 Which audio and subtitles play is up to the player. Set the language preferences in Jellyfin, or in Kodi on the TV.
 
+## Languages
+
+Open **Languages** on the media stack card to choose subtitle languages for anime, Dutch titles, series and films. Choose up to 10 languages for each kind. Series and Films always need at least one language. **None** is only for Anime and Dutch. With None, anime stays excluded by series type and the anime tag, as before, because the releases bring the official subtitles. Dutch titles are excluded by the `dutch` tag when their list is empty.
+
+Series use Bazarr profile 1. Changing Series changes profile 1. Films share profile 1 when their languages match Series. Otherwise they use **Films (Iglo-OS)**.
+
+With subtitles for Anime or Dutch, Bazarr's tag profiles are on. Bazarr itself keeps titles with that tag on that profile, including titles whose profile you set by hand. Any tag profile you had before also starts to apply. When both lists are empty, the tag profile switches stay as they were.
+
+Audio is fixed for each kind because Recyclarr resets the language scores every day. Anime uses Japanese, its original language. Series and films use their original language. Dutch titles use Dutch audio, including dubs. The Dutch rule uses custom formats and a separate quality profile in Sonarr and Radarr. `Dutch (Iglo-OS)` is copied once from WEB-1080p in Sonarr or HD Bluray + WEB in Radarr. It does not follow later Recyclarr changes to those profiles. Both accept Dutch dubs and prefer a Dutch track.
+
+Titles whose original language is Dutch get the Dutch profile and the `dutch` tag through a Seerr rule. A failed Seerr rule only warns, so the language change still reports success. For a dub such as De Smurfen, whose original language is French, choose the **Dutch (Iglo-OS)** profile and the `dutch` tag in Seerr's request dialog.
+
+The settings are saved in `/opt/arr/iglo-media.json`. A media stack from before this feature needs **Update** first. This behavior follows Sonarr v4.0.20.3014, Radarr v6.4.4.10685, Bazarr v1.6.2, Seerr v3.5.1 and Recyclarr v8.8.0, checked 7 November 2026.
+
 ## FlareSolverr
 
 The card of the media stack on the Apps page says whether FlareSolverr runs. Click **FlareSolverr** to turn it on or off. It needs no password and no reinstall, and the other apps keep running.

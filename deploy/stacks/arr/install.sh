@@ -9,6 +9,7 @@
 #   ./install.sh --remove --ctid 130
 #   ./install.sh --vpn --ctid 130 --answers file    (VPN_PROVIDER, VPN_LOCATIONS, and the secrets below or empty to keep them)
 #   ./install.sh --flaresolverr on --ctid 130        (or off: starts or stops FlareSolverr, and adds or removes its proxy in Prowlarr)
+#   ./install.sh --media-settings file --ctid 130    (applies media language settings from JSON)
 # The VPN answers are VPN_PROVIDER (protonvpn or pia), VPN_LOCATIONS (countries
 # or regions, separated by commas), WIREGUARD_PRIVATE_KEY for ProtonVPN, and
 # PIA_USERNAME, PIA_PASSWORD and the optional PIA_DEDICATED_TOKEN for PIA.
@@ -36,6 +37,7 @@ RESTART_JELLYFIN="y"
 VIDEOS_BINDING=""
 FLARESOLVERR="n"
 FLARESOLVERR_SWITCH=""
+MEDIA_SETTINGS_FILE=""
 ANIME_INDEXERS="y"
 
 while [[ $# -gt 0 ]]; do
@@ -51,6 +53,9 @@ while [[ $# -gt 0 ]]; do
         --remove) MODE="remove"; shift ;;
         --vpn) MODE="vpn"; shift ;;
         --flaresolverr) MODE="flaresolverr"; FLARESOLVERR_SWITCH="${2:-}"; shift 2 ;;
+        --media-settings)
+            [[ $# -ge 2 && -n "$2" ]] || die "--media-settings takes a file"
+            MODE="media-settings"; MEDIA_SETTINGS_FILE="$2"; shift 2 ;;
         *) die "unknown option: $1" ;;
     esac
 done
@@ -426,6 +431,23 @@ configure_stack() {
         pct exec "$CT_ID" -- /usr/local/bin/iglo-arr configure
 }
 
+# keep_media_library_folders puts the library placeholder (storage.sh) in the
+# media folders of a stack that is installed already, so a stack from before
+# it gets it too. The container has the Videos share at /data/media with
+# write access. It reads the folder names from .env with sed: the file has
+# more than names, so it is never sourced.
+keep_media_library_folders() {
+    pct exec "$CT_ID" -- bash -c '
+        for key in MOVIES_FOLDER SERIES_FOLDER ANIME_FOLDER ANIME_MOVIES_FOLDER; do
+            folder="$(sed -n "s/^$key=//p" /opt/arr/.env)"
+            [[ "$folder" =~ ^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$ ]] || continue
+            path="/data/media/$folder"
+            [[ -d "$path" && -z "$(ls -A "$path")" ]] || continue
+            printf "%s\n" "$1" >"$path/$2"
+        done
+    ' keep "$LIBRARY_PLACEHOLDER_TEXT" "$LIBRARY_PLACEHOLDER"
+}
+
 # update upgrades the packages, copies the stack of this release, and starts
 # the new images. The settings in the apps stay: they need no passwords.
 update() {
@@ -437,6 +459,8 @@ update() {
     require_running "$CT_ID"
 
     upgrade_packages "$CT_ID"
+    # Only a later library scan of Jellyfin is held up without it, so it can't fail the update.
+    keep_media_library_folders || log "Could not mark the empty library folders for Jellyfin, continuing"
 
     log "Copying the stack of Iglo-OS $IGLO_VERSION into the container"
     push_stack_files
@@ -568,10 +592,26 @@ change_flaresolverr() {
     log "Done"
 }
 
+change_media_settings() {
+    require_proxmox
+    [[ -f "$MEDIA_SETTINGS_FILE" ]] || die "the media settings file must be a regular file"
+    [[ $(stat -c %s -- "$MEDIA_SETTINGS_FILE") -le 65536 ]] || die "the media settings file exceeds 64 KiB"
+    require_app_container "$CT_ID" media
+    require_running "$CT_ID"
+
+    # Older containers need this release's iglo-arr to read the settings.
+    [[ -f "$STACK_DIR/iglo-arr" ]] || die "missing iglo-arr next to install.sh"
+    pct push "$CT_ID" "$STACK_DIR/iglo-arr" /usr/local/bin/iglo-arr --perms 0755
+    if ! pct exec "$CT_ID" -- /usr/local/bin/iglo-arr media set < "$MEDIA_SETTINGS_FILE"; then
+        die "could not apply the media settings, read the error in the log above"
+    fi
+}
+
 main() {
     case "$MODE" in
         vpn) change_vpn; return ;;
         flaresolverr) change_flaresolverr; return ;;
+        media-settings) change_media_settings; return ;;
         update) update; return ;;
         remove)
             require_proxmox

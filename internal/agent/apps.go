@@ -41,9 +41,10 @@ const (
 	ActionRemove  AppAction = "remove"
 	ActionVPN     AppAction = "vpn"
 	// ActionFlareSolverr turns FlareSolverr of the media stack on or off.
-	ActionFlareSolverr AppAction = "flaresolverr"
-	ActionBackup       AppAction = "backup"
-	ActionVerify       AppAction = "verify"
+	ActionFlareSolverr  AppAction = "flaresolverr"
+	ActionMediaSettings AppAction = "media-settings"
+	ActionBackup        AppAction = "backup"
+	ActionVerify        AppAction = "verify"
 )
 
 // name is the action in a message, like "the removal stopped".
@@ -55,6 +56,8 @@ func (a AppAction) name() string {
 		return "VPN change"
 	case ActionFlareSolverr:
 		return "FlareSolverr change"
+	case ActionMediaSettings:
+		return "media settings change"
 	}
 	return string(a)
 }

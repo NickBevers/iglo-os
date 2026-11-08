@@ -265,6 +265,13 @@ const operationText = {
         failed: 'The FlareSolverr change failed',
         succeeded: 'FlareSolverr is changed',
     },
+    'media-settings': {
+        running: 'Changing the languages…',
+        runningDetail:
+            'The apps keep running. Sonarr, Radarr, Bazarr and Seerr get the new subtitle and audio settings. You can leave this page.',
+        failed: 'The language change failed',
+        succeeded: 'The languages are changed',
+    },
 }
 
 function OperationProgress({

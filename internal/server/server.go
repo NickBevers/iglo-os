@@ -21,6 +21,7 @@ import (
 	"iglo/internal/proxmox"
 	"iglo/internal/selfupdate"
 	"iglo/internal/settingsfile"
+	"iglo/internal/stacks/arr"
 	"iglo/internal/tailscale"
 	"iglo/internal/updates"
 	"iglo/internal/workloads"
@@ -117,6 +118,8 @@ type Apps interface {
 	VPN(ctx context.Context, id string) (agent.VPNView, error)
 	ChangeVPN(ctx context.Context, background context.Context, id string, settings agent.VPNSettings) error
 	ChangeFlareSolverr(ctx context.Context, background context.Context, id string, enabled bool) error
+	MediaSettings(ctx context.Context, id string) (arr.MediaSettings, error)
+	ChangeMediaSettings(ctx context.Context, background context.Context, id string, settings arr.MediaSettings) error
 }
 
 type SettingsFile interface {
@@ -260,6 +263,8 @@ func New(options Options) http.Handler {
 	mux.Handle("GET /api/apps/{id}/vpn", s.requireSession(http.HandlerFunc(s.appsVPN)))
 	mux.Handle("PUT /api/apps/{id}/vpn", s.requireSession(http.HandlerFunc(s.appsChangeVPN)))
 	mux.Handle("PUT /api/apps/{id}/flaresolverr", s.requireSession(http.HandlerFunc(s.appsChangeFlareSolverr)))
+	mux.Handle("GET /api/apps/{id}/media-settings", s.requireSession(http.HandlerFunc(s.appsMediaSettings)))
+	mux.Handle("PUT /api/apps/{id}/media-settings", s.requireSession(http.HandlerFunc(s.appsChangeMediaSettings)))
 	mux.Handle("GET /api/settings/export", s.requireSession(http.HandlerFunc(s.settingsExport)))
 	mux.Handle("POST /api/settings/import", s.requireSession(http.HandlerFunc(s.settingsImport)))
 	mux.Handle("POST /api/data-backup/download", s.requireSession(http.HandlerFunc(s.dataBackupDownload)))

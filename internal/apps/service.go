@@ -17,16 +17,20 @@ import (
 	"iglo/internal/agent"
 	"iglo/internal/events"
 	"iglo/internal/proxmox"
+	"iglo/internal/stacks/arr"
 	"iglo/internal/vpn"
 )
 
 var (
-	ErrUnknownApp   = errors.New("unknown app")
-	ErrInstalled    = errors.New("this app is already installed")
-	ErrBusy         = errors.New("an app is already being installed, updated or removed")
-	ErrNotInstalled = errors.New("this app is not installed")
-	ErrNotRunning   = errors.New("the container of this app is not running, start it first")
-	ErrPlanned      = errors.New("this app comes in a later version of Iglo-OS")
+	ErrUnknownApp               = errors.New("unknown app")
+	ErrInstalled                = errors.New("this app is already installed")
+	ErrBusy                     = errors.New("an app is already being installed, updated or removed")
+	ErrNotInstalled             = errors.New("this app is not installed")
+	ErrNotRunning               = errors.New("the container of this app is not running, start it first")
+	ErrPlanned                  = errors.New("this app comes in a later version of Iglo-OS")
+	ErrMediaSettingsUnavailable = agent.ErrMediaSettingsUnavailable
+	ErrMediaSettingsUnreadable  = agent.ErrMediaSettingsUnreadable
+	ErrMediaSettingsNeedsUpdate = errors.New("the media stack needs an update first: update it on the Apps page, then change its languages")
 )
 
 // snapshotPrefix is the prefix of the Updates page too, which keeps the newest 3 of these snapshots.
@@ -49,6 +53,8 @@ type Agent interface {
 	ChangeVPN(ctx context.Context, vmid int, settings agent.VPNSettings) error
 	FlareSolverr(ctx context.Context, vmid int) (agent.FlareSolverrView, error)
 	ChangeFlareSolverr(ctx context.Context, vmid int, enabled bool) error
+	MediaSettings(ctx context.Context, vmid int) (arr.MediaSettings, error)
+	ChangeMediaSettings(ctx context.Context, vmid int, settings arr.MediaSettings) error
 	AppStats(ctx context.Context, app string, vmid int) (agent.AppStats, error)
 	AppInstallStatus(ctx context.Context) (agent.AppInstallStatus, error)
 }
@@ -747,6 +753,54 @@ func (s *Service) ChangeFlareSolverr(ctx context.Context, background context.Con
 	return nil
 }
 
+// MediaSettings returns the language settings of the media stack.
+func (s *Service) MediaSettings(ctx context.Context, id string) (arr.MediaSettings, error) {
+	_, guest, err := s.mediaStack(ctx, id)
+	if err != nil {
+		return arr.MediaSettings{}, err
+	}
+	settings, err := s.Agent.MediaSettings(ctx, guest.VMID)
+	return settings, mediaSettingsError(err)
+}
+
+// ChangeMediaSettings changes the languages of the media stack.
+func (s *Service) ChangeMediaSettings(ctx context.Context, background context.Context, id string, settings arr.MediaSettings) error {
+	if err := settings.Validate(); err != nil {
+		return fmt.Errorf("%w: %v", agent.ErrInvalidAnswers, err)
+	}
+	app, guest, err := s.mediaStack(ctx, id)
+	if err != nil {
+		return err
+	}
+	if err := s.checkIdle(ctx); err != nil {
+		return err
+	}
+	if err := s.Agent.ChangeMediaSettings(ctx, guest.VMID, settings); err != nil {
+		return mediaSettingsError(err)
+	}
+	s.Logger.Info("media settings change started", "vmid", guest.VMID)
+	s.watch(background, operation{app: app, action: agent.ActionMediaSettings, guest: guest})
+	return nil
+}
+
+func mediaSettingsError(err error) error {
+	if err != nil {
+		if _, reason, found := strings.Cut(err.Error(), agent.ErrMediaSettingsUnreadable.Error()); found {
+			return fmt.Errorf("%w%s", ErrMediaSettingsUnreadable, strings.SplitN(reason, "\n", 2)[0])
+		}
+	}
+	if err != nil && strings.Contains(err.Error(), agent.ErrMediaSettingsUnavailable.Error()) {
+		return ErrMediaSettingsUnavailable
+	}
+	// The agent client keeps the HTTP error text but loses the sentinel, so
+	// match the agent's message. The browser gets a plain sentence that says
+	// what to do, not the agent's URL and status.
+	if err != nil && strings.Contains(err.Error(), agent.ErrMediaSettingsNeedsUpdate.Error()) {
+		return ErrMediaSettingsNeedsUpdate
+	}
+	return err
+}
+
 func (s *Service) RecoverPhotos(ctx context.Context, background context.Context, action agent.AppAction) error {
 	if action != agent.ActionBackup && action != agent.ActionVerify {
 		return agent.ErrInvalidAnswers
@@ -943,6 +997,8 @@ func (s *Service) monitor(ctx context.Context, op operation, generation int) {
 			s.finishVPN(ctx, op, status)
 		case agent.ActionFlareSolverr:
 			s.finishFlareSolverr(ctx, op, status)
+		case agent.ActionMediaSettings:
+			s.finishMediaSettings(ctx, op, status)
 		default:
 			s.finishInstall(ctx, op, status)
 		}
@@ -1047,4 +1103,14 @@ func (s *Service) finishFlareSolverr(ctx context.Context, op operation, status a
 
 	s.Logger.Info("flaresolverr changed", "vmid", op.guest.VMID, "enabled", op.flareSolverr)
 	s.Notify(ctx, fmt.Sprintf("✅ FlareSolverr is %s in the %s.", state, strings.ToLower(op.app.Name)))
+}
+
+func (s *Service) finishMediaSettings(ctx context.Context, op operation, status agent.AppInstallStatus) {
+	if status.State != agent.UpgradeSucceeded {
+		s.Logger.Warn("media settings change failed", "vmid", op.guest.VMID, "message", status.Message)
+		s.Notify(ctx, fmt.Sprintf("❌ Media settings change failed: %s", status.Message))
+		return
+	}
+	s.Logger.Info("media settings changed", "vmid", op.guest.VMID)
+	s.Notify(ctx, "✅ Media settings of the media stack changed.")
 }

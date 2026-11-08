@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -8,11 +9,13 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
 
 	"iglo/internal/agent"
+	"iglo/internal/stacks/arr"
 	"iglo/internal/stacks/jellyfinsetup"
 )
 
@@ -76,6 +79,15 @@ func (f *fakeInstalls) start(script string, args []string, cleanup, logPath, exi
 	}
 	if args[0] == "--flaresolverr" {
 		play = func() { f.playFlareSolverr(args[1] == "on", logPath, exitPath) }
+	}
+	if args[0] == "--media-settings" {
+		settings, err := os.ReadFile(cleanup)
+		if err != nil {
+			return err
+		}
+		play = func() {
+			f.playMediaSettings(settings, cleanup, logPath, exitPath)
+		}
 	}
 	if args[0] == "--answers" {
 		answers, err := os.ReadFile(cleanup)
@@ -222,6 +234,70 @@ func (f *fakeInstalls) playFlareSolverr(on bool, logPath, exitPath string) {
 	saveFlareSolverr(on)
 	write("==> Done")
 	os.WriteFile(exitPath, []byte("0\n"), 0o600)
+}
+
+func (f *fakeInstalls) playMediaSettings(data []byte, cleanup, logPath, exitPath string) {
+	defer func() {
+		os.Remove(cleanup)
+		f.mu.Lock()
+		f.running = false
+		f.mu.Unlock()
+	}()
+
+	logFile, err := os.OpenFile(logPath, os.O_APPEND|os.O_WRONLY, 0o600)
+	if err != nil {
+		return
+	}
+	defer logFile.Close()
+	write := func(line string) {
+		fmt.Fprintln(logFile, line)
+		time.Sleep(time.Second)
+	}
+	fail := func(err error) {
+		write("error: " + err.Error())
+		os.WriteFile(exitPath, []byte("1\n"), 0o600)
+	}
+	settings, err := arr.DecodeMediaSettings(bytes.NewReader(data))
+	if err != nil {
+		fail(err)
+		return
+	}
+	write("==> Setting up the dutch tag and the Dutch profile in Sonarr and Radarr")
+	if _, err := os.Stat(statePath("fail-media-settings")); err == nil {
+		fail(errors.New("could not apply the media settings, because .dev/fail-media-settings exists. Read the log above"))
+		return
+	}
+	write("==> Setting up the subtitle profiles in Bazarr")
+	write("==> Setting up the Dutch rule in Seerr")
+	if err := saveMediaSettings(settings); err != nil {
+		fail(err)
+		return
+	}
+	write("==> Saving the media settings")
+	os.WriteFile(exitPath, []byte("0\n"), 0o600)
+}
+
+func loadMediaSettings() (arr.MediaSettings, error) {
+	data, err := os.ReadFile(statePath("media-settings.json"))
+	if errors.Is(err, os.ErrNotExist) {
+		return arr.DefaultMediaSettings(), nil
+	}
+	if err != nil {
+		return arr.MediaSettings{}, err
+	}
+	return arr.DecodeMediaSettings(bytes.NewReader(data))
+}
+
+func saveMediaSettings(settings arr.MediaSettings) error {
+	data, err := json.Marshal(settings)
+	if err != nil {
+		return err
+	}
+	path := statePath("media-settings.json")
+	if current, err := os.ReadFile(path); err == nil && bytes.Equal(current, data) {
+		return nil
+	}
+	return os.WriteFile(path, data, 0o600)
 }
 
 // loadFlareSolverr is the FlareSolverr switch of the fake media stack: what
@@ -570,7 +646,7 @@ func addAppRoutes(mux *http.ServeMux, installer *agent.AppInstaller) {
 	}
 	fail := func(w http.ResponseWriter, err error) {
 		switch {
-		case errors.Is(err, agent.ErrInvalidAnswers), errors.Is(err, agent.ErrUnknownApp), errors.Is(err, agent.ErrNoSavedAnswers):
+		case errors.Is(err, agent.ErrInvalidAnswers), errors.Is(err, agent.ErrUnknownApp), errors.Is(err, agent.ErrNoSavedAnswers), errors.Is(err, agent.ErrInvalidContainer):
 			http.Error(w, err.Error(), http.StatusBadRequest)
 		case errors.Is(err, agent.ErrAppInstallRunning):
 			http.Error(w, err.Error(), http.StatusConflict)
@@ -650,6 +726,35 @@ func addAppRoutes(mux *http.ServeMux, installer *agent.AppInstaller) {
 			return
 		}
 		if err := installer.ChangeFlareSolverr(request.VMID, request.Enabled); err != nil {
+			fail(w, err)
+			return
+		}
+		w.WriteHeader(http.StatusAccepted)
+	})
+	mux.HandleFunc("GET /v1/apps/media/settings", func(w http.ResponseWriter, r *http.Request) {
+		vmid, _ := strconv.Atoi(r.URL.Query().Get("vmid"))
+		if vmid < 100 || vmid > 999999999 {
+			fail(w, agent.ErrInvalidContainer)
+			return
+		}
+		if _, err := os.Stat(statePath("media-settings-unavailable")); err == nil {
+			http.Error(w, agent.ErrMediaSettingsUnavailable.Error(), http.StatusServiceUnavailable)
+			return
+		}
+		settings, err := loadMediaSettings()
+		if err != nil {
+			fail(w, err)
+			return
+		}
+		writeJSON(w, settings)
+	})
+	mux.HandleFunc("PUT /v1/apps/media/settings", func(w http.ResponseWriter, r *http.Request) {
+		var request agent.MediaSettingsRequest
+		if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, 64*1024)).Decode(&request); err != nil {
+			http.Error(w, "invalid request body", http.StatusBadRequest)
+			return
+		}
+		if err := installer.ChangeMediaSettings(request.VMID, request.Settings); err != nil {
 			fail(w, err)
 			return
 		}

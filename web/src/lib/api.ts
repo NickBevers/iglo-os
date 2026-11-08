@@ -554,7 +554,7 @@ export type DockerLogs = {
 
 export type AppOperation = {
     app?: string
-    action?: 'install' | 'update' | 'remove' | 'vpn' | 'flaresolverr' | 'backup' | 'verify'
+    action?: 'install' | 'update' | 'remove' | 'vpn' | 'flaresolverr' | 'media-settings' | 'backup' | 'verify'
     state: 'idle' | 'running' | 'succeeded' | 'failed'
     message?: string
     startedAt?: string
@@ -562,6 +562,58 @@ export type AppOperation = {
     vmid?: number
     ip?: string
     log?: string
+}
+
+export type KindSettings = { subtitles: string[]; audio: 'original' | 'dutch' }
+
+export type MediaSettings = {
+    anime: KindSettings
+    dutch: KindSettings
+    series: KindSettings
+    films: KindSettings
+}
+
+const subtitleLanguages = [
+    { code: 'en', name: 'English' },
+    { code: 'nl', name: 'Dutch' },
+    { code: 'fr', name: 'French' },
+    { code: 'de', name: 'German' },
+    { code: 'es', name: 'Spanish' },
+    { code: 'it', name: 'Italian' },
+    { code: 'pt', name: 'Portuguese' },
+    { code: 'ja', name: 'Japanese' },
+    { code: 'ko', name: 'Korean' },
+    { code: 'zh', name: 'Chinese' },
+]
+
+export function subtitleLanguageButtons(selected: string[]): { code: string; name: string }[] {
+    const names = new Intl.DisplayNames(['en'], { type: 'language' })
+    const bazarrNames: Record<string, string> = {
+        pb: 'Portuguese (Brazil)',
+        zt: 'Chinese (Traditional)',
+        ea: 'Spanish (Latin America)',
+    }
+    const buttons = [...subtitleLanguages]
+    for (const code of selected) {
+        if (buttons.some((button) => button.code === code)) continue
+        let name = bazarrNames[code]
+        if (!name) {
+            try {
+                name = names.of(code) ?? code
+            } catch {
+                name = code
+            }
+        }
+        buttons.push({ code, name })
+    }
+    return buttons
+}
+
+export function toggleSubtitleLanguage(current: string[], language: string | null, allowEmpty = true): string[] {
+    if (!allowEmpty && (language === null || (current.length === 1 && current.includes(language)))) return current
+    if (language === null) return []
+    if (current.includes(language)) return current.filter((code) => code !== language)
+    return current.length < 10 ? [...current, language] : current
 }
 
 export type JellyfinAnswers = {
@@ -906,6 +958,9 @@ export const api = {
     vpnSettings: (id: string) => request<VpnView>('GET', `/apps/${id}/vpn`),
     changeVpn: (id: string, settings: VpnSettings) => request<void>('PUT', `/apps/${id}/vpn`, settings),
     changeFlareSolverr: (id: string, enabled: boolean) => request<void>('PUT', `/apps/${id}/flaresolverr`, { enabled }),
+    mediaSettings: (id: string) => request<{ settings: MediaSettings }>('GET', `/apps/${id}/media-settings`),
+    changeMediaSettings: (id: string, settings: MediaSettings) =>
+        request<void>('PUT', `/apps/${id}/media-settings`, { settings }),
     settingsExportUrl: '/api/settings/export',
     downloadDataBackup,
     restoreDataBackup,
