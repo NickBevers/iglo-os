@@ -7,6 +7,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"reflect"
+	"strings"
 	"testing"
 	"time"
 
@@ -38,10 +39,11 @@ func TestMockMediaSizeSettings(t *testing.T) {
 		}
 		return settings
 	}
-	if settings := get(); settings.Sizes != (arr.SizeLimits{}) {
+	if settings := get(); settings.Sizes != (arr.SizeLimits{}) || settings.UHDFilms {
 		t.Fatal("mock defaults have a limit")
 	}
 	settings := arr.DefaultMediaSettings()
+	settings.UHDFilms = true
 	settings.Sizes = arr.SizeLimits{Series: 41, Films: 66, Films4K: 208}
 	data, _ := json.Marshal(agent.MediaSettingsRequest{VMID: 130, Settings: settings})
 	w := httptest.NewRecorder()
@@ -72,6 +74,9 @@ func TestMockMediaSizeSettings(t *testing.T) {
 	}
 	if got := get(); !reflect.DeepEqual(got, settings) {
 		t.Fatalf("mock lost settings: %+v", got)
+	}
+	if log := installer.Status().Log; !strings.Contains(log, "4K when available") {
+		t.Fatalf("missing profile step: %s", log)
 	}
 	for _, sizes := range []arr.SizeLimits{{Series: 9}, {Films: 401}, {Films4K: 9}, {Films4K: 1001}} {
 		settings.Sizes = sizes

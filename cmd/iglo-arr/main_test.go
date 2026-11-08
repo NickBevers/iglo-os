@@ -37,6 +37,7 @@ func TestMediaGetStdoutIsJSON(t *testing.T) {
 	envPath := filepath.Join(t.TempDir(), "stack.vars")
 	path, _, _ := arr.MediaSettingsPaths(envPath)
 	want := arr.DefaultMediaSettings()
+	want.UHDFilms = true
 	want.Series.Subtitles = []string{"nl", "en"}
 	want.Sizes = arr.SizeLimits{Series: 41, Films: 66, Films4K: 208}
 	data, _ := json.Marshal(map[string]any{"version": 1, "settings": want})
@@ -48,7 +49,7 @@ func TestMediaGetStdoutIsJSON(t *testing.T) {
 		t.Fatal(err)
 	}
 	got, err := arr.DecodeMediaSettings(bytes.NewReader(output))
-	if err != nil || len(got.Series.Subtitles) != 2 || got.Series.Subtitles[0] != "nl" || got.Sizes != want.Sizes {
+	if err != nil || len(got.Series.Subtitles) != 2 || got.Series.Subtitles[0] != "nl" || got.Sizes != want.Sizes || !got.UHDFilms {
 		t.Fatalf("stdout: %s, error: %v", output, err)
 	}
 }
@@ -130,6 +131,29 @@ func TestRecyclarrSyncOutput(t *testing.T) {
 	} {
 		if err := validateRecyclarrSyncOutput(test.output); (err == nil) != test.ok {
 			t.Errorf("output %q: %v", test.output, err)
+		}
+	}
+}
+
+func TestMediaSetRejectsInvalidFilmSwitchBeforeReadingKeys(t *testing.T) {
+	data, _ := json.Marshal(arr.DefaultMediaSettings())
+	for _, value := range []string{`"true"`, `1`, `[]`} {
+		input := bytes.ReplaceAll(data, []byte(`"uhdFilms":false`), []byte(`"uhdFilms":`+value))
+		path := filepath.Join(t.TempDir(), "input.json")
+		if err := os.WriteFile(path, input, 0o600); err != nil {
+			t.Fatal(err)
+		}
+		file, err := os.Open(path)
+		if err != nil {
+			t.Fatal(err)
+		}
+		before := os.Stdin
+		os.Stdin = file
+		err = mediaSettings([]string{"set", "--env", filepath.Join(t.TempDir(), "missing.vars")})
+		os.Stdin = before
+		file.Close()
+		if err == nil || !strings.Contains(err.Error(), "uhdFilms") {
+			t.Fatalf("switch %s: %v", value, err)
 		}
 	}
 }

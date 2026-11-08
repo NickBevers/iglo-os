@@ -45,6 +45,8 @@ test('None clears all subtitles and a language can be picked afterward', () => {
 
 test('media settings requests use the API contract and keep server errors', async (t) => {
     const settings = {
+        uhdFilms: true,
+        sizes: { series: 0, films: 33, films4k: 208 },
         anime: { subtitles: [], audio: 'original' },
         dutch: { subtitles: [], audio: 'dutch' },
         series: { subtitles: ['nl', 'en'], audio: 'original' },
@@ -91,6 +93,7 @@ let hookState = null
 let hookIndex = 0
 let renderedButtons = []
 let renderedSelects = []
+let renderedInputs = []
 const formReact = {
     ...React,
     createElement(tag, props, ...children) {
@@ -118,6 +121,7 @@ new Function(
     'useMutation',
     'useQueryClient',
     'Button',
+    'Switch',
     'appsQuery',
     'mediaSettingsQuery',
     'toggleSubtitleLanguage',
@@ -135,6 +139,10 @@ new Function(
     () => ({ isPending: false }),
     () => ({}),
     Button,
+    (props) => {
+        renderedInputs.push({ ...props, role: 'switch' })
+        return React.createElement('span', { role: 'switch', 'aria-checked': props.checked })
+    },
     {},
     () => ({}),
     toggleSubtitleLanguage,
@@ -376,6 +384,44 @@ test('older settings without a 4K size show No limit and preserve HD size', () =
         )
         renderedSelects[2].onChange({ target: { value: '208' } })
         assert.deepEqual(hookState[0].sizes, { series: 41, films: 33, films4k: 208 })
+    } finally {
+        hookState = null
+    }
+})
+
+test('4K switch defaults off, enables Save and preserves the stored 4K size', () => {
+    hookState = []
+    const render = () => {
+        hookIndex = 0
+        renderedInputs = []
+        renderedButtons = []
+        return formMarkup(['en'], { series: 41, films: 33, films4k: 208 })
+    }
+    try {
+        const html = render()
+        assert.match(html, /Films in 4K when available/)
+        assert.match(html, /4K first, within the 4K size limit\. A larger 4K release is skipped and 1080p is used/)
+        assert.match(html, /A film is downloaded at most twice: 1080p first when no 4K fits, then once in 4K\./)
+        assert.match(html, /Propers and repacks can add downloads if Radarr prefers them\./)
+        assert.match(
+            html,
+            /Dolby Vision releases without an HDR fallback are skipped because the Pi 4 cannot play them/,
+        )
+        const control = renderedInputs.find((input) => input.role === 'switch')
+        assert.equal(control.checked, false)
+        assert.ok(control['aria-describedby'].endsWith('-films-4k-help'))
+        assert.equal(renderedButtons.find((button) => button.type === 'submit').disabled, true)
+        control.onCheckedChange(true)
+        render()
+        assert.equal(renderedInputs[0].checked, true)
+        assert.equal(hookState[0].uhdFilms, true)
+        assert.deepEqual(hookState[0].sizes, { series: 41, films: 33, films4k: 208 })
+        assert.equal(renderedButtons.find((button) => button.type === 'submit').disabled, false)
+        renderedInputs[0].onCheckedChange(false)
+        render()
+        assert.equal(renderedInputs[0].checked, false)
+        assert.equal(hookState[0].sizes.films4k, 208)
+        assert.equal(renderedButtons.find((button) => button.type === 'submit').disabled, true)
     } finally {
         hookState = null
     }

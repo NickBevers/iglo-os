@@ -18,6 +18,7 @@ import (
 func TestMediaSettings(t *testing.T) {
 	installer, _ := newTestInstaller(t)
 	want := arr.DefaultMediaSettings()
+	want.UHDFilms = true
 	want.Anime.Subtitles = []string{"nl", "en"}
 	data, err := json.Marshal(want)
 	if err != nil {
@@ -35,7 +36,7 @@ func TestMediaSettings(t *testing.T) {
 	if !slices.Equal(command, []string{"pct", "exec", "130", "--", "/usr/local/bin/iglo-arr", "media", "get"}) {
 		t.Fatalf("command = %v", command)
 	}
-	for _, bad := range []string{"not JSON", "{}", string(data) + " {}", strings.Replace(string(data), `"anime":`, `"unknown":`, 1)} {
+	for _, bad := range []string{"not JSON", "{}", string(data) + " {}", strings.Replace(string(data), `"anime":`, `"unknown":`, 1), strings.Replace(string(data), `"uhdFilms":true`, `"uhdFilms":"yes"`, 1)} {
 		data = []byte(bad)
 		if _, err := installer.MediaSettings(context.Background(), 130); err == nil {
 			t.Fatalf("accepted %q", bad)
@@ -102,6 +103,7 @@ func TestChangeMediaSettings(t *testing.T) {
 	if err := os.WriteFile(path, []byte("old settings"), 0o644); err != nil {
 		t.Fatal(err)
 	}
+	settings.UHDFilms = true
 	settings.Series.Subtitles = []string{"nl", "en"}
 	if err := installer.ChangeMediaSettings(130, settings); err != nil {
 		t.Fatal(err)

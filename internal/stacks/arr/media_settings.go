@@ -19,13 +19,14 @@ import (
 	"time"
 )
 
-// MediaSettings are the languages per kind and the shared download size limits.
+// MediaSettings are the languages, film quality and download size limits.
 type MediaSettings struct {
-	Anime  KindSettings `json:"anime"`
-	Dutch  KindSettings `json:"dutch"`
-	Series KindSettings `json:"series"`
-	Films  KindSettings `json:"films"`
-	Sizes  SizeLimits   `json:"sizes"`
+	Anime    KindSettings `json:"anime"`
+	Dutch    KindSettings `json:"dutch"`
+	Series   KindSettings `json:"series"`
+	Films    KindSettings `json:"films"`
+	Sizes    SizeLimits   `json:"sizes"`
+	UHDFilms bool         `json:"uhdFilms"`
 }
 
 // SizeLimits stores integer MB per minute. Zero keeps the guide's sizes.
@@ -181,9 +182,10 @@ const notDutchAudioFormat = "Not Dutch audio (Iglo-OS)"
 const notOriginalFormat = "Language: Not Original"
 
 type savedMediaSettings struct {
-	Version      int            `json:"version"`
-	Settings     MediaSettings  `json:"settings"`
-	SeerrRuleIDs map[string]int `json:"seerrRuleIds,omitempty"`
+	Version             int            `json:"version"`
+	Settings            MediaSettings  `json:"settings"`
+	SeerrRuleIDs        map[string]int `json:"seerrRuleIds,omitempty"`
+	PreviousFilmProfile *seerrProfile  `json:"previousFilmProfile,omitempty"`
 }
 
 func readMediaSettings(path string) (savedMediaSettings, error) {
@@ -389,8 +391,9 @@ type MediaSettingsConfig struct {
 }
 
 // ApplyMediaSettings reconciles the media settings owned by Iglo-OS.
-// It applies sizes last, then saves choices. Seerr failures only warn.
-func ApplyMediaSettings(ctx context.Context, settings MediaSettings, cfg MediaSettingsConfig) error {
+// It applies sizes last, then saves choices. Dutch rule failures only warn.
+// Changing the default film profile requires Seerr to accept the change.
+func ApplyMediaSettings(ctx context.Context, settings MediaSettings, cfg MediaSettingsConfig) (err error) {
 	settings = settings.normalized()
 	if err := settings.Validate(); err != nil {
 		return err
@@ -438,6 +441,48 @@ func ApplyMediaSettings(ctx context.Context, settings MediaSettings, cfg MediaSe
 
 	sonarr := newServarr("sonarr", cfg.Endpoints.Sonarr, "v3", cfg.SonarrAPIKey, cfg.HTTPClient)
 	radarr := newServarr("radarr", cfg.Endpoints.Radarr, "v3", cfg.RadarrAPIKey, cfg.HTTPClient)
+	filmSwitch := settings.UHDFilms != saved.Settings.UHDFilms
+	var seerr *apiClient
+	var filmService map[string]any
+	var previousRules []map[string]any
+	if filmSwitch {
+		// Check credentials and the target service before writing YAML or
+		// changing any app. An ordinary save does not require Seerr.
+		seerr, err = mediaSeerrClient(cfg)
+		if err != nil {
+			return fmt.Errorf("switch film profile in Seerr: %w", err)
+		}
+		filmService, err = seerrFilmService(ctx, seerr)
+		if err != nil {
+			return fmt.Errorf("switch film profile in Seerr: %w", err)
+		}
+		if err = seerr.do(ctx, http.MethodGet, "/overrideRule", nil, &previousRules); err != nil {
+			return err
+		}
+		if settings.UHDFilms {
+			saved.PreviousFilmProfile = &seerrProfile{ID: jsonInt(filmService["activeProfileId"])}
+			saved.PreviousFilmProfile.Name, _ = filmService["activeProfileName"].(string)
+		} else {
+			var profiles []seerrProfile
+			if err = radarr.do(ctx, http.MethodGet, "/qualityprofile", nil, &profiles); err != nil {
+				return err
+			}
+			if !slices.ContainsFunc(profiles, func(p seerrProfile) bool {
+				return p.ID > 0 && (p.Name == filmProfileName(false) || saved.PreviousFilmProfile != nil && p.ID == saved.PreviousFilmProfile.ID)
+			}) {
+				return errors.New("Radarr has neither the previous film profile nor HD Bluray + WEB")
+			}
+		}
+	}
+	rollbackFilm, err := applyFilmConfig(ctx, settings.UHDFilms, cfg)
+	if err != nil {
+		return err
+	}
+	defer func() {
+		if err != nil {
+			err = errors.Join(err, rollbackFilm())
+		}
+	}()
 	results := make([]mediaServarrResult, 2)
 	errs := make([]error, 2)
 	cfg.Logf("Applying Sonarr and Radarr media languages")
@@ -446,9 +491,13 @@ func ApplyMediaSettings(ctx context.Context, settings MediaSettings, cfg MediaSe
 		wg.Go(func() {
 			source := "WEB-1080p"
 			if i == 1 {
-				source = "HD Bluray + WEB"
+				source = filmProfileName(settings.UHDFilms)
 			}
-			results[i], errs[i] = applyMediaServarr(ctx, app, source)
+			target := dutchProfile
+			if i == 1 && settings.UHDFilms {
+				target = dutch4KProfile
+			}
+			results[i], errs[i] = applyMediaServarr(ctx, app, source, target)
 		})
 	}
 	wg.Wait()
@@ -464,16 +513,44 @@ func ApplyMediaSettings(ctx context.Context, settings MediaSettings, cfg MediaSe
 	warn := func(err error) {
 		cfg.Logf("Could not add the Dutch rule in Seerr: %v. Add it in Seerr under Settings, Override Rules.", err)
 	}
-	if cfg.SeerrAPIKey == "" {
-		if cfg.SeerrConfigPath == "" {
-			cfg.SeerrConfigPath = "/opt/arr/config/seerr/settings.json"
+	if seerr == nil {
+		var seerrErr error
+		seerr, seerrErr = mediaSeerrClient(cfg)
+		if seerrErr != nil {
+			warn(seerrErr)
 		}
-		cfg.SeerrAPIKey, err = mediaSeerrAPIKey(cfg.SeerrConfigPath)
 	}
-	if err != nil {
-		warn(err)
-	} else {
-		seerr := &apiClient{name: "seerr", baseURL: strings.TrimRight(cfg.Endpoints.Seerr, "/") + "/api/v1", http: cfg.HTTPClient, headers: map[string]string{"X-API-Key": cfg.SeerrAPIKey}}
+	if seerr != nil {
+		if filmSwitch {
+			var rollbackSeerr func() error
+			rollbackSeerr, err = switchSeerrFilms(ctx, seerr, radarr, filmService, settings.UHDFilms, saved.PreviousFilmProfile)
+			if err != nil {
+				return fmt.Errorf("switch film profile in Seerr: %w", err)
+			}
+			defer func() {
+				if err != nil {
+					err = errors.Join(err, rollbackSeerr())
+				}
+			}()
+			var previousRule map[string]any
+			for _, rule := range previousRules {
+				if saved.SeerrRuleIDs["radarr"] > 0 && jsonInt(rule["id"]) == saved.SeerrRuleIDs["radarr"] {
+					previousRule = rule
+				}
+			}
+			defer func() {
+				if err != nil && saved.SeerrRuleIDs["radarr"] > 0 {
+					restoreCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 30*time.Second)
+					defer cancel()
+					path := fmt.Sprintf("/overrideRule/%d", saved.SeerrRuleIDs["radarr"])
+					if previousRule != nil {
+						err = errors.Join(err, seerr.do(restoreCtx, http.MethodPut, path, previousRule, nil))
+					} else {
+						err = errors.Join(err, seerr.do(restoreCtx, http.MethodDelete, path, nil, nil))
+					}
+				}
+			}()
+		}
 		if saved.SeerrRuleIDs == nil {
 			saved.SeerrRuleIDs = map[string]int{}
 		}
@@ -487,6 +564,9 @@ func ApplyMediaSettings(ctx context.Context, settings MediaSettings, cfg MediaSe
 			}
 		}
 	}
+	if filmSwitch && !settings.UHDFilms {
+		saved.PreviousFilmProfile = nil
+	}
 	previousSizes := saved.Settings.Sizes
 	saved.Version, saved.Settings = 1, settings
 	data, err := json.MarshalIndent(saved, "", "  ")
@@ -498,7 +578,7 @@ func ApplyMediaSettings(ctx context.Context, settings MediaSettings, cfg MediaSe
 	if err != nil && !errors.Is(err, os.ErrNotExist) {
 		return err
 	}
-	rollback, err := applyMediaSizes(ctx, settings.Sizes, previousSizes, cfg)
+	rollback, err := applyMediaSizes(ctx, settings.Sizes, previousSizes, cfg, filmSwitch && !settings.UHDFilms)
 	if err != nil {
 		return err
 	}
@@ -506,6 +586,11 @@ func ApplyMediaSettings(ctx context.Context, settings MediaSettings, cfg MediaSe
 	if !bytes.Equal(existing, data) {
 		if err := writeFileAtomic(cfg.SettingsPath, data, 0o644); err != nil {
 			return errors.Join(fmt.Errorf("save media settings: %w", err), rollback())
+		}
+	}
+	if !settings.UHDFilms && filmSwitch && seerr != nil {
+		if cleanupErr := cleanFilmProfiles(ctx, radarr, seerr, cfg.Logf); cleanupErr != nil {
+			cfg.Logf("Could not finish checking unused 4K film profiles: %v", cleanupErr)
 		}
 	}
 	return nil
@@ -540,7 +625,11 @@ type mediaServarrResult struct{ tag, profile int }
 // specification. CustomFormatController and QualityProfileController expose
 // GET/POST and PUT /{id} under /api/v3. QualityProfileResource uses formatItems
 // with format, name and score. Keep all other profile fields from the GET.
-func applyMediaServarr(ctx context.Context, app *servarr, sourceName string) (mediaServarrResult, error) {
+func applyMediaServarr(ctx context.Context, app *servarr, sourceName string, targets ...string) (mediaServarrResult, error) {
+	targetName := dutchProfile
+	if len(targets) > 0 {
+		targetName = targets[0]
+	}
 	var result mediaServarrResult
 	tag, err := app.ensureTag(ctx, "dutch")
 	if err != nil {
@@ -588,7 +677,24 @@ func applyMediaServarr(ctx context.Context, app *servarr, sourceName string) (me
 	if err := app.do(ctx, http.MethodGet, "/qualityprofile", nil, &profiles); err != nil {
 		return result, err
 	}
-	index := slices.IndexFunc(profiles, func(p map[string]any) bool { return p["name"] == dutchProfile })
+	var filmPolicy map[string]any
+	if app.name == "radarr" && targetName == dutch4KProfile {
+		source := slices.IndexFunc(profiles, func(p map[string]any) bool { return p["name"] == sourceName })
+		if source < 0 {
+			return result, fmt.Errorf("%s: missing %s profile; run Recyclarr sync first", app.name, sourceName)
+		}
+		// Keep the quality policy and codec penalties from Recyclarr, also
+		// on existing Dutch 4K profiles. Other copied scores stay unchanged.
+		filmPolicy = profiles[source]
+		items, _ := filmPolicy["formatItems"].([]any)
+		for _, raw := range items {
+			item, _ := raw.(map[string]any)
+			if item["name"] == "x265 (HD)" || item["name"] == "x265 (no HDR/DV)" {
+				scores[jsonInt(item["format"])] = jsonInt(item["score"])
+			}
+		}
+	}
+	index := slices.IndexFunc(profiles, func(p map[string]any) bool { return p["name"] == targetName })
 	method, path := http.MethodPut, ""
 	var profile map[string]any
 	if index >= 0 {
@@ -601,7 +707,7 @@ func applyMediaServarr(ctx context.Context, app *servarr, sourceName string) (me
 		}
 		profile = profiles[source]
 		delete(profile, "id")
-		profile["name"] = dutchProfile
+		profile["name"] = targetName
 		// Radarr v6.4.4.10685, checked 7 November 2026: its download
 		// LanguageSpecification rejects releases before scores if the
 		// profile language disagrees. Dutch (ID 7) allows Dutch dubs too.
@@ -610,7 +716,7 @@ func applyMediaServarr(ctx context.Context, app *servarr, sourceName string) (me
 		}
 		// Recyclarr v8.8.0, checked 7 November 2026: UpdatedProfileBuilder
 		// visits only planned profiles. deploy/stacks/arr/recyclarr.yml
-		// plans the normal and anime profiles, never Dutch (Iglo-OS).
+		// plans the normal and anime profiles, never either Dutch profile.
 		// ConfigYamlExtensions defaults delete_old_custom_formats to false,
 		// so our two formats and this profile survive its daily sync.
 		method, path = http.MethodPost, "/qualityprofile"
@@ -627,6 +733,14 @@ func applyMediaServarr(ctx context.Context, app *servarr, sourceName string) (me
 		return result, fmt.Errorf("%s: quality profile has invalid formatItems", app.name)
 	}
 	changed := false
+	if filmPolicy != nil {
+		for _, field := range []string{"items", "cutoff", "upgradeAllowed", "minFormatScore", "cutoffFormatScore", "minUpgradeFormatScore"} {
+			if !sameJSON(profile[field], filmPolicy[field]) {
+				profile[field] = filmPolicy[field]
+				changed = true
+			}
+		}
+	}
 	for i, item := range items {
 		entry, ok := item.(map[string]any)
 		if !ok {
@@ -643,7 +757,7 @@ func applyMediaServarr(ctx context.Context, app *servarr, sourceName string) (me
 		}
 	}
 	// Both APIs require every custom format in the profile, including formats
-	// just created. Existing scores outside our three entries stay untouched.
+	// just created. Scores outside the managed language and codec entries stay.
 	for _, format := range formats {
 		id := jsonInt(format["id"])
 		if score, ok := scores[id]; ok {

@@ -4,6 +4,7 @@ import { Loader2Icon } from 'lucide-react'
 import { toast } from 'sonner'
 
 import { Button } from '@/components/ui/button'
+import { Switch } from '@/components/ui/switch'
 import {
     Dialog,
     DialogContent,
@@ -15,7 +16,9 @@ import {
 import { api, subtitleLanguageButtons, toggleSubtitleLanguage, type CatalogApp, type MediaSettings } from '@/lib/api'
 import { appsQuery, mediaSettingsQuery } from '@/lib/queries'
 
-const kinds: { key: Exclude<keyof MediaSettings, 'sizes'>; name: string; audio: string; help: string }[] = [
+type MediaKind = 'anime' | 'dutch' | 'series' | 'films'
+
+const kinds: { key: MediaKind; name: string; audio: string; help: string }[] = [
     {
         key: 'anime',
         name: 'Anime',
@@ -25,7 +28,7 @@ const kinds: { key: Exclude<keyof MediaSettings, 'sizes'>; name: string; audio: 
     {
         key: 'dutch',
         name: 'Dutch',
-        audio: 'Dutch, dubs too. Dutch originals get this by themselves. For a dub like De Smurfen, pick the Dutch (Iglo-OS) profile and the dutch tag when you request it in Seerr.',
+        audio: 'Dutch, dubs too. Dutch originals get this by themselves. For a dub like De Smurfen, pick the Dutch (Iglo-OS) profile, or Dutch 4K (Iglo-OS) for 4K films, and the dutch tag when you request it in Seerr.',
         help: 'None keeps Dutch series and films without subtitles.',
     },
     {
@@ -51,7 +54,7 @@ export function MediaSettingsDialog({ app, open, onOpenChange }: MediaSettingsDi
                 <DialogHeader>
                     <DialogTitle>Languages</DialogTitle>
                     <DialogDescription>
-                        Choose subtitle languages and maximum download sizes. Audio stays fixed.
+                        Choose subtitle languages, film quality and maximum download sizes. Audio stays fixed.
                     </DialogDescription>
                 </DialogHeader>
                 {open && <MediaSettingsLoader app={app} onDone={() => onOpenChange(false)} />}
@@ -94,6 +97,7 @@ function MediaSettingsForm({ app, current, onDone }: { app: CatalogApp; current:
         films4k: settings.sizes?.films4k ?? 0,
     }
     const changed =
+        (settings.uhdFilms ?? false) !== (current.uhdFilms ?? false) ||
         kinds.some(({ key }) => settings[key].subtitles.join(',') !== current[key].subtitles.join(',')) ||
         sizes.series !== (current.sizes?.series ?? 0) ||
         sizes.films !== (current.sizes?.films ?? 0) ||
@@ -198,6 +202,24 @@ function MediaSettingsForm({ app, current, onDone }: { app: CatalogApp; current:
                         Releases above the limit are skipped. If only larger releases exist, nothing is downloaded until
                         a smaller one appears. Files you already have are not touched.
                     </p>
+                    <div className="flex flex-col gap-2">
+                        <label className="flex items-center justify-between gap-4 text-sm font-medium">
+                            <span>Films in 4K when available</span>
+                            <Switch
+                                checked={settings.uhdFilms ?? false}
+                                disabled={change.isPending}
+                                aria-describedby={`${id}-films-4k-help`}
+                                onCheckedChange={(checked) => setSettings((now) => ({ ...now, uhdFilms: checked }))}
+                            />
+                        </label>
+                        <p id={`${id}-films-4k-help`} className="text-xs text-muted-foreground">
+                            4K first, within the 4K size limit. A larger 4K release is skipped and 1080p is used
+                            instead, with an upgrade once a 4K release fits. A film is downloaded at most twice: 1080p
+                            first when no 4K fits, then once in 4K. Propers and repacks can add downloads if Radarr
+                            prefers them. Dolby Vision releases without an HDR fallback are skipped because the Pi 4
+                            cannot play them.
+                        </p>
+                    </div>
                     {(
                         [
                             {

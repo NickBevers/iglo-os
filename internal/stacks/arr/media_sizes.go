@@ -166,7 +166,7 @@ func yamlMappingValue(node *yaml.Node, key string) *yaml.Node {
 	return nil
 }
 
-func applyMediaSizes(ctx context.Context, sizes, previous SizeLimits, cfg MediaSettingsConfig) (rollback func() error, err error) {
+func applyMediaSizes(ctx context.Context, sizes, previous SizeLimits, cfg MediaSettingsConfig, forceSync bool) (rollback func() error, err error) {
 	rollback = func() error { return nil }
 	before, err := os.ReadFile(cfg.RecyclarrPath)
 	if err != nil {
@@ -182,7 +182,7 @@ func applyMediaSizes(ctx context.Context, sizes, previous SizeLimits, cfg MediaS
 		return rollback, err
 	}
 	changed := !bytes.Equal(before, after)
-	needsSync := changed || sizes != previous
+	needsSync := forceSync || changed || sizes != previous
 	for _, app := range apps {
 		needsSync = needsSync || len(app.updates) > 0
 	}
@@ -259,7 +259,7 @@ func writeMediaSizes(path string, template []byte, sizes SizeLimits) (bool, erro
 	return true, nil
 }
 
-// RenderMediaSizes combines this release's template with the stored settings
+// RenderMediaSizes adds stored film profile and size choices to the template
 // before the installer starts Recyclarr. It needs no running apps or secrets.
 func RenderMediaSizes(templatePath, configPath, settingsPath string, warnings ...func(string, ...any)) error {
 	saved, err := readMediaSettings(settingsPath)
@@ -272,6 +272,10 @@ func RenderMediaSizes(templatePath, configPath, settingsPath string, warnings ..
 		saved.Settings = DefaultMediaSettings()
 	}
 	template, err := os.ReadFile(templatePath)
+	if err != nil {
+		return err
+	}
+	template, err = mediaFilmsYAML(template, saved.Settings.UHDFilms)
 	if err != nil {
 		return err
 	}

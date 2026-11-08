@@ -14,6 +14,7 @@ import (
 	"os"
 	"path/filepath"
 	"slices"
+	"strconv"
 	"strings"
 	"sync"
 	"testing"
@@ -94,15 +95,17 @@ func TestDecodeMediaSettings(t *testing.T) {
 }
 
 type mediaFake struct {
-	mu             sync.Mutex
-	resources      map[string][]map[string]any
-	bazarrSettings map[string]map[string]any
-	languages      []map[string]any
-	titles         map[string][]map[string]any
-	writes         []string
-	fail           string
-	batches        []int
-	forms          []url.Values
+	mu              sync.Mutex
+	resources       map[string][]map[string]any
+	bazarrSettings  map[string]map[string]any
+	languages       []map[string]any
+	titles          map[string][]map[string]any
+	writes          []string
+	reads           []string
+	requestPageSize int
+	fail            string
+	batches         []int
+	forms           []url.Values
 }
 
 func newMediaFake() *mediaFake {
@@ -161,6 +164,9 @@ func (f *mediaFake) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	if r.Header.Get(auth) != app+"-key" {
 		http.Error(w, "bad API key", 401)
 		return
+	}
+	if r.Method == "GET" {
+		f.reads = append(f.reads, key+"?"+r.URL.RawQuery)
 	}
 	if r.Method != "GET" {
 		f.writes = append(f.writes, r.Method+" "+key)
@@ -259,7 +265,27 @@ func (f *mediaFake) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			http.Error(w, "unexpected GET "+key, 404)
 			return
 		}
+		if app == "seerr" && resource == "request" {
+			skip, _ := strconv.Atoi(r.URL.Query().Get("skip"))
+			take, _ := strconv.Atoi(r.URL.Query().Get("take"))
+			if take <= 0 {
+				take = 100
+			}
+			if f.requestPageSize > 0 {
+				take = min(take, f.requestPageSize)
+			}
+			start := min(skip, len(rows))
+			json.NewEncoder(w).Encode(map[string]any{"pageInfo": map[string]any{"results": len(rows)}, "results": rows[start:min(start+take, len(rows))]})
+			return
+		}
 		json.NewEncoder(w).Encode(rows)
+		return
+	}
+	if r.Method == "DELETE" {
+		collection := app + "/" + strings.Join(parts[3:len(parts)-1], "/")
+		id := parts[len(parts)-1]
+		f.resources[collection] = slices.DeleteFunc(f.resources[collection], func(p map[string]any) bool { return fmt.Sprint(p["id"]) == id })
+		w.WriteHeader(http.StatusNoContent)
 		return
 	}
 	var body map[string]any
