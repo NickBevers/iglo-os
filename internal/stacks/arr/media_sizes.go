@@ -166,7 +166,7 @@ func yamlMappingValue(node *yaml.Node, key string) *yaml.Node {
 	return nil
 }
 
-func applyMediaSizes(ctx context.Context, sizes, previous SizeLimits, cfg MediaSettingsConfig) (rollback func() error, err error) {
+func applyMediaSizes(ctx context.Context, sizes, previous SizeLimits, cfg MediaSettingsConfig, forceSync bool) (rollback func() error, err error) {
 	rollback = func() error { return nil }
 	before, err := os.ReadFile(cfg.RecyclarrPath)
 	if err != nil {
@@ -182,7 +182,7 @@ func applyMediaSizes(ctx context.Context, sizes, previous SizeLimits, cfg MediaS
 		return rollback, err
 	}
 	changed := !bytes.Equal(before, after)
-	needsSync := changed || sizes != previous
+	needsSync := forceSync || changed || sizes != previous
 	for _, app := range apps {
 		needsSync = needsSync || len(app.updates) > 0
 	}

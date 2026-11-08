@@ -182,9 +182,10 @@ const notDutchAudioFormat = "Not Dutch audio (Iglo-OS)"
 const notOriginalFormat = "Language: Not Original"
 
 type savedMediaSettings struct {
-	Version      int            `json:"version"`
-	Settings     MediaSettings  `json:"settings"`
-	SeerrRuleIDs map[string]int `json:"seerrRuleIds,omitempty"`
+	Version             int            `json:"version"`
+	Settings            MediaSettings  `json:"settings"`
+	SeerrRuleIDs        map[string]int `json:"seerrRuleIds,omitempty"`
+	PreviousFilmProfile *seerrProfile  `json:"previousFilmProfile,omitempty"`
 }
 
 func readMediaSettings(path string) (savedMediaSettings, error) {
@@ -440,7 +441,39 @@ func ApplyMediaSettings(ctx context.Context, settings MediaSettings, cfg MediaSe
 
 	sonarr := newServarr("sonarr", cfg.Endpoints.Sonarr, "v3", cfg.SonarrAPIKey, cfg.HTTPClient)
 	radarr := newServarr("radarr", cfg.Endpoints.Radarr, "v3", cfg.RadarrAPIKey, cfg.HTTPClient)
-	filmSwitch := settings.UHDFilms || saved.Settings.UHDFilms
+	filmSwitch := settings.UHDFilms != saved.Settings.UHDFilms
+	var seerr *apiClient
+	var filmService map[string]any
+	var previousRules []map[string]any
+	if filmSwitch {
+		// Check credentials and the target service before writing YAML or
+		// changing any app. An ordinary save does not require Seerr.
+		seerr, err = mediaSeerrClient(cfg)
+		if err != nil {
+			return fmt.Errorf("switch film profile in Seerr: %w", err)
+		}
+		filmService, err = seerrFilmService(ctx, seerr)
+		if err != nil {
+			return fmt.Errorf("switch film profile in Seerr: %w", err)
+		}
+		if err = seerr.do(ctx, http.MethodGet, "/overrideRule", nil, &previousRules); err != nil {
+			return err
+		}
+		if settings.UHDFilms {
+			saved.PreviousFilmProfile = &seerrProfile{ID: jsonInt(filmService["activeProfileId"])}
+			saved.PreviousFilmProfile.Name, _ = filmService["activeProfileName"].(string)
+		} else {
+			var profiles []seerrProfile
+			if err = radarr.do(ctx, http.MethodGet, "/qualityprofile", nil, &profiles); err != nil {
+				return err
+			}
+			if !slices.ContainsFunc(profiles, func(p seerrProfile) bool {
+				return p.ID > 0 && (p.Name == filmProfileName(false) || saved.PreviousFilmProfile != nil && p.ID == saved.PreviousFilmProfile.ID)
+			}) {
+				return errors.New("Radarr has neither the previous film profile nor HD Bluray + WEB")
+			}
+		}
+	}
 	rollbackFilm, err := applyFilmConfig(ctx, settings.UHDFilms, cfg)
 	if err != nil {
 		return err
@@ -480,23 +513,17 @@ func ApplyMediaSettings(ctx context.Context, settings MediaSettings, cfg MediaSe
 	warn := func(err error) {
 		cfg.Logf("Could not add the Dutch rule in Seerr: %v. Add it in Seerr under Settings, Override Rules.", err)
 	}
-	if cfg.SeerrAPIKey == "" {
-		if cfg.SeerrConfigPath == "" {
-			cfg.SeerrConfigPath = "/opt/arr/config/seerr/settings.json"
+	if seerr == nil {
+		var seerrErr error
+		seerr, seerrErr = mediaSeerrClient(cfg)
+		if seerrErr != nil {
+			warn(seerrErr)
 		}
-		cfg.SeerrAPIKey, err = mediaSeerrAPIKey(cfg.SeerrConfigPath)
 	}
-	var seerr *apiClient
-	if err != nil {
-		if filmSwitch {
-			return fmt.Errorf("switch film profile in Seerr: %w", err)
-		}
-		warn(err)
-	} else {
-		seerr = &apiClient{name: "seerr", baseURL: strings.TrimRight(cfg.Endpoints.Seerr, "/") + "/api/v1", http: cfg.HTTPClient, headers: map[string]string{"X-API-Key": cfg.SeerrAPIKey}}
+	if seerr != nil {
 		if filmSwitch {
 			var rollbackSeerr func() error
-			rollbackSeerr, err = switchSeerrFilms(ctx, seerr, radarr, settings.UHDFilms)
+			rollbackSeerr, err = switchSeerrFilms(ctx, seerr, radarr, filmService, settings.UHDFilms, saved.PreviousFilmProfile)
 			if err != nil {
 				return fmt.Errorf("switch film profile in Seerr: %w", err)
 			}
@@ -505,12 +532,8 @@ func ApplyMediaSettings(ctx context.Context, settings MediaSettings, cfg MediaSe
 					err = errors.Join(err, rollbackSeerr())
 				}
 			}()
-			var rules []map[string]any
-			if err = seerr.do(ctx, http.MethodGet, "/overrideRule", nil, &rules); err != nil {
-				return err
-			}
 			var previousRule map[string]any
-			for _, rule := range rules {
+			for _, rule := range previousRules {
 				if saved.SeerrRuleIDs["radarr"] > 0 && jsonInt(rule["id"]) == saved.SeerrRuleIDs["radarr"] {
 					previousRule = rule
 				}
@@ -541,6 +564,9 @@ func ApplyMediaSettings(ctx context.Context, settings MediaSettings, cfg MediaSe
 			}
 		}
 	}
+	if filmSwitch && !settings.UHDFilms {
+		saved.PreviousFilmProfile = nil
+	}
 	previousSizes := saved.Settings.Sizes
 	saved.Version, saved.Settings = 1, settings
 	data, err := json.MarshalIndent(saved, "", "  ")
@@ -552,7 +578,7 @@ func ApplyMediaSettings(ctx context.Context, settings MediaSettings, cfg MediaSe
 	if err != nil && !errors.Is(err, os.ErrNotExist) {
 		return err
 	}
-	rollback, err := applyMediaSizes(ctx, settings.Sizes, previousSizes, cfg)
+	rollback, err := applyMediaSizes(ctx, settings.Sizes, previousSizes, cfg, filmSwitch && !settings.UHDFilms)
 	if err != nil {
 		return err
 	}
@@ -564,7 +590,7 @@ func ApplyMediaSettings(ctx context.Context, settings MediaSettings, cfg MediaSe
 	}
 	if !settings.UHDFilms && filmSwitch && seerr != nil {
 		if cleanupErr := cleanFilmProfiles(ctx, radarr, seerr, cfg.Logf); cleanupErr != nil {
-			cfg.Logf("Keeping the 4K film profiles: could not check or remove unused profiles: %v", cleanupErr)
+			cfg.Logf("Could not finish checking unused 4K film profiles: %v", cleanupErr)
 		}
 	}
 	return nil

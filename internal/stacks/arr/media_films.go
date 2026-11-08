@@ -3,13 +3,16 @@ package arr
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
+	"maps"
 	"net/http"
 	"os"
 	"slices"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"go.yaml.in/yaml/v3"
@@ -175,12 +178,17 @@ func applyFilmConfig(ctx context.Context, enabled bool, cfg MediaSettingsConfig)
 			err = errors.Join(err, rollback())
 		}
 	}()
+	// Disabling needs no new profile before the language steps. The size
+	// step runs one sync for both the removed profile config and size changes.
+	if !enabled {
+		return rollback, nil
+	}
 	app := newServarr("radarr", cfg.Endpoints.Radarr, "v3", cfg.RadarrAPIKey, cfg.HTTPClient)
 	var profiles []seerrProfile
 	if err = app.do(ctx, http.MethodGet, "/qualityprofile", nil, &profiles); err != nil {
 		return rollback, err
 	}
-	missing := enabled && !slices.ContainsFunc(profiles, func(p seerrProfile) bool { return p.Name == films4KProfile })
+	missing := !slices.ContainsFunc(profiles, func(p seerrProfile) bool { return p.Name == films4KProfile })
 	if changed || missing {
 		if cfg.SyncRecyclarr == nil {
 			return rollback, errors.New("films in 4K: Recyclarr sync is not configured")
@@ -190,50 +198,72 @@ func applyFilmConfig(ctx context.Context, enabled bool, cfg MediaSettingsConfig)
 			return rollback, fmt.Errorf("film profile sync: %w", err)
 		}
 	}
-	if enabled {
-		if err = app.do(ctx, http.MethodGet, "/qualityprofile", nil, &profiles); err != nil {
-			return rollback, err
-		}
-		if !slices.ContainsFunc(profiles, func(p seerrProfile) bool { return p.Name == films4KProfile && p.ID > 0 }) {
-			return rollback, errors.New("Recyclarr did not create the 4K film profile")
-		}
+	if err = app.do(ctx, http.MethodGet, "/qualityprofile", nil, &profiles); err != nil {
+		return rollback, err
+	}
+	if !slices.ContainsFunc(profiles, func(p seerrProfile) bool { return p.Name == films4KProfile && p.ID > 0 }) {
+		return rollback, errors.New("Recyclarr did not create the 4K film profile")
 	}
 	return rollback, nil
+}
+
+// mediaSeerrClient reads credentials without changing any app.
+func mediaSeerrClient(cfg MediaSettingsConfig) (*apiClient, error) {
+	key := cfg.SeerrAPIKey
+	if key == "" {
+		path := cfg.SeerrConfigPath
+		if path == "" {
+			path = "/opt/arr/config/seerr/settings.json"
+		}
+		var err error
+		key, err = mediaSeerrAPIKey(path)
+		if err != nil {
+			return nil, err
+		}
+	}
+	return &apiClient{name: "seerr", baseURL: strings.TrimRight(cfg.Endpoints.Seerr, "/") + "/api/v1", http: cfg.HTTPClient, headers: map[string]string{"X-API-Key": key}}, nil
+}
+
+func seerrFilmService(ctx context.Context, api *apiClient) (map[string]any, error) {
+	var services []map[string]any
+	if err := api.do(ctx, http.MethodGet, "/settings/radarr", nil, &services); err != nil {
+		return nil, err
+	}
+	index := slices.IndexFunc(services, func(s map[string]any) bool { return s["hostname"] == seerrRadarrHost && s["is4k"] != true })
+	if index < 0 {
+		return nil, errors.New("Seerr has no normal Radarr service; finish its setup first")
+	}
+	return services[index], nil
 }
 
 // Seerr v3.5.1 routes/settings/radarr.ts, checked 2026-11-08 from the local
 // source snapshot: PUT replaces the service. Preserve every other field.
 // Keep is4k false: one normal request can use either 1080p or 2160p in Radarr.
-func switchSeerrFilms(ctx context.Context, api *apiClient, app *servarr, enabled bool) (func() error, error) {
+func switchSeerrFilms(ctx context.Context, api *apiClient, app *servarr, service map[string]any, enabled bool, previous *seerrProfile) (func() error, error) {
 	noop := func() error { return nil }
 	var profiles []seerrProfile
 	if err := app.do(ctx, http.MethodGet, "/qualityprofile", nil, &profiles); err != nil {
 		return noop, err
 	}
-	index := slices.IndexFunc(profiles, func(p seerrProfile) bool { return p.Name == filmProfileName(enabled) && p.ID > 0 })
+	index := -1
+	if !enabled && previous != nil {
+		index = slices.IndexFunc(profiles, func(p seerrProfile) bool { return p.ID == previous.ID && p.ID > 0 })
+	}
+	if index < 0 {
+		index = slices.IndexFunc(profiles, func(p seerrProfile) bool { return p.Name == filmProfileName(enabled) && p.ID > 0 })
+	}
 	if index < 0 {
 		return noop, fmt.Errorf("Radarr has no %s profile", filmProfileName(enabled))
 	}
-	var services []map[string]any
-	if err := api.do(ctx, http.MethodGet, "/settings/radarr", nil, &services); err != nil {
-		return noop, err
-	}
-	indexService := slices.IndexFunc(services, func(s map[string]any) bool { return s["hostname"] == seerrRadarrHost && s["is4k"] != true })
-	if indexService < 0 {
-		return noop, errors.New("Seerr has no normal Radarr service; finish its setup first")
-	}
-	service := services[indexService]
-	before := make(map[string]any, len(service))
-	for k, v := range service {
-		before[k] = v
-	}
+	before := maps.Clone(service)
+	desired := maps.Clone(service)
 	profile := profiles[index]
-	service["activeProfileId"], service["activeProfileName"] = profile.ID, profile.Name
-	if sameJSON(before, service) {
+	desired["activeProfileId"], desired["activeProfileName"] = profile.ID, profile.Name
+	if sameJSON(before, desired) {
 		return noop, nil
 	}
 	path := "/settings/radarr/" + strconv.Itoa(jsonInt(service["id"]))
-	if err := api.do(ctx, http.MethodPut, path, service, nil); err != nil {
+	if err := api.do(ctx, http.MethodPut, path, desired, nil); err != nil {
 		return noop, err
 	}
 	return func() error {
@@ -243,8 +273,74 @@ func switchSeerrFilms(ctx context.Context, api *apiClient, app *servarr, enabled
 	}, nil
 }
 
-// Radarr v6.4.4.10685 QualityProfileController, checked 2026-11-08, exposes
-// DELETE /qualityprofile/{id}. Never change a film to make deletion possible.
+// Seerr v3.5.1 MediaRequest.ts:266-346 stores profileId, type and serverId.
+// sub.ts:263-266 uses that profile on approval. Checked 2026-11-08 offline.
+// GET /api/v1/request takes take, skip and filter, and answers with
+// pageInfo.results as the total (Seerr v3.5.1 server/routes/request.ts:38-60
+// and 276-284, checked 2026-11-08). Keep any movie request with a stored
+// profile reference, including pending and approved requests, so no status
+// enum values are needed.
+// Missing pagination or a failed read prevents profile deletion.
+func seerrFilmRequestProfiles(ctx context.Context, api *apiClient, services []map[string]any) (map[int]bool, error) {
+	used := map[int]bool{}
+	for skip := 0; ; {
+		var page struct {
+			PageInfo struct {
+				Total *int `json:"results"`
+			} `json:"pageInfo"`
+			Results []struct {
+				Type      string          `json:"type"`
+				ProfileID json.RawMessage `json:"profileId"`
+				ServerID  *int            `json:"serverId"`
+			} `json:"results"`
+		}
+		path := fmt.Sprintf("/request?filter=all&take=100&skip=%d", skip)
+		if err := api.do(ctx, http.MethodGet, path, nil, &page); err != nil {
+			return nil, err
+		}
+		if page.PageInfo.Total == nil || *page.PageInfo.Total < 0 || page.Results == nil {
+			return nil, errors.New("Seerr request list has no valid pagination or results")
+		}
+		for _, request := range page.Results {
+			if request.Type != "movie" {
+				continue
+			}
+			if len(request.ProfileID) == 0 {
+				return nil, errors.New("Seerr movie request does not expose profileId")
+			}
+			var profileID *int
+			if err := json.Unmarshal(request.ProfileID, &profileID); err != nil {
+				return nil, fmt.Errorf("read Seerr request profileId: %w", err)
+			}
+			if profileID == nil || *profileID <= 0 {
+				continue
+			}
+			// An unset serverId is resolved to a default server on approval.
+			// Explicit IDs on another Radarr do not refer to these profiles.
+			if request.ServerID != nil && *request.ServerID >= 0 && !slices.ContainsFunc(services, func(s map[string]any) bool {
+				return s["hostname"] == seerrRadarrHost && jsonInt(s["id"]) == *request.ServerID
+			}) {
+				continue
+			}
+			used[*profileID] = true
+		}
+		skip += len(page.Results)
+		if skip >= *page.PageInfo.Total {
+			return used, nil
+		}
+		if len(page.Results) == 0 {
+			return nil, errors.New("Seerr request list ended before its total")
+		}
+	}
+}
+
+// Radarr v6.4.4.10685 QualityProfileService.Delete refuses references from
+// movies, import lists and collections. RefreshMovieService.cs:136-147 copies
+// a film's profile to a new collection. These service rules come from the
+// supplied review, checked 2026-11-08. The local QualityProfileController
+// delegates DELETE /qualityprofile/{id} to that service. Never change a
+// reference to make deletion possible. One failed deletion must not stop the
+// next profile's cleanup.
 func cleanFilmProfiles(ctx context.Context, app *servarr, seerr *apiClient, logf func(string, ...any)) error {
 	var profiles []seerrProfile
 	if err := app.do(ctx, http.MethodGet, "/qualityprofile", nil, &profiles); err != nil {
@@ -253,39 +349,65 @@ func cleanFilmProfiles(ctx context.Context, app *servarr, seerr *apiClient, logf
 	if !slices.ContainsFunc(profiles, func(p seerrProfile) bool { return p.Name == films4KProfile || p.Name == dutch4KProfile }) {
 		return nil
 	}
-	type movieProfile struct {
+	type profileReference struct {
 		QualityProfileID int `json:"qualityProfileId"`
 	}
-	var movies []movieProfile
-	if err := app.do(ctx, http.MethodGet, "/movie", nil, &movies); err != nil {
-		return err
-	}
+	checks := []struct {
+		path, reason string
+		references   []profileReference
+	}{{path: "/movie", reason: "a film still uses it"}, {path: "/importlist", reason: "an import list still uses it"}, {path: "/collection", reason: "a collection still uses it"}}
+	readErrors := make([]error, len(checks)+2)
 	var services, rules []map[string]any
-	if err := seerr.do(ctx, http.MethodGet, "/settings/radarr", nil, &services); err != nil {
-		return err
+	var reads sync.WaitGroup
+	for i := range checks {
+		reads.Go(func() {
+			if err := app.do(ctx, http.MethodGet, checks[i].path, nil, &checks[i].references); err != nil {
+				readErrors[i] = fmt.Errorf("read Radarr %s: %w", checks[i].path, err)
+			}
+		})
 	}
-	if err := seerr.do(ctx, http.MethodGet, "/overrideRule", nil, &rules); err != nil {
-		return err
+	reads.Go(func() { readErrors[len(checks)] = seerr.do(ctx, http.MethodGet, "/settings/radarr", nil, &services) })
+	reads.Go(func() { readErrors[len(checks)+1] = seerr.do(ctx, http.MethodGet, "/overrideRule", nil, &rules) })
+	reads.Wait()
+	requests, err := seerrFilmRequestProfiles(ctx, seerr, services)
+	if err != nil {
+		readErrors = append(readErrors, fmt.Errorf("read Seerr requests: %w", err))
 	}
+	readErr := errors.Join(readErrors...)
+	failures := []error{readErr}
 	for _, profile := range profiles {
 		if profile.Name != films4KProfile && profile.Name != dutch4KProfile {
 			continue
 		}
-		if slices.ContainsFunc(movies, func(m movieProfile) bool { return m.QualityProfileID == profile.ID }) {
-			logf("Keeping %s because a film still uses it", profile.Name)
+		reason := ""
+		for _, check := range checks {
+			if slices.ContainsFunc(check.references, func(r profileReference) bool { return r.QualityProfileID == profile.ID }) {
+				reason = check.reason
+				break
+			}
+		}
+		if reason == "" && (slices.ContainsFunc(services, func(s map[string]any) bool { return jsonInt(s["activeProfileId"]) == profile.ID }) || slices.ContainsFunc(rules, func(r map[string]any) bool {
+			return r["radarrServiceId"] != nil && jsonInt(r["profileId"]) == profile.ID
+		})) {
+			reason = "Seerr still uses it"
+		}
+		if reason == "" && requests[profile.ID] {
+			reason = "a Seerr movie request still uses it"
+		}
+		if reason != "" {
+			logf("Keeping %s because %s", profile.Name, reason)
 			continue
 		}
-		used := slices.ContainsFunc(services, func(s map[string]any) bool { return jsonInt(s["activeProfileId"]) == profile.ID }) || slices.ContainsFunc(rules, func(r map[string]any) bool {
-			return r["radarrServiceId"] != nil && jsonInt(r["profileId"]) == profile.ID
-		})
-		if used {
-			logf("Keeping %s because Seerr still uses it", profile.Name)
+		if readErr != nil {
+			logf("Keeping %s because references could not be checked: %v", profile.Name, readErr)
 			continue
 		}
 		if err := app.do(ctx, http.MethodDelete, "/qualityprofile/"+strconv.Itoa(profile.ID), nil, nil); err != nil {
-			return err
+			logf("Keeping %s because it could not be deleted: %v", profile.Name, err)
+			failures = append(failures, fmt.Errorf("delete %s: %w", profile.Name, err))
+			continue
 		}
 		logf("Removed unused %s profile", profile.Name)
 	}
-	return nil
+	return errors.Join(failures...)
 }

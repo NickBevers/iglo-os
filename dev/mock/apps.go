@@ -265,7 +265,7 @@ func (f *fakeInstalls) playMediaSettings(data []byte, cleanup, logPath, exitPath
 	if settings.UHDFilms {
 		write("==> Applying the 4K when available film profile through Recyclarr, including Dutch films")
 	} else {
-		write("==> Using HD Bluray + WEB for new films and keeping any 4K profile still used by films")
+		write("==> Restoring the previous film profile for new films and keeping any 4K profile still in use")
 	}
 	write("==> Setting up the dutch tag and the Dutch profile in Sonarr and Radarr")
 	if _, err := os.Stat(statePath("fail-media-settings")); err == nil {

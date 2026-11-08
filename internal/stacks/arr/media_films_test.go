@@ -181,6 +181,9 @@ func TestFilmRecyclarrConfig(t *testing.T) {
 func filmFakeConfig(t *testing.T, f *mediaFake) (MediaSettingsConfig, *int) {
 	t.Helper()
 	f.resources["radarr/movie"] = []map[string]any{{"id": 1, "qualityProfileId": 3}}
+	f.resources["radarr/importlist"] = []map[string]any{}
+	f.resources["radarr/collection"] = []map[string]any{}
+	f.resources["seerr/request"] = []map[string]any{}
 	f.resources["seerr/settings/radarr"][0] = map[string]any{"id": 0, "hostname": "radarr", "is4k": false, "isDefault": true, "activeProfileId": 3, "activeProfileName": "HD Bluray + WEB", "apiKey": "private", "activeDirectory": "/data/media/movies"}
 	// Match the owner's live HD codec score. The UHD sync below adds the
 	// guide's no HDR/DV penalty before Iglo-OS copies the Dutch 4K profile.
