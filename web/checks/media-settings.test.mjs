@@ -400,7 +400,7 @@ test('4K switch defaults off, enables Save and preserves the stored 4K size', ()
     try {
         const html = render()
         assert.match(html, /Films in 4K when available/)
-        assert.match(html, /4K first, otherwise 1080p, with upgrades to 4K later/)
+        assert.match(html, /4K first, within the 4K size limit\. A larger 4K release is skipped and 1080p is used/)
         assert.match(
             html,
             /Dolby Vision releases without an HDR fallback are skipped because the Pi 4 cannot play them/,
