@@ -25,6 +25,32 @@ func TestMediaSettings(t *testing.T) {
 	}
 }
 
+func TestMediaSizeValidationAtManager(t *testing.T) {
+	for _, series := range []bool{false, true} {
+		for _, limit := range []int{-1, 0, 9, 10, 400, 401} {
+			fake := &fakeAgent{}
+			fake.status.State = agent.UpgradeRunning
+			service := New(Options{Agent: fake, Proxmox: &fakeProxmox{resources: mediaResources("iglo;media")}})
+			settings := arr.DefaultMediaSettings()
+			if series {
+				settings.Sizes.Series = limit
+			} else {
+				settings.Sizes.Films = limit
+			}
+			want := agent.ErrInvalidAnswers
+			if limit == 0 || limit >= 10 && limit <= 400 {
+				want = ErrBusy
+			}
+			if err := service.ChangeMediaSettings(t.Context(), t.Context(), "media", settings); !errors.Is(err, want) {
+				t.Fatalf("series %v, limit %d: %v, want %v", series, limit, err, want)
+			}
+			if len(fake.mediaSettingsChanges) != 0 {
+				t.Fatal("validation or busy check reached the agent")
+			}
+		}
+	}
+}
+
 func TestMediaSettingsRejectsUnavailableApps(t *testing.T) {
 	for _, test := range []struct {
 		name      string

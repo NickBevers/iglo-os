@@ -90,6 +90,14 @@ const Button = ({ variant, size, ...props }) => {
 let hookState = null
 let hookIndex = 0
 let renderedButtons = []
+let renderedSelects = []
+const formReact = {
+    ...React,
+    createElement(tag, props, ...children) {
+        if (tag === 'select') renderedSelects.push(props)
+        return React.createElement(tag, props, ...children)
+    },
+}
 function formUseState(initial) {
     if (hookState === null) return React.useState(initial)
     const index = hookIndex++
@@ -120,7 +128,7 @@ new Function(
     compiled,
 )(
     components.exports,
-    React,
+    formReact,
     React.useId,
     formUseState,
     () => ({ error: queryError }),
@@ -135,12 +143,13 @@ new Function(
     {},
     'div',
 )
-const formMarkup = (selected) =>
+const formMarkup = (selected, sizes = { series: 0, films: 0 }) =>
     renderToStaticMarkup(
         React.createElement(components.exports.MediaSettingsForm, {
             app: { id: 'media' },
             onDone() {},
             current: {
+                sizes,
                 anime: { subtitles: selected, audio: 'original' },
                 dutch: { subtitles: [], audio: 'dutch' },
                 series: { subtitles: selected, audio: 'original' },
@@ -289,6 +298,31 @@ test('only Anime and Dutch offer None and Series and Films keep the last button 
         for (const button of none) button.onClick()
         const next = render().match(/<fieldset[\s\S]*?<\/fieldset>/g)
         for (const field of next.slice(0, 2)) assert.match(field, /aria-pressed="true"[^>]*>None<\/button>/)
+    } finally {
+        hookState = null
+    }
+})
+
+test('saved custom download sizes stay available after choosing another size', () => {
+    hookState = []
+    const render = () => {
+        hookIndex = 0
+        renderedSelects = []
+        return formMarkup(['en'], { series: 42, films: 67 })
+    }
+    try {
+        render()
+        renderedSelects[0].onChange({ target: { value: '41' } })
+        renderedSelects[1].onChange({ target: { value: '33' } })
+        const html = render()
+        assert.match(html, /value="42">Custom \(42 MB per minute\)/)
+        assert.match(html, /value="67">Custom \(67 MB per minute\)/)
+        renderedSelects[0].onChange({ target: { value: '42' } })
+        render()
+        renderedSelects[1].onChange({ target: { value: '67' } })
+        const restored = render()
+        assert.match(restored, /value="42" selected="">Custom \(42 MB per minute\)/)
+        assert.match(restored, /value="67" selected="">Custom \(67 MB per minute\)/)
     } finally {
         hookState = null
     }

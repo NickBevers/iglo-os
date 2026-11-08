@@ -19,12 +19,34 @@ import (
 	"time"
 )
 
-// MediaSettings are the languages per kind of content.
+// MediaSettings are the languages per kind and the shared download size limits.
 type MediaSettings struct {
 	Anime  KindSettings `json:"anime"`
 	Dutch  KindSettings `json:"dutch"`
 	Series KindSettings `json:"series"`
 	Films  KindSettings `json:"films"`
+	Sizes  SizeLimits   `json:"sizes"`
+}
+
+// SizeLimits stores integer MB per minute. Zero keeps the guide's sizes.
+// JSON uses sizes.series and sizes.films because Sonarr shares its quality
+// definitions across series, Dutch series and anime. Radarr has its own set.
+// A file from before sizes was added reads as two zero values.
+type SizeLimits struct {
+	Series int `json:"series"`
+	Films  int `json:"films"`
+}
+
+func (s SizeLimits) Validate() error {
+	for _, limit := range []struct {
+		name  string
+		value int
+	}{{"Series", s.Series}, {"Films", s.Films}} {
+		if limit.value != 0 && (limit.value < 10 || limit.value > 400) {
+			return fmt.Errorf("%s: maximum download size must be 0 or between 10 and 400 MB per minute", limit.name)
+		}
+	}
+	return nil
 }
 
 // KindSettings are the languages of one kind.
@@ -65,6 +87,9 @@ func (s MediaSettings) kinds() []struct {
 }
 
 func (s MediaSettings) Validate() error {
+	if err := s.Sizes.Validate(); err != nil {
+		return err
+	}
 	for _, kind := range s.kinds() {
 		if (kind.name == "Series" || kind.name == "Films") && len(kind.settings.Subtitles) == 0 {
 			return fmt.Errorf("%s needs at least one subtitle language", kind.name)
@@ -355,12 +380,14 @@ type MediaSettingsConfig struct {
 	SeerrConfigPath  string
 	EnvPath          string
 	SettingsPath     string
+	RecyclarrPath    string
+	SyncRecyclarr    func(context.Context) error
 	HTTPClient       *http.Client
 	Logf             func(string, ...any)
 }
 
-// ApplyMediaSettings reconciles only the language settings owned by Iglo-OS.
-// It saves choices after Bazarr succeeds. Seerr rule failures only warn.
+// ApplyMediaSettings reconciles the media settings owned by Iglo-OS.
+// It applies sizes last, then saves choices. Seerr failures only warn.
 func ApplyMediaSettings(ctx context.Context, settings MediaSettings, cfg MediaSettingsConfig) error {
 	settings = settings.normalized()
 	if err := settings.Validate(); err != nil {
@@ -402,6 +429,9 @@ func ApplyMediaSettings(ctx context.Context, settings MediaSettings, cfg MediaSe
 			return err
 		}
 		cfg.BazarrAPIKey = key
+	}
+	if cfg.RecyclarrPath == "" {
+		cfg.RecyclarrPath = filepath.Join(filepath.Dir(cfg.SettingsPath), "config", "recyclarr", "recyclarr.yml")
 	}
 
 	sonarr := newServarr("sonarr", cfg.Endpoints.Sonarr, "v3", cfg.SonarrAPIKey, cfg.HTTPClient)
@@ -455,8 +485,8 @@ func ApplyMediaSettings(ctx context.Context, settings MediaSettings, cfg MediaSe
 			}
 		}
 	}
+	previousSizes := saved.Settings.Sizes
 	saved.Version, saved.Settings = 1, settings
-	cfg.Logf("Saving the media settings")
 	data, err := json.MarshalIndent(saved, "", "  ")
 	if err != nil {
 		return err
@@ -466,9 +496,14 @@ func ApplyMediaSettings(ctx context.Context, settings MediaSettings, cfg MediaSe
 	if err != nil && !errors.Is(err, os.ErrNotExist) {
 		return err
 	}
+	rollback, err := applyMediaSizes(ctx, settings.Sizes, previousSizes, cfg)
+	if err != nil {
+		return err
+	}
+	cfg.Logf("Saving the media settings")
 	if !bytes.Equal(existing, data) {
 		if err := writeFileAtomic(cfg.SettingsPath, data, 0o644); err != nil {
-			return fmt.Errorf("save media settings: %w", err)
+			return errors.Join(fmt.Errorf("save media settings: %w", err), rollback())
 		}
 	}
 	return nil

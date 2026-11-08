@@ -7,6 +7,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"iglo/internal/stacks/arr"
@@ -36,6 +37,7 @@ func TestMediaGetStdoutIsJSON(t *testing.T) {
 	path, _, _ := arr.MediaSettingsPaths(envPath)
 	want := arr.DefaultMediaSettings()
 	want.Series.Subtitles = []string{"nl", "en"}
+	want.Sizes = arr.SizeLimits{Series: 41, Films: 66}
 	data, _ := json.Marshal(map[string]any{"version": 1, "settings": want})
 	if err := os.WriteFile(path, data, 0600); err != nil {
 		t.Fatal(err)
@@ -45,8 +47,56 @@ func TestMediaGetStdoutIsJSON(t *testing.T) {
 		t.Fatal(err)
 	}
 	got, err := arr.DecodeMediaSettings(bytes.NewReader(output))
-	if err != nil || len(got.Series.Subtitles) != 2 || got.Series.Subtitles[0] != "nl" {
+	if err != nil || len(got.Series.Subtitles) != 2 || got.Series.Subtitles[0] != "nl" || got.Sizes != want.Sizes {
 		t.Fatalf("stdout: %s, error: %v", output, err)
+	}
+}
+
+func TestMediaSetRejectsInvalidSizesBeforeReadingKeys(t *testing.T) {
+	for _, series := range []bool{false, true} {
+		for _, limit := range []int{-1, 9, 401} {
+			settings := arr.DefaultMediaSettings()
+			if series {
+				settings.Sizes.Series = limit
+			} else {
+				settings.Sizes.Films = limit
+			}
+			data, _ := json.Marshal(settings)
+			path := filepath.Join(t.TempDir(), "input.json")
+			if err := os.WriteFile(path, data, 0o600); err != nil {
+				t.Fatal(err)
+			}
+			file, err := os.Open(path)
+			if err != nil {
+				t.Fatal(err)
+			}
+			before := os.Stdin
+			os.Stdin = file
+			err = mediaSettings([]string{"set", "--env", filepath.Join(t.TempDir(), "missing.vars")})
+			os.Stdin = before
+			file.Close()
+			if err == nil || !strings.Contains(err.Error(), "maximum download size must be 0 or between 10 and 400") {
+				t.Fatalf("series %v, limit %d: %v", series, limit, err)
+			}
+		}
+	}
+}
+
+func TestMediaRenderWithoutRunningApps(t *testing.T) {
+	root := t.TempDir()
+	template := []byte("sonarr:\n  series:\n    quality_definition:\n      type: series\n")
+	if err := os.MkdirAll(filepath.Join(root, "config", "recyclarr"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(root, "recyclarr.template.yml"), template, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := mediaSettings([]string{"render", "--env", filepath.Join(root, "stack.vars")}); err != nil {
+		t.Fatal(err)
+	}
+	got, err := os.ReadFile(filepath.Join(root, "config", "recyclarr", "recyclarr.yml"))
+	if err != nil || !bytes.Equal(got, template) {
+		t.Fatalf("rendered %s, %v", got, err)
 	}
 }
 
@@ -54,5 +104,25 @@ func TestMediaGetUnreadable(t *testing.T) {
 	output, err := captureMediaGet(t, filepath.Join(t.TempDir(), "stack.vars"))
 	if !errors.Is(err, arr.ErrMediaSettingsUnreadable) || err.Error() != "Iglo-OS can't read Bazarr's settings: its settings file is missing or can't be opened. Update the media stack on the Apps page." || len(output) != 0 {
 		t.Fatalf("stdout: %s, error: %v", output, err)
+	}
+}
+
+func TestRecyclarrSyncOutput(t *testing.T) {
+	for _, test := range []struct {
+		output string
+		ok     bool
+	}{
+		{"[INF] Total of 14 sizes were synced for quality definition series", true},
+		{"[INF] All sizes for quality definition movie are already up to date!", true},
+		{"", false},
+		{"[INF] Found 0 instances to sync", false},
+		{"[ERR] Config parsing failed", false},
+		{"Configuration loading failed", false},
+		{"Failed to process configuration\nAll sizes for quality definition movie are already up to date!", false},
+		{"Config parsing failed\nAll sizes for quality definition series are already up to date!", false},
+	} {
+		if err := validateRecyclarrSyncOutput(test.output); (err == nil) != test.ok {
+			t.Errorf("output %q: %v", test.output, err)
+		}
 	}
 }

@@ -269,6 +269,7 @@ func (f *fakeInstalls) playMediaSettings(data []byte, cleanup, logPath, exitPath
 	}
 	write("==> Setting up the subtitle profiles in Bazarr")
 	write("==> Setting up the Dutch rule in Seerr")
+	write("==> Applying maximum download sizes through Recyclarr")
 	if err := saveMediaSettings(settings); err != nil {
 		fail(err)
 		return

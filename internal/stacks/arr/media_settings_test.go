@@ -117,6 +117,7 @@ func newMediaFake() *mediaFake {
 			name = "HD Bluray + WEB"
 		}
 		f.resources[app+"/tag"] = []map[string]any{}
+		f.resources[app+"/qualitydefinition"] = mediaPinnedDefinitions(app)
 		f.resources[app+"/customformat"] = []map[string]any{{"id": 10, "name": notOriginalFormat}, {"id": 11, "name": "Good release"}}
 		f.resources[app+"/qualityprofile"] = []map[string]any{{"id": 3, "name": name, "cutoff": 42, "items": []any{map[string]any{"id": 42, "name": "WEB 1080p", "allowed": true}}, "upgradeAllowed": true, "minFormatScore": 0, "cutoffFormatScore": 10000, "minUpgradeFormatScore": 1, "formatItems": []any{map[string]any{"format": 10, "name": notOriginalFormat, "score": -10000}, map[string]any{"format": 11, "name": "Good release", "score": 500}}, "language": map[string]any{"id": -2, "name": "Original"}}}
 		if app == "radarr" {
@@ -293,9 +294,7 @@ func (f *mediaFake) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 func mediaFakeConfig(t *testing.T, f *mediaFake) MediaSettingsConfig {
 	t.Helper()
-	server := httptest.NewServer(f)
-	t.Cleanup(server.Close)
-	return MediaSettingsConfig{Endpoints: Endpoints{Sonarr: server.URL + "/sonarr", Radarr: server.URL + "/radarr", Bazarr: server.URL + "/bazarr", Seerr: server.URL + "/seerr"}, SonarrAPIKey: "sonarr-key", RadarrAPIKey: "radarr-key", BazarrAPIKey: "bazarr-key", SeerrAPIKey: "seerr-key", SettingsPath: filepath.Join(t.TempDir(), "iglo-media.json"), HTTPClient: server.Client()}
+	return mediaHandlerConfig(t, f)
 }
 
 // mediaHandlerConfig exercises requests without opening a local listener.
@@ -307,7 +306,7 @@ func mediaHandlerConfig(t *testing.T, handler http.Handler) MediaSettingsConfig 
 		return response.Result(), nil
 	})}
 	const base = "http://media.test"
-	return MediaSettingsConfig{Endpoints: Endpoints{Sonarr: base + "/sonarr", Radarr: base + "/radarr", Bazarr: base + "/bazarr", Seerr: base + "/seerr"}, SonarrAPIKey: "sonarr-key", RadarrAPIKey: "radarr-key", BazarrAPIKey: "bazarr-key", SeerrAPIKey: "seerr-key", SettingsPath: filepath.Join(t.TempDir(), "iglo-media.json"), HTTPClient: client}
+	return MediaSettingsConfig{Endpoints: Endpoints{Sonarr: base + "/sonarr", Radarr: base + "/radarr", Bazarr: base + "/bazarr", Seerr: base + "/seerr"}, SonarrAPIKey: "sonarr-key", RadarrAPIKey: "radarr-key", BazarrAPIKey: "bazarr-key", SeerrAPIKey: "seerr-key", SettingsPath: filepath.Join(t.TempDir(), "iglo-media.json"), RecyclarrPath: mediaSizesTestConfig(t), SyncRecyclarr: func(context.Context) error { return nil }, HTTPClient: client}
 }
 
 func TestApplyMediaSettings(t *testing.T) {
