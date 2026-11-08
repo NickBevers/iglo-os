@@ -571,7 +571,7 @@ export type MediaSettings = {
     dutch: KindSettings
     series: KindSettings
     films: KindSettings
-    sizes: { series: number; films: number }
+    sizes: { series: number; films: number; films4k: number }
 }
 
 const subtitleLanguages = [

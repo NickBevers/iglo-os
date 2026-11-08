@@ -113,11 +113,15 @@ The settings are saved in `/opt/arr/iglo-media.json`. A media stack from before 
 
 ## Maximum download size
 
-Open **Languages** on the media stack card for **Maximum download size**. Series, Dutch series and anime share one limit because Sonarr's quality definitions apply to all series. Films have a separate Radarr limit. The choices show sizes per 24-minute episode or 2-hour film. They use decimal GB (1000 MB), rounded down to whole MB per minute of runtime. A saved value outside the choices appears as **Custom** and stays when you save other settings.
+Open **Languages** on the media stack card for **Maximum download size**. Series, Dutch series and anime share one limit because Sonarr's quality definitions apply to all series. Films have separate Radarr limits for **Films in HD (1080p and lower)** and **Films in 4K**. The choices show sizes per 24-minute episode or 2-hour film. They use decimal GB (1000 MB), rounded down to whole MB per minute of runtime. The 4K choices are 40 GB (333 MB/min), 25 GB (208 MB/min), 20 GB (166 MB/min) and 15 GB (125 MB/min). A saved value outside the choices appears as **Custom** and stays available until you close the dialog.
+
+4K films are only downloaded when the media settings allow 4K. A size limit does not enable 4K downloads.
 
 Releases above the limit are skipped. If only larger releases exist, nothing is downloaded until a smaller one appears. Files you already have are not touched. Smaller releases save space in both the seeding copy on the download disk and the library copy on the NAS.
 
-The settings file stores `sizes.series` and `sizes.films` as integer MB per minute. Zero means **No limit**, which keeps the guide's sizes. Old settings files have no limit. Limits must be zero or between 10 and 400. Iglo-OS writes maximum and preferred size overrides in `/opt/arr/config/recyclarr/recyclarr.yml` for qualities above the limit. Every override also gives an explicit minimum: the smaller of the guide minimum and half the limit. This keeps a later guide increase from making the minimum exceed the maximum. Integer limits have an exact half with at most one decimal place.
+The settings file stores `sizes.series`, `sizes.films` and `sizes.films4k` as integer MB per minute. Radarr qualities with `2160p` in their name use `films4k`. All other Radarr qualities use `films`. Sonarr keeps its shared series limit at every resolution. Zero means **No limit** for that kind, which keeps the guide's sizes. Old files without `films4k` read as zero, so their HD limit does not cap 4K after these settings are applied. Series and HD film limits must be zero or between 10 and 400. The 4K film limit must be zero or between 10 and 1000.
+
+Iglo-OS writes maximum and preferred size overrides in `/opt/arr/config/recyclarr/recyclarr.yml` for qualities above the relevant limit. Every override also gives an explicit minimum: the smaller of the guide minimum and half that limit. This keeps a later guide increase from making the minimum exceed the maximum. Integer limits have an exact half with at most one decimal place.
 
 Recyclarr carries the guide overrides on its daily sync. Iglo-OS prefers names and sizes from its local TRaSH guide clone under `/opt/arr/config/recyclarr`. The embedded snapshots are a fallback when the clone is absent. The guide updates independently of the pinned Recyclarr image. The loader finds the clone's `docs/Sonarr/quality-size` and `docs/Radarr/quality-size` folders without relying on its cache directory name.
 

@@ -29,21 +29,23 @@ type MediaSettings struct {
 }
 
 // SizeLimits stores integer MB per minute. Zero keeps the guide's sizes.
-// JSON uses sizes.series and sizes.films because Sonarr shares its quality
-// definitions across series, Dutch series and anime. Radarr has its own set.
-// A file from before sizes was added reads as two zero values.
+// Sonarr shares sizes.series across series, Dutch series and anime. Radarr
+// uses sizes.films for HD and lower, and sizes.films4k for 2160p qualities.
+// Missing fields in older files read as zero.
 type SizeLimits struct {
-	Series int `json:"series"`
-	Films  int `json:"films"`
+	Series  int `json:"series"`
+	Films   int `json:"films"`
+	Films4K int `json:"films4k"`
 }
 
 func (s SizeLimits) Validate() error {
 	for _, limit := range []struct {
 		name  string
 		value int
-	}{{"Series", s.Series}, {"Films", s.Films}} {
-		if limit.value != 0 && (limit.value < 10 || limit.value > 400) {
-			return fmt.Errorf("%s: maximum download size must be 0 or between 10 and 400 MB per minute", limit.name)
+		max   int
+	}{{"Series", s.Series, 400}, {"Films", s.Films, 400}, {"Films in 4K", s.Films4K, 1000}} {
+		if limit.value != 0 && (limit.value < 10 || limit.value > limit.max) {
+			return fmt.Errorf("%s: maximum download size must be 0 or between 10 and %d MB per minute", limit.name, limit.max)
 		}
 	}
 	return nil

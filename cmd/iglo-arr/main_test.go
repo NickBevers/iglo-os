@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
 	"os"
 	"path/filepath"
@@ -37,7 +38,7 @@ func TestMediaGetStdoutIsJSON(t *testing.T) {
 	path, _, _ := arr.MediaSettingsPaths(envPath)
 	want := arr.DefaultMediaSettings()
 	want.Series.Subtitles = []string{"nl", "en"}
-	want.Sizes = arr.SizeLimits{Series: 41, Films: 66}
+	want.Sizes = arr.SizeLimits{Series: 41, Films: 66, Films4K: 208}
 	data, _ := json.Marshal(map[string]any{"version": 1, "settings": want})
 	if err := os.WriteFile(path, data, 0600); err != nil {
 		t.Fatal(err)
@@ -53,13 +54,19 @@ func TestMediaGetStdoutIsJSON(t *testing.T) {
 }
 
 func TestMediaSetRejectsInvalidSizesBeforeReadingKeys(t *testing.T) {
-	for _, series := range []bool{false, true} {
-		for _, limit := range []int{-1, 9, 401} {
+	for _, kind := range []string{"series", "films", "films4k"} {
+		maximum := 400
+		if kind == "films4k" {
+			maximum = 1000
+		}
+		for _, limit := range []int{-1, 9, maximum + 1} {
 			settings := arr.DefaultMediaSettings()
-			if series {
+			if kind == "series" {
 				settings.Sizes.Series = limit
-			} else {
+			} else if kind == "films" {
 				settings.Sizes.Films = limit
+			} else {
+				settings.Sizes.Films4K = limit
 			}
 			data, _ := json.Marshal(settings)
 			path := filepath.Join(t.TempDir(), "input.json")
@@ -75,8 +82,8 @@ func TestMediaSetRejectsInvalidSizesBeforeReadingKeys(t *testing.T) {
 			err = mediaSettings([]string{"set", "--env", filepath.Join(t.TempDir(), "missing.vars")})
 			os.Stdin = before
 			file.Close()
-			if err == nil || !strings.Contains(err.Error(), "maximum download size must be 0 or between 10 and 400") {
-				t.Fatalf("series %v, limit %d: %v", series, limit, err)
+			if err == nil || !strings.Contains(err.Error(), fmt.Sprintf("maximum download size must be 0 or between 10 and %d", maximum)) {
+				t.Fatalf("%s, limit %d: %v", kind, limit, err)
 			}
 		}
 	}

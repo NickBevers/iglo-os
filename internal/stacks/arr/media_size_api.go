@@ -61,21 +61,20 @@ func managedQualityNames(config []byte, service, root string) (map[string]bool, 
 func prepareMediaSizeApps(ctx context.Context, cfg MediaSettingsConfig, config []byte, root string, sizes SizeLimits) ([]mediaSizeApp, error) {
 	services := []struct {
 		name, endpoint, key string
-		limit               int
-	}{{"sonarr", cfg.Endpoints.Sonarr, cfg.SonarrAPIKey, sizes.Series}, {"radarr", cfg.Endpoints.Radarr, cfg.RadarrAPIKey, sizes.Films}}
+	}{{"sonarr", cfg.Endpoints.Sonarr, cfg.SonarrAPIKey}, {"radarr", cfg.Endpoints.Radarr, cfg.RadarrAPIKey}}
 	apps := make([]mediaSizeApp, len(services))
 	failures := make([]error, len(services))
 	var wg sync.WaitGroup
 	for i, service := range services {
 		wg.Go(func() {
-			apps[i], failures[i] = prepareMediaSizeApp(ctx, cfg, config, root, service.name, service.endpoint, service.key, service.limit)
+			apps[i], failures[i] = prepareMediaSizeApp(ctx, cfg, config, root, service.name, service.endpoint, service.key, sizes)
 		})
 	}
 	wg.Wait()
 	return apps, errors.Join(failures...)
 }
 
-func prepareMediaSizeApp(ctx context.Context, cfg MediaSettingsConfig, config []byte, root, service, endpoint, key string, limit int) (mediaSizeApp, error) {
+func prepareMediaSizeApp(ctx context.Context, cfg MediaSettingsConfig, config []byte, root, service, endpoint, key string, sizes SizeLimits) (mediaSizeApp, error) {
 	managed, err := managedQualityNames(config, service, root)
 	if err != nil {
 		return mediaSizeApp{}, err
@@ -96,6 +95,7 @@ func prepareMediaSizeApp(ctx context.Context, cfg MediaSettingsConfig, config []
 		}
 		wanted := maps.Clone(current)
 		maximum, preferred, minimum := defaults.Max, defaults.Preferred, defaults.Min
+		limit := sizes.forQuality(service, name)
 		if limit > 0 {
 			maxSize := float64(limit)
 			if maximum != nil {

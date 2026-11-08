@@ -88,11 +88,16 @@ function MediaSettingsForm({ app, current, onDone }: { app: CatalogApp; current:
     const id = useId()
     const [settings, setSettings] = useState(current)
     const [openedWith] = useState(current)
-    const sizes = settings.sizes ?? { series: 0, films: 0 }
+    const sizes = {
+        series: settings.sizes?.series ?? 0,
+        films: settings.sizes?.films ?? 0,
+        films4k: settings.sizes?.films4k ?? 0,
+    }
     const changed =
         kinds.some(({ key }) => settings[key].subtitles.join(',') !== current[key].subtitles.join(',')) ||
         sizes.series !== (current.sizes?.series ?? 0) ||
-        sizes.films !== (current.sizes?.films ?? 0)
+        sizes.films !== (current.sizes?.films ?? 0) ||
+        sizes.films4k !== (current.sizes?.films4k ?? 0)
     const change = useMutation({
         mutationFn: () => api.changeMediaSettings(app.id, settings),
         onSuccess: () => {
@@ -201,7 +206,18 @@ function MediaSettingsForm({ app, current, onDone }: { app: CatalogApp; current:
                                 minutes: 24,
                                 gb: [3, 2, 1.5, 1],
                             },
-                            { key: 'films', label: 'Films, per 2-hour film', minutes: 120, gb: [12, 8, 6, 4] },
+                            {
+                                key: 'films',
+                                label: 'Films in HD (1080p and lower), per 2-hour film',
+                                minutes: 120,
+                                gb: [12, 8, 6, 4],
+                            },
+                            {
+                                key: 'films4k',
+                                label: 'Films in 4K, per 2-hour film',
+                                minutes: 120,
+                                gb: [40, 25, 20, 15],
+                            },
                         ] as const
                     ).map(({ key, label, minutes, gb }) => {
                         // Decimal GB, rounded down to integer MB per minute.
@@ -222,13 +238,17 @@ function MediaSettingsForm({ app, current, onDone }: { app: CatalogApp; current:
                                     id={`${id}-size-${key}`}
                                     value={sizes[key]}
                                     disabled={change.isPending}
-                                    aria-describedby={`${id}-sizes-help`}
+                                    aria-describedby={
+                                        key === 'films4k' ? `${id}-sizes-help ${id}-sizes-4k-help` : `${id}-sizes-help`
+                                    }
                                     className="h-9 w-full rounded-md border border-input bg-background px-3 text-sm"
                                     onChange={(event) =>
                                         setSettings((now) => ({
                                             ...now,
                                             sizes: {
-                                                ...(now.sizes ?? { series: 0, films: 0 }),
+                                                series: now.sizes?.series ?? 0,
+                                                films: now.sizes?.films ?? 0,
+                                                films4k: now.sizes?.films4k ?? 0,
                                                 [key]: Number(event.target.value),
                                             },
                                         }))
@@ -240,6 +260,11 @@ function MediaSettingsForm({ app, current, onDone }: { app: CatalogApp; current:
                                         </option>
                                     ))}
                                 </select>
+                                {key === 'films4k' && (
+                                    <p id={`${id}-sizes-4k-help`} className="text-xs text-muted-foreground">
+                                        4K films are only downloaded when the media settings allow 4K.
+                                    </p>
+                                )}
                             </div>
                         )
                     })}

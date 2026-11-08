@@ -52,18 +52,24 @@ func TestMediaSizeDefaultsAndOldFiles(t *testing.T) {
 }
 
 func TestMediaSizeBounds(t *testing.T) {
-	for _, kind := range []string{"series", "films"} {
-		for _, limit := range []int{-1, 0, 1, 9, 10, 41, 400, 401} {
+	for _, kind := range []string{"series", "films", "films4k"} {
+		for _, limit := range []int{-1, 0, 1, 9, 10, 41, 400, 401, 1000, 1001} {
 			t.Run(fmt.Sprintf("%s/%d", kind, limit), func(t *testing.T) {
 				settings := DefaultMediaSettings()
 				if kind == "series" {
 					settings.Sizes.Series = limit
-				} else {
+				} else if kind == "films" {
 					settings.Sizes.Films = limit
+				} else {
+					settings.Sizes.Films4K = limit
 				}
 				data, _ := json.Marshal(settings)
 				_, err := DecodeMediaSettings(bytes.NewReader(data))
-				valid := limit == 0 || limit >= 10 && limit <= 400
+				maximum := 400
+				if kind == "films4k" {
+					maximum = 1000
+				}
+				valid := limit == 0 || limit >= 10 && limit <= maximum
 				if (err == nil) != valid {
 					t.Fatalf("limit %d: %v", limit, err)
 				}
@@ -86,7 +92,7 @@ func TestQualitySizeOverrides(t *testing.T) {
 		// bounds, an unchanged minimum at half the limit and guide maxima.
 		for _, limit := range []int{0, 10, 20, 33, 41, 50, 62, 66, 83, 100, 125, 400, 1000, 2000} {
 			t.Run(fmt.Sprintf("%s/%s/%d", guideName.service, guideName.kind, limit), func(t *testing.T) {
-				text, err := qualitySizeOverrides(guideName.service, guideName.kind, limit)
+				text, err := qualitySizeOverrides(guideName.service, guideName.kind, SizeLimits{Series: limit, Films: limit, Films4K: limit})
 				if err != nil {
 					t.Fatal(err)
 				}
@@ -306,7 +312,7 @@ func TestMediaSizesUsesLocalGuide(t *testing.T) {
 	if err := os.WriteFile(filepath.Join(guideDir, "series.json"), data, 0o644); err != nil {
 		t.Fatal(err)
 	}
-	got, err := qualitySizeOverrides("sonarr", "series", 41, root)
+	got, err := qualitySizeOverrides("sonarr", "series", SizeLimits{Series: 41}, root)
 	if err != nil || !strings.Contains(got, "New local quality") || !strings.Contains(got, "min: 12.3") || strings.Contains(got, "HDTV-720p") {
 		t.Fatalf("local guide: %s, %v", got, err)
 	}
@@ -314,7 +320,7 @@ func TestMediaSizesUsesLocalGuide(t *testing.T) {
 	if !strings.Contains(got, "min: 12.3") {
 		t.Fatal("minimum was left to the moving guide")
 	}
-	fallback, err := qualitySizeOverrides("radarr", "movie", 33, root)
+	fallback, err := qualitySizeOverrides("radarr", "movie", SizeLimits{Films: 33}, root)
 	if err != nil || !strings.Contains(fallback, "HDTV-720p") {
 		t.Fatalf("fallback: %s, %v", fallback, err)
 	}

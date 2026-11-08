@@ -143,7 +143,7 @@ new Function(
     {},
     'div',
 )
-const formMarkup = (selected, sizes = { series: 0, films: 0 }) =>
+const formMarkup = (selected, sizes = { series: 0, films: 0, films4k: 0 }) =>
     renderToStaticMarkup(
         React.createElement(components.exports.MediaSettingsForm, {
             app: { id: 'media' },
@@ -308,21 +308,74 @@ test('saved custom download sizes stay available after choosing another size', (
     const render = () => {
         hookIndex = 0
         renderedSelects = []
-        return formMarkup(['en'], { series: 42, films: 67 })
+        return formMarkup(['en'], { series: 42, films: 67, films4k: 209 })
     }
     try {
         render()
         renderedSelects[0].onChange({ target: { value: '41' } })
         renderedSelects[1].onChange({ target: { value: '33' } })
+        renderedSelects[2].onChange({ target: { value: '208' } })
         const html = render()
         assert.match(html, /value="42">Custom \(42 MB per minute\)/)
         assert.match(html, /value="67">Custom \(67 MB per minute\)/)
+        assert.match(html, /value="209">Custom \(209 MB per minute\)/)
         renderedSelects[0].onChange({ target: { value: '42' } })
         render()
         renderedSelects[1].onChange({ target: { value: '67' } })
+        renderedSelects[2].onChange({ target: { value: '209' } })
         const restored = render()
         assert.match(restored, /value="42" selected="">Custom \(42 MB per minute\)/)
         assert.match(restored, /value="67" selected="">Custom \(67 MB per minute\)/)
+        assert.match(restored, /value="209" selected="">Custom \(209 MB per minute\)/)
+    } finally {
+        hookState = null
+    }
+})
+
+test('4K presets use per-film sizes, retain other limits and enable Save', () => {
+    hookState = []
+    const render = () => {
+        hookIndex = 0
+        renderedSelects = []
+        renderedButtons = []
+        return formMarkup(['en'])
+    }
+    try {
+        const html = render()
+        assert.equal(renderedSelects.length, 3)
+        assert.ok(html.includes('Films in HD (1080p and lower), per 2-hour film'))
+        assert.ok(html.includes('Films in 4K, per 2-hour film'))
+        assert.ok(html.includes('4K films are only downloaded when the media settings allow 4K.'))
+        const select = html.match(/<select[\s\S]*?<\/select>/g)[2]
+        assert.deepEqual(
+            [...select.matchAll(/value="(\d+)"/g)].map((match) => Number(match[1])),
+            [0, 333, 208, 166, 125],
+        )
+        assert.match(select, /aria-describedby="[^"]*-sizes-4k-help/)
+        assert.equal(renderedButtons.find((button) => button.type === 'submit').disabled, true)
+        for (const limit of ['333', '208', '166', '125', '0']) {
+            renderedSelects[2].onChange({ target: { value: limit } })
+            render()
+            assert.deepEqual(hookState[0].sizes, { series: 0, films: 0, films4k: Number(limit) })
+            assert.equal(renderedButtons.find((button) => button.type === 'submit').disabled, limit === '0')
+        }
+    } finally {
+        hookState = null
+    }
+})
+
+test('older settings without a 4K size show No limit and preserve HD size', () => {
+    hookState = []
+    try {
+        hookIndex = 0
+        renderedSelects = []
+        formMarkup(['en'], { series: 41, films: 33 })
+        assert.deepEqual(
+            renderedSelects.map((select) => select.value),
+            [41, 33, 0],
+        )
+        renderedSelects[2].onChange({ target: { value: '208' } })
+        assert.deepEqual(hookState[0].sizes, { series: 41, films: 33, films4k: 208 })
     } finally {
         hookState = null
     }

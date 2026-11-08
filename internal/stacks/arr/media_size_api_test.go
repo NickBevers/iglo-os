@@ -190,10 +190,15 @@ func TestMediaSizeAPIFailureRestoresAllSizes(t *testing.T) {
 				row["maxSize"], row["preferredSize"] = float64(41), float64(41)
 			}
 		}
+		for _, row := range fake.resources["radarr/qualitydefinition"] {
+			if row["quality"].(map[string]any)["name"] == "WEBDL-2160p" {
+				row["maxSize"], row["preferredSize"] = float64(208), float64(208)
+			}
+		}
 		return nil
 	}
 	settings := DefaultMediaSettings()
-	settings.Sizes = SizeLimits{Series: 41, Films: 33}
+	settings.Sizes = SizeLimits{Series: 41, Films: 33, Films4K: 208}
 	if err := ApplyMediaSettings(t.Context(), settings, cfg); err == nil || !strings.Contains(err.Error(), "apply unmanaged quality sizes") {
 		t.Fatalf("API error: %v", err)
 	}
@@ -228,10 +233,15 @@ func TestMediaSizeRollbackDoesNotTrustCachedAPIValues(t *testing.T) {
 				row["maxSize"], row["preferredSize"] = float64(41), float64(41)
 			}
 		}
+		for _, row := range fake.resources["radarr/qualitydefinition"] {
+			if row["quality"].(map[string]any)["name"] == "WEBDL-2160p" {
+				row["maxSize"], row["preferredSize"] = float64(208), float64(208)
+			}
+		}
 		return errors.New("partial sync failure")
 	}
 	settings := DefaultMediaSettings()
-	settings.Sizes.Series = 41
+	settings.Sizes = SizeLimits{Series: 41, Films4K: 208}
 	if err := ApplyMediaSettings(t.Context(), settings, cfg); err == nil {
 		t.Fatal("expected sync failure")
 	}

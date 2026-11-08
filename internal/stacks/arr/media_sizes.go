@@ -32,8 +32,20 @@ type guideQualitySize struct {
 	Preferred float64 `json:"preferred"`
 }
 
-func qualitySizeOverrides(service, kind string, limit int, roots ...string) (string, error) {
-	if limit == 0 {
+// Pinned Radarr v6.4.4.10685 Quality.cs names, checked 2026-11-08, identify
+// 4K qualities by 2160p. Use the same split for guide and API definitions.
+func (s SizeLimits) forQuality(service, name string) int {
+	if service == "radarr" {
+		if strings.Contains(strings.ToLower(name), "2160p") {
+			return s.Films4K
+		}
+		return s.Films
+	}
+	return s.Series
+}
+
+func qualitySizeOverrides(service, kind string, sizes SizeLimits, roots ...string) (string, error) {
+	if service == "sonarr" && sizes.Series == 0 || service == "radarr" && sizes.Films == 0 && sizes.Films4K == 0 {
 		return "", nil
 	}
 	qualities, err := readQualitySizeGuide(service, kind, roots...)
@@ -42,7 +54,8 @@ func qualitySizeOverrides(service, kind string, limit int, roots ...string) (str
 	}
 	var result strings.Builder
 	for _, quality := range qualities {
-		if quality.Max <= float64(limit) {
+		limit := sizes.forQuality(service, quality.Name)
+		if limit == 0 || quality.Max <= float64(limit) {
 			continue
 		}
 		if result.Len() == 0 {
@@ -101,27 +114,24 @@ func mediaSizesYAML(data []byte, sizes SizeLimits, roots ...string) ([]byte, err
 		text string
 	}
 	var inserts []insertion
-	for _, instance := range []struct {
-		service string
-		limit   int
-	}{{"sonarr", sizes.Series}, {"radarr", sizes.Films}} {
-		if instance.limit == 0 {
+	for _, service := range []string{"sonarr", "radarr"} {
+		if service == "sonarr" && sizes.Series == 0 || service == "radarr" && sizes.Films == 0 && sizes.Films4K == 0 {
 			continue
 		}
-		instances := yamlMappingValue(document.Content[0], instance.service)
+		instances := yamlMappingValue(document.Content[0], service)
 		if instances == nil || instances.Kind != yaml.MappingNode || len(instances.Content) == 0 {
-			return nil, fmt.Errorf("maximum download size: missing %s instance", instance.service)
+			return nil, fmt.Errorf("maximum download size: missing %s instance", service)
 		}
 		for i := 1; i < len(instances.Content); i += 2 {
 			definition := yamlMappingValue(instances.Content[i], "quality_definition")
 			kind := yamlMappingValue(definition, "type")
 			if kind == nil || kind.Kind != yaml.ScalarNode || definition.Style == yaml.FlowStyle {
-				return nil, fmt.Errorf("maximum download size: %s needs a block quality_definition with a type", instance.service)
+				return nil, fmt.Errorf("maximum download size: %s needs a block quality_definition with a type", service)
 			}
 			if yamlMappingValue(definition, "qualities") != nil {
-				return nil, fmt.Errorf("maximum download size: %s already has unmanaged qualities overrides", instance.service)
+				return nil, fmt.Errorf("maximum download size: %s already has unmanaged qualities overrides", service)
 			}
-			overrides, err := qualitySizeOverrides(instance.service, kind.Value, instance.limit, roots...)
+			overrides, err := qualitySizeOverrides(service, kind.Value, sizes, roots...)
 			if err != nil {
 				return nil, err
 			}

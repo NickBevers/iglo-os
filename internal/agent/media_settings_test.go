@@ -140,19 +140,23 @@ func TestChangeMediaSettings(t *testing.T) {
 }
 
 func TestMediaSizeValidationAtAgent(t *testing.T) {
-	for _, series := range []bool{false, true} {
-		for _, limit := range []int{-1, 0, 9, 10, 400, 401} {
+	for _, kind := range []string{"series", "films", "films4k"} {
+		for _, limit := range []int{-1, 0, 9, 10, 400, 401, 1000, 1001} {
 			installer, unit := newTestInstaller(t)
 			settings := arr.DefaultMediaSettings()
-			if series {
+			maximum := 400
+			if kind == "series" {
 				settings.Sizes.Series = limit
-			} else {
+			} else if kind == "films" {
 				settings.Sizes.Films = limit
+			} else {
+				settings.Sizes.Films4K = limit
+				maximum = 1000
 			}
 			err := installer.ChangeMediaSettings(130, settings)
-			valid := limit == 0 || limit >= 10 && limit <= 400
+			valid := limit == 0 || limit >= 10 && limit <= maximum
 			if valid && err != nil || !valid && !errors.Is(err, ErrInvalidAnswers) {
-				t.Fatalf("series %v, limit %d: %v", series, limit, err)
+				t.Fatalf("%s, limit %d: %v", kind, limit, err)
 			}
 			if !valid && len(unit.started) != 0 {
 				t.Fatal("invalid limit started an install")

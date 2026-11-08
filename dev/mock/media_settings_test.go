@@ -42,7 +42,7 @@ func TestMockMediaSizeSettings(t *testing.T) {
 		t.Fatal("mock defaults have a limit")
 	}
 	settings := arr.DefaultMediaSettings()
-	settings.Sizes = arr.SizeLimits{Series: 41, Films: 66}
+	settings.Sizes = arr.SizeLimits{Series: 41, Films: 66, Films4K: 208}
 	data, _ := json.Marshal(agent.MediaSettingsRequest{VMID: 130, Settings: settings})
 	w := httptest.NewRecorder()
 	mux.ServeHTTP(w, httptest.NewRequest(http.MethodPut, "/v1/apps/media/settings", bytes.NewReader(data)))
@@ -73,7 +73,7 @@ func TestMockMediaSizeSettings(t *testing.T) {
 	if got := get(); !reflect.DeepEqual(got, settings) {
 		t.Fatalf("mock lost settings: %+v", got)
 	}
-	for _, sizes := range []arr.SizeLimits{{Series: 9}, {Films: 401}} {
+	for _, sizes := range []arr.SizeLimits{{Series: 9}, {Films: 401}, {Films4K: 9}, {Films4K: 1001}} {
 		settings.Sizes = sizes
 		data, _ := json.Marshal(map[string]any{"vmid": 130, "settings": settings})
 		w := httptest.NewRecorder()
