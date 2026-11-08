@@ -272,3 +272,41 @@ func TestGiveForwardedPort(t *testing.T) {
 		t.Fatalf("sent %v", got)
 	}
 }
+
+// The anime trackers get the fields that let Sonarr find season packs.
+func TestAnimeIndexersFindSeasonPacks(t *testing.T) {
+	posted := map[string]map[string]any{}
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch {
+		case r.Method == http.MethodGet && r.URL.Path == "/api/v1/indexer":
+			w.Write([]byte(`[]`))
+		case r.Method == http.MethodGet && r.URL.Path == "/api/v1/indexer/schema":
+			fields := `[{"name":"sonarr_compatibility","value":false},{"name":"strip_s01","value":false},{"name":"radarr_compatibility","value":false}]`
+			w.Write([]byte(`[{"implementation":"Cardigann","definitionName":"nyaasi","fields":` + fields + `},{"implementation":"Cardigann","definitionName":"animetosho-xyz","fields":` + fields + `}]`))
+		case r.Method == http.MethodPost && r.URL.Path == "/api/v1/indexer":
+			var body map[string]any
+			json.NewDecoder(r.Body).Decode(&body)
+			posted[body["definitionName"].(string)] = body
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	defer server.Close()
+
+	prowlarr := newServarr("prowlarr", server.URL, "v1", "key", server.Client())
+	addAnimeIndexers(context.Background(), Config{Logf: t.Logf}, prowlarr)
+	for _, definition := range []string{"nyaasi", "animetosho-xyz"} {
+		body := posted[definition]
+		if body == nil {
+			t.Fatalf("%s was not added", definition)
+		}
+		values := map[string]any{}
+		for _, raw := range body["fields"].([]any) {
+			field := raw.(map[string]any)
+			values[field["name"].(string)] = field["value"]
+		}
+		if values["sonarr_compatibility"] != true || values["strip_s01"] != true || values["radarr_compatibility"] != false {
+			t.Errorf("%s fields = %v", definition, values)
+		}
+	}
+}
