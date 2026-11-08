@@ -3,6 +3,7 @@ package shrink
 
 import (
 	"errors"
+	"fmt"
 	"io/fs"
 	"path"
 	"strings"
@@ -102,12 +103,15 @@ func ValidatePath(p string) error {
 	return nil
 }
 func Validate(in Input) error {
-	if in.Confirm != "replace-originals" || (in.Profile != "standard" && in.Profile != "high") || len(in.Paths) == 0 || len(in.Paths) > 100 {
+	if in.Confirm != "replace-originals" || (in.Profile != "standard" && in.Profile != "high") || len(in.Paths) == 0 {
 		return ErrInvalid
 	}
+	if len(in.Paths) > 100 {
+		return fmt.Errorf("%w: select at most 100 file paths per request; no files were queued", ErrInvalid)
+	}
 	for _, p := range in.Paths {
-		if ValidatePath(p) != nil || !strings.Contains(p, "/") {
-			return ErrInvalid
+		if ValidatePath(p) != nil || !strings.Contains(p, "/") || !strings.EqualFold(path.Ext(p), ".mkv") {
+			return fmt.Errorf("%w: select explicit .mkv file paths, not folders", ErrInvalid)
 		}
 	}
 	return nil

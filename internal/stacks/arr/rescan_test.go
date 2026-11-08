@@ -133,3 +133,44 @@ func TestLibraryLoopbackServer(t *testing.T) {
 		t.Fatal(err)
 	}
 }
+
+func TestShrinkCheckParentInspectsEveryManagedTitle(t *testing.T) {
+	cfg, commands := libraryAPI(t)
+	original := cfg.HTTPClient.Transport.(libraryTransport).handler
+	cfg.HTTPClient.Transport = libraryTransport{http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method == "GET" && r.URL.Path == "/api/v3/series" {
+			w.Header().Set("Content-Type", "application/json")
+			json.NewEncoder(w).Encode([]any{
+				map[string]any{"id": 1, "path": "/data/media/anime/Collection/First", "title": "First", "qualityProfileId": 10},
+				map[string]any{"id": 2, "path": "/data/media/anime/Collection/Second", "title": "Second", "qualityProfileId": 20},
+				map[string]any{"id": 3, "path": "/data/media/anime/Collection extra/Other", "title": "Other", "qualityProfileId": 20},
+			})
+			return
+		}
+		original.ServeHTTP(w, r)
+	})}
+	results, err := ShrinkCheck(context.Background(), []string{"anime/Collection"}, cfg)
+	if err != nil || len(results) != 2 {
+		t.Fatal(results, err)
+	}
+	if results[0].State != "ok" || results[1].State != "refused" {
+		t.Fatal("parent bypassed a child profile", results)
+	}
+	for _, result := range results {
+		if len(result.Paths) != 1 || result.Paths[0] != "anime/Collection" {
+			t.Fatal(result)
+		}
+	}
+	results, err = ShrinkCheck(context.Background(), []string{"anime/Collection/First/Season 01/a.mkv"}, cfg)
+	if err != nil || len(results) != 1 || results[0].ID != 1 {
+		t.Fatal(results, err)
+	}
+	rescans, err := Rescan(context.Background(), []string{"anime/Collection"}, cfg)
+	if err != nil || len(rescans) != 2 || len(*commands) != 2 {
+		t.Fatal(rescans, commands, err)
+	}
+	results, err = ShrinkCheck(context.Background(), []string{"anime/Collect"}, cfg)
+	if err != nil || len(results) != 1 || results[0].State != "ok-unmanaged" {
+		t.Fatal("matched partial path components", results, err)
+	}
+}

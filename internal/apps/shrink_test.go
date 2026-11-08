@@ -17,8 +17,11 @@ import (
 )
 
 type shrinkFake struct {
-	checkCalls []agent.MediaLibraryRequest
-	failTitle  string
+	statusErr     error
+	statusWait    <-chan struct{}
+	statusStarted chan struct{}
+	checkCalls    []agent.MediaLibraryRequest
+	failTitle     string
 	*fakeAgent
 	lock                            sync.Mutex
 	checks                          []arr.ShrinkCheckResult
@@ -38,11 +41,27 @@ func (f *shrinkFake) Library(context.Context, int) (shrink.Library, error) {
 func (f *shrinkFake) ScanLibrary(context.Context, int) error          { return nil }
 func (f *shrinkFake) ShrinkSettings(context.Context, int, bool) error { return nil }
 func (f *shrinkFake) CancelShrink(context.Context, int, string) error { return nil }
-func (f *shrinkFake) ShrinkJobs(context.Context, int) (shrink.View, error) {
+func (f *shrinkFake) ShrinkJobs(ctx context.Context, _ int) (shrink.View, error) {
 	f.lock.Lock()
-	defer f.lock.Unlock()
 	f.reads++
-	return shrink.View{Paused: f.view.Paused, Jobs: append([]shrink.Job{}, f.view.Jobs...)}, nil
+	view := copyShrinkView(f.view)
+	err := f.statusErr
+	wait, started := f.statusWait, f.statusStarted
+	f.lock.Unlock()
+	if started != nil {
+		select {
+		case started <- struct{}{}:
+		default:
+		}
+	}
+	if wait != nil {
+		select {
+		case <-ctx.Done():
+			return shrink.View{}, ctx.Err()
+		case <-wait:
+		}
+	}
+	return view, err
 }
 func (f *shrinkFake) SubmitShrink(_ context.Context, _ int, in shrink.Input) ([]shrink.Job, error) {
 	f.submitted = append(f.submitted, in)
@@ -145,7 +164,7 @@ func TestShrinkSubmissionGuard(t *testing.T) {
 		})
 	}
 	s, f := shrinkService(true)
-	for _, in := range []shrink.Input{{Paths: []string{"anime/Safe"}, Profile: "standard"}, {Paths: []string{"../escape"}, Profile: "standard", Confirm: "replace-originals"}} {
+	for _, in := range []shrink.Input{{Paths: []string{"anime/Safe/file.mkv"}, Profile: "standard"}, {Paths: []string{"../escape"}, Profile: "standard", Confirm: "replace-originals"}} {
 		if _, err := s.SubmitShrink(t.Context(), in); !errors.Is(err, shrink.ErrInvalid) {
 			t.Fatal(err)
 		}
@@ -169,7 +188,7 @@ func TestShrinkRescanRound(t *testing.T) {
 			refreshes++
 			return nil
 		})
-		pending, err := s.rescanShrink(t.Context(), f, 104)
+		pending, err := s.rescanShrink(t.Context(), f, 104, copyShrinkView(f.view))
 		if err != nil || pending || len(f.acks) != 3 || refreshes != 1 {
 			t.Fatalf("pending %v err %v acks %v refreshes %d", pending, err, f.acks, refreshes)
 		}
@@ -189,7 +208,7 @@ func TestShrinkRescanRound(t *testing.T) {
 			t.Fatal(f.rescans)
 		}
 		s.SetLibraryRefresh(func(context.Context) error { refreshes++; return nil })
-		s.rescanShrink(t.Context(), f, 104)
+		s.rescanShrink(t.Context(), f, 104, copyShrinkView(f.view))
 		if refreshes != 1 {
 			t.Fatal("refreshed idle round")
 		}
@@ -215,7 +234,7 @@ func TestShrinkRescanRetries(t *testing.T) {
 			if failure == "ack" {
 				f.errorAck = bad
 			}
-			pending, err := s.rescanShrink(t.Context(), f, 104)
+			pending, err := s.rescanShrink(t.Context(), f, 104, copyShrinkView(f.view))
 			if !pending || err == nil || len(f.acks) != 0 {
 				t.Fatal(pending, err, f.acks)
 			}
@@ -225,7 +244,7 @@ func TestShrinkRescanRetries(t *testing.T) {
 			f.errorRescan = nil
 			f.errorAck = nil
 			s.SetLibraryRefresh(func(context.Context) error { return nil })
-			pending, err = s.rescanShrink(t.Context(), f, 104)
+			pending, err = s.rescanShrink(t.Context(), f, 104, copyShrinkView(f.view))
 			if pending || err != nil || len(f.acks) != 1 {
 				t.Fatal(pending, err, f.acks)
 			}
@@ -299,7 +318,7 @@ func TestShrinkRescanPartialFailure(t *testing.T) {
 	f.failTitle = "movies/Film"
 	refreshes := 0
 	s.SetLibraryRefresh(func(context.Context) error { refreshes++; return nil })
-	pending, err := s.rescanShrink(t.Context(), f, 104)
+	pending, err := s.rescanShrink(t.Context(), f, 104, copyShrinkView(f.view))
 	if !pending || err == nil || len(f.acks) != 2 || refreshes != 1 {
 		t.Fatal(pending, err, f.acks, refreshes)
 	}
@@ -309,7 +328,7 @@ func TestShrinkRescanPartialFailure(t *testing.T) {
 		}
 	}
 	f.failTitle = ""
-	pending, err = s.rescanShrink(t.Context(), f, 104)
+	pending, err = s.rescanShrink(t.Context(), f, 104, copyShrinkView(f.view))
 	if pending || err != nil || len(f.acks) != 3 || len(f.rescans) != 3 || refreshes != 2 {
 		t.Fatal(pending, err, f.acks, refreshes)
 	}

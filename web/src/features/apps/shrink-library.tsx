@@ -12,7 +12,16 @@ import {
     DialogTitle,
 } from '@/components/ui/dialog'
 import { api, type LibraryFile, type LibraryFolder, type ShrinkProfile, type ShrinkRefusal } from '@/lib/api'
-import { folderStats, gb, kindNames, selectionState, shrinkInterval, submissionPaths, toggleFiles } from './shrink-tree'
+import {
+    folderStats,
+    gb,
+    kindNames,
+    maxShrinkFiles,
+    selectionState,
+    shrinkInterval,
+    submissionPaths,
+    toggleFiles,
+} from './shrink-tree'
 
 type TreeProps = {
     profile: ShrinkProfile
@@ -152,7 +161,7 @@ export default function ShrinkLibrarySection() {
         setUnderstood(false)
     }
     const submit = () => {
-        if (!confirmation || !understood) return
+        if (!confirmation || !understood || confirmation.paths.length > maxShrinkFiles) return
         const input = confirmation
         change.mutate(async () => {
             const result = await api.submitShrink({
@@ -160,6 +169,15 @@ export default function ShrinkLibrarySection() {
                 profile: input.profile,
                 confirm: 'replace-originals',
             })
+            if (result.jobs.length > 0) {
+                try {
+                    await api.shrinkSettings(false)
+                } catch (error) {
+                    toast.error(
+                        `Jobs were added, but the queue could not resume: ${error instanceof Error ? error.message : 'Try Resume shrink queue.'}`,
+                    )
+                }
+            }
             setRefused(result.refused)
             setSelected(new Set())
             close()
@@ -228,10 +246,15 @@ export default function ShrinkLibrarySection() {
                     <p aria-live="polite" className="text-sm">
                         {summary}
                     </p>
+                    <p className="text-sm text-muted-foreground" aria-live="polite">
+                        {files.length > maxShrinkFiles
+                            ? `Select fewer files. You can shrink up to ${maxShrinkFiles} files at a time.`
+                            : `Up to ${maxShrinkFiles} files per submission. The queue must have room for them.`}
+                    </p>
                     <Button
                         ref={trigger}
                         className="self-start"
-                        disabled={files.length === 0 || change.isPending || scanning}
+                        disabled={files.length === 0 || files.length > maxShrinkFiles || change.isPending || scanning}
                         onClick={() => {
                             setUnderstood(false)
                             setConfirmation({
@@ -338,7 +361,12 @@ export default function ShrinkLibrarySection() {
                         <Button variant="outline" disabled={change.isPending} onClick={close}>
                             Cancel
                         </Button>
-                        <Button disabled={!understood || change.isPending} onClick={submit}>
+                        <Button
+                            disabled={
+                                !understood || change.isPending || (confirmation?.paths.length ?? 0) > maxShrinkFiles
+                            }
+                            onClick={submit}
+                        >
                             {change.isPending ? 'Submitting…' : 'Replace originals and shrink'}
                         </Button>
                     </DialogFooter>

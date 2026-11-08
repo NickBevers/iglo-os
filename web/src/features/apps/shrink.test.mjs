@@ -10,6 +10,7 @@ import {
     folderStats,
     gb,
     kindNames,
+    maxShrinkFiles,
     selectionState,
     shrinkInterval,
     submissionPaths,
@@ -44,7 +45,7 @@ test('parent selection uses ready files, mixed state and profile estimates', () 
     assert.deepEqual([...all], [ready.path, second.path])
     assert.deepEqual([...toggleFiles(stats.ready, all)], [])
     assert.equal(selectionState([], all).disabled, true)
-    assert.deepEqual(submissionPaths([kind], all), ['anime/Title'])
+    assert.deepEqual(submissionPaths([kind], all), [ready.path, second.path])
     assert.deepEqual(submissionPaths([kind], new Set([ready.path])), [ready.path])
     assert.deepEqual(submissionPaths([kind], new Set([skipped.path])), [])
 })
@@ -63,6 +64,7 @@ const compiled = ts.transpileModule(source.replace(/^import[\s\S]*?from '[^']+'\
     compilerOptions: { jsx: ts.JsxEmit.React, module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 },
 }).outputText
 let state, hookIndex, buttons, mutation
+let toasts = []
 let jobs = []
 let libraryData = { kinds: [kind], scannedAt: '2026-11-08T12:00:00Z' }
 let libraryOptions
@@ -98,11 +100,14 @@ const services = {
     useMutation: (options) => ({
         isPending: false,
         mutate: (fn) => {
-            mutation = Promise.resolve().then(fn).then(options.onSuccess)
+            mutation = Promise.resolve()
+                .then(fn)
+                .then(options.onSuccess)
+                .catch((error) => options.onError?.(error))
         },
     }),
     useQueryClient: () => ({ invalidateQueries: () => Promise.resolve() }),
-    toast: { error: () => {} },
+    toast: { error: (message) => toasts.push(message) },
     api,
     Button,
     Card: 'div',
@@ -118,6 +123,7 @@ const services = {
     folderStats,
     gb,
     kindNames,
+    maxShrinkFiles,
     selectionState,
     shrinkInterval,
     submissionPaths,
@@ -180,7 +186,7 @@ test('submission requires the irreversible checkbox and uses the confirmed profi
     assert.equal(calls[0].url, '/api/inbox/shrink')
     assert.equal(calls[0].options.headers['X-Iglo-Request'], '1')
     assert.deepEqual(JSON.parse(calls[0].options.body), {
-        paths: ['anime/Title'],
+        paths: [ready.path, second.path],
         profile: 'high',
         confirm: 'replace-originals',
     })
@@ -250,4 +256,124 @@ test('a requested scan keeps a fallback before the worker starts and stops after
     render()
     assert.equal(libraryOptions.refetchInterval({ state: { data: libraryData } }), false)
     assert.equal(button('Scan library').disabled, false)
+})
+
+test('folder selections never submit a file discovered after selection', () => {
+    const selected = toggleFiles(folderStats(kind, 'standard').ready, new Set())
+    const later = {
+        ...kind,
+        folders: [
+            {
+                ...title,
+                folders: [
+                    { ...season, files: [ready, second, { ...ready, path: 'anime/Title/Season 01/unseen.mkv' }] },
+                ],
+            },
+        ],
+    }
+    assert.deepEqual(submissionPaths([later], selected), [ready.path, second.path])
+})
+
+test('the page names the 100 file limit and blocks oversized selections before confirmation', () => {
+    const previous = libraryData
+    const many = Array.from({ length: 101 }, (_, index) => ({ ...ready, path: `anime/Large/${index}.mkv` }))
+    libraryData = {
+        kinds: [
+            {
+                path: 'anime',
+                name: 'anime',
+                folders: [{ path: 'anime/Large', name: 'Large', folders: [], files: many }],
+                files: [],
+            },
+        ],
+    }
+    try {
+        state = [null, 'standard', new Set(many.map((file) => file.path))]
+        jobs = []
+        let html = render()
+        assert.match(html, /Select fewer files. You can shrink up to 100 files at a time./)
+        assert.equal(button('Shrink…').disabled, true)
+        state = [null, 'standard', new Set(many.slice(0, 100).map((file) => file.path))]
+        html = render()
+        assert.match(html, /Up to 100 files per submission/)
+        assert.equal(button('Shrink…').disabled, false)
+    } finally {
+        libraryData = previous
+    }
+})
+
+test('successful confirmed jobs also resume the queue', async (t) => {
+    state = [null, 'standard', new Set([ready.path])]
+    jobs = []
+    toasts = []
+    const calls = []
+    t.mock.method(globalThis, 'fetch', async (url, options) => {
+        calls.push({ url, options })
+        return options.method === 'POST'
+            ? Response.json({ jobs: [{ id: 'new', path: ready.path }], refused: [] }, { status: 202 })
+            : new Response(null, { status: 204 })
+    })
+    render()
+    button('Shrink…').onClick()
+    state[4] = true
+    render()
+    button('Replace originals and shrink').onClick()
+    await mutation
+    assert.deepEqual(
+        calls.map((call) => [call.options.method, call.url]),
+        [
+            ['POST', '/api/inbox/shrink'],
+            ['PUT', '/api/inbox/shrink/settings'],
+        ],
+    )
+    assert.deepEqual(JSON.parse(calls[0].options.body).paths, [ready.path])
+    assert.deepEqual(JSON.parse(calls[1].options.body), { paused: false })
+    assert.deepEqual(toasts, [])
+    assert.doesNotMatch(render(), /role="dialog"/)
+})
+
+test('a resume failure reports queued jobs without submitting them again', async (t) => {
+    state = [null, 'standard', new Set([ready.path])]
+    jobs = []
+    toasts = []
+    const calls = []
+    t.mock.method(globalThis, 'fetch', async (url, options) => {
+        calls.push({ url, options })
+        return options.method === 'POST'
+            ? Response.json({ jobs: [{ id: 'new' }], refused: [] }, { status: 202 })
+            : Response.json({ error: 'worker unavailable' }, { status: 502 })
+    })
+    render()
+    button('Shrink…').onClick()
+    state[4] = true
+    render()
+    button('Replace originals and shrink').onClick()
+    await mutation
+    assert.equal(calls.length, 2)
+    assert.equal(calls.filter((call) => call.options.method === 'POST').length, 1)
+    assert.match(toasts[0], /Jobs were added, but the queue could not resume: worker unavailable/)
+    assert.doesNotMatch(render(), /role="dialog"/)
+})
+
+test('a full queue error is shown and never resumes work', async (t) => {
+    state = [null, 'standard', new Set([ready.path])]
+    jobs = []
+    toasts = []
+    const calls = []
+    t.mock.method(globalThis, 'fetch', async (url, options) => {
+        calls.push({ url, options })
+        return Response.json(
+            { error: 'The queue is full. Wait for jobs to finish or cancel queued jobs.' },
+            { status: 400 },
+        )
+    })
+    render()
+    button('Shrink…').onClick()
+    state[4] = true
+    render()
+    button('Replace originals and shrink').onClick()
+    await mutation
+    assert.equal(calls.length, 1)
+    assert.match(toasts[0], /The queue is full/)
+    assert.match(render(), /role="dialog"/)
 })

@@ -39,9 +39,9 @@ stay.
 Choose **Shrink…**, review the numbers and tick **I understand the originals
 are replaced**. Only then can you confirm. **The originals are replaced and
 can't be restored.** Keep a separate backup if you need the source later.
-Confirmation adds jobs. Resume the shrink queue when ready. You can pause the
-queue or cancel queued and running jobs. A completed replacement cannot be
-cancelled. Jobs show progress and saved space. A source that changed or an
+A successful confirmation adds the selected files and resumes the shrink
+queue. You can pause it or cancel a queued or encoding job. Once replacement
+has been recorded and the swap starts, cancellation no longer applies. Jobs show progress and saved space. A source that changed or an
 output that did not save enough space stays untouched, with a reason.
 
 ## Media apps after shrinking
@@ -58,18 +58,28 @@ asks Sonarr or Radarr to rescan it. This updates size and media info while
 keeping the existing file record, quality and release identity. Stored audio
 language labels are kept too. The command is accepted asynchronously, so the
 media app may still be scanning after the job is acknowledged. Unmanaged titles
-need no media rescan. The manager asks the connected Jellyfin to refresh once
-per round, then acknowledges those jobs. A failed rescan, refresh or
-acknowledgement is retried. There is no repeated queue poll while idle.
+need no media rescan. Once no queued or running jobs remain, the manager asks
+the connected Jellyfin to refresh once for the completed batch, then
+acknowledges those jobs. A failed rescan, refresh or acknowledgement is retried.
+Progress updates do not start rescan rounds. An unreachable worker uses retry
+intervals of 1, 2, 4, 8, 16 and then 30 minutes. Availability changes are logged
+once. There is no repeated queue poll while idle.
 
 ## Library and conversion
 
 The library folders are `anime`, `series`, `movies` and `anime-movies`. These
 names are the defaults in the arr and Jellyfin installers. `deploy/storage.sh`
 mounts shares and has no folder list. The shared Go definition is
-`shrink.LibraryFolders`. Home Videos is excluded. The installer creates the
-library directories and `.iglo-shrink` with the existing share permission
-approach before systemd enables their write paths.
+`shrink.LibraryFolders`. Video tools does not receive the media stack's custom
+folder settings. Differently named library folders are outside this view.
+Home Videos is excluded.
+
+The installer creates the default library directories and a hidden
+`.iglo-shrink` directory inside each kind, using the existing share permissions.
+The unit has one optional write path for each kind, without a separate write
+path for staging. This keeps both rename endpoints on the same systemd bind
+mount. Missing kind folders are skipped and do not prevent Inbox from starting.
+Restart Video tools after adding a previously missing folder.
 
 The view groups kind, title, season where present, and files. It reports size,
 duration, codec, height, bit depth, HDR, audio tracks and estimated output sizes.
@@ -81,9 +91,12 @@ Replacement uses a retained parent directory descriptor, so it cannot follow a
 new symlink into another folder. CIFS link counts and chmod are not used to
 validate or replace files.
 
-Only `ready` files expand into jobs. A file is skipped if it is not Matroska,
-is HDR or Dolby Vision, is under 300 MB, or changed in the last 30 minutes.
-Probe errors also skip the file with a reason. HEVC or AV1 files at or below
+Only explicitly selected `ready` files become jobs. Folder checkboxes expand
+to the visible files in the browser; the worker never expands folder paths.
+A file is skipped if it is not `.mkv`, is HDR or Dolby Vision, is under 300 MB,
+or changed in the last 30 minutes. Extra primary video streams, data streams,
+unknown stream types and missing video-stream duration are also refused rather
+than being dropped silently. Probe errors skip the file with a reason. HEVC or AV1 files at or below
 1.25 times the standard estimate are `small`. A cached result replaced by this
 worker is `done`, even if its modification time is recent.
 
@@ -102,24 +115,53 @@ Anime keeps Japanese audio if any Japanese track exists, otherwise all audio.
 Other kinds keep all tracks. FLAC, TrueHD, PCM, ALAC and DTS-HD MA become Opus:
 160 kbps for up to two channels, 384 kbps through six channels, 512 kbps above
 six channels. Multichannel Opus uses mapping family 1. Lossy audio is copied.
-Subtitles, attachments, metadata, chapters and stream dispositions are kept.
+Subtitles, attachments, chapters, ordinary metadata and stream dispositions
+are kept. Attached cover images are mapped and copied as video streams.
+Re-encoded video and audio lose old mkvmerge statistics tags, including `BPS`,
+`NUMBER_OF_BYTES`, `NUMBER_OF_FRAMES`, `DURATION` and `_STATISTICS_*`, with their
+language suffixes. Copied streams retain their unchanged metadata.
 
-Output stages in `/data/videos/.iglo-shrink`, outside title folders on the same
-filesystem. Startup removes stale worker temporary files. The result must have
-one HEVC 10-bit video, the planned audio codecs, languages and channel counts,
-and unchanged subtitle and attachment counts. Duration must be within the
-larger of one second and 0.2 percent. Output must be strictly below 90 percent
-of the original size. The worker checks source size and mtime again before
-renaming over its exact original name. `not-smaller` and `changed` leave the
-source untouched. Progress is transient; jobs, probe cache and settings persist
-only when they change. History retains at most 100 jobs. A restart requeues
-interrupted jobs after removing their temporary output.
+Output stages in `/data/videos/<kind>/.iglo-shrink`, outside title folders.
+Worker scans skip the hidden directory. Sonarr v4.0.20.3014 and Radarr
+v6.4.4.10685 also exclude dot folders (`DiskScanService.cs:73`, checked
+2026-11-08). Jellyfin ignores the hidden directory. Staging never uses Home
+Videos.
+
+Verification compares primary video duration, not just container duration. It
+uses the stream's duration or its Matroska `DURATION` tag. The allowed change
+is one second plus 0.1 percent, capped at three seconds. The result must have
+one HEVC 10-bit primary video, unchanged cover images, planned audio codecs,
+languages and channel counts, and the same chapter, subtitle and attachment
+counts. Output must be strictly below 90 percent of the original size.
+
+Before replacement, the worker flushes and closes both media files, then checks
+the source's size and modification time again. It records a durable swap intent
+in worker state. From that point, cancellation cannot apply. The swap moves the
+original to `.iglo-shrink/backup-<id>`, moves the verified output to the exact
+original filename, then checks the installed file against the verified size and
+modification time. It saves `done` before removing the backup. A failed rename
+restores the backup when possible. It never removes a temporary result after a
+failed rename unless the original is confirmed present and unchanged.
+
+Startup replays recorded swaps. It restores a missing original from its backup
+before resuming a verified replacement, or completes `done` when the result was
+already installed. Interrupted encodes are requeued after confirming that the
+original is intact and removing only their own temporary file. Unrecognized
+files and old share-level `.iglo-shrink` files are retained. Recovery actions
+are logged. An ambiguous or failed recovery pauses the queue, retains the
+remaining copies and reports the recovery error on the job. Fix storage and
+restart Video tools to retry recovery; do not remove those copies blindly.
+
+`not-smaller` and `changed` leave the source untouched. Progress stays in memory
+and emits at most once every 30 seconds while encoding. State changes emit at
+once. Jobs, probe cache and settings persist only when they change. History has
+at most 100 jobs. Unacknowledged done jobs and pending recoveries cannot be
+evicted, so a full history can hold new submissions until media rescans finish.
 
 ## Pinned rescan and score check
 
-Sonarr **v4.0.20.3014** and Radarr **v6.4.4.10685**, checked **2026-11-08** from
-the supplied local source under `scratchpad/up/rescan`, plus the sibling
-`sonarr` and `radarr` source folders. No upstream network requests were made.
+Sonarr **v4.0.20.3014** and Radarr **v6.4.4.10685**, checked **2026-11-08** against
+the pinned upstream source. References below name the checked source files.
 
 | Behaviour | Sonarr source | Radarr source |
 | --- | --- | --- |
@@ -139,16 +181,17 @@ it is off. The existing-file format builders do not pass `MediaInfo` or media
 stream data to any specification. Thus Language, ReleaseGroup, ReleaseTitle,
 Resolution, Source and QualityModifier formats cannot use refreshed media info
 on this path. They receive the stored identity, quality and languages. This
-conclusion follows from those input builders; source for each individual
-specification was not supplied. The Language implementations were supplied
-and were checked directly.
+conclusion follows from the checked existing-file input builders and the
+Language implementations.
 
-The coordinator checked the live host on 2026-11-08: Sonarr had 76 custom
+Checked on the installed system on 2026-11-08: Sonarr had 76 custom
 formats and Radarr 73, with only the six kinds above and no scored size format.
 A future size format can still change score when the stored size updates.
 `iglo-arr shrink-check PATH...` reads each managed title's quality profile and
 custom formats. It refuses the title if any format with a non-zero score,
 including a negative score, contains `SizeSpecification`. Zero scores are safe.
+CLI parent-folder selections are checked against every managed title beneath
+them, so they cannot bypass the guard by appearing unmanaged.
 Missing profiles or uninspectable scored formats are refused. API errors fail
 the command instead of claiming a title is unmanaged. A successful library
 lookup with no matching title returns `ok-unmanaged`, reason
@@ -193,7 +236,7 @@ Worker routes on **127.0.0.1:8789**:
 | `GET /library` | `Library`, 200 |
 | `POST /library/scan` | Queue background scan, 202 |
 | `GET /shrink` | `View`, 200 |
-| `POST /shrink` | `Input` body; expanded `Job[]`, 202 |
+| `POST /shrink` | `Input` body with explicit file paths; accepted `Job[]`, 202 |
 | `PUT /shrink/settings` | `Settings` body, 204 |
 | `POST /shrink/cancel/{id}` | Cancel pending or running job, 204 |
 | `POST /shrink/rescanned/{id}` | Acknowledge done job, 204 |
@@ -201,18 +244,23 @@ Worker routes on **127.0.0.1:8789**:
 
 Invalid requests return 400. Files which are not ready are left out of an
 otherwise valid submission. Repeated active paths are deduplicated. All paths
-are validated before any jobs are added. A queue capacity failure adds nothing.
+are validated before any jobs are added. A request accepts at most 100 file
+paths. Folder paths return 400. A queue capacity failure adds nothing and
+returns a clear message to wait for jobs and rescans, or select fewer files.
+The worker API retains its separate pause setting; the confirmation dialog
+resumes it through the existing settings route.
 
 Agent relays use the same methods and suffixes under **`/v1/inbox/{vmid}`**.
 The existing event stream stays `/v1/inbox/{vmid}/events`: Inbox jobs map to
 `inbox`, while `library` and `shrink` stay distinct. Only names pass through.
-The manager keeps a one-minute fallback while jobs are queued, running or
-unacknowledged. It stops polling the queue when idle. Container discovery
-continues every 30 seconds through the shared Proxmox client.
-The active fallback costs one worker-status call per minute in the manager,
-plus one per open Video tools page. A page polls the library once a minute
-while a scan is pending. These fallback calls stop when idle. Events still
-refresh their normal queries when something changes.
+The manager and all tabs share worker status for 30 seconds. During an encode,
+`shrink` emits at most twice a minute. Status reads are shared across tabs, so
+steady progress costs at most two host `pct exec` calls a minute instead of
+multiplying that cost by the number of tabs. State changes and user actions
+refresh immediately. A one-minute fallback remains while jobs are active or
+unacknowledged. A page polls the library once a minute while a scan is pending.
+Idle queue polling stops. Container discovery continues every 30 seconds
+through the shared Proxmox client.
 
 Media agent routes:
 
@@ -233,40 +281,14 @@ Agent client helpers: `Library`, `ScanLibrary`, `ShrinkJobs`, `SubmitShrink`,
 
 ## Validation and hardware limits
 
-Tests use sparse files and fake probes/encoders, without real library media.
-The dev mock exposes the same routes and simulates a four-second conversion.
-Its `shrink-size-format` state file simulates an unsafe scored format.
-Real QSV output quality, CIFS rename behaviour and guest installation still need
-the coordinator's host acceptance check. Docker ShellCheck and HTTP-listener
-tests must run outside the restricted agent sandbox.
+Tests use sparse files and fake probes and encoders. Fault tests interrupt every
+swap and recovery step, inject rename and state-write failures, and check that
+remaining copies survive. A generated one-second clip tests FFmpeg statistics
+cleanup and metadata retention without using library media. Other tests cover
+stream and chapter verification, file selection, limits, history protection,
+progress event rate, profile guards and rescan command bodies.
 
-The T23 checks cover authenticated manager routes, validation, refusal and
-failed-check behaviour, grouped rescans, acknowledgements, refresh failures,
-retries, event topics and idle fallback timing. The mock flow runs the real
-manager and worker through in-process handlers without opening a listener.
-The web checks render the section and exercise selection and confirmation.
-They live under `web/src` to keep this task within its write scope.
-
-Run the full checks outside a sandbox that blocks TCP and Unix listeners:
-
-```sh
-(cd web && npm run build)
-make test
-go test -race ./internal/... ./cmd/...
-(cd web && node --experimental-strip-types --test src/features/apps/shrink.test.mjs)
-gofmt -l cmd internal dev web/embed.go
-(cd web && ./node_modules/.bin/prettier --check '**/*.{ts,tsx}')
-make shellcheck
-```
-
-The existing listener tests cannot run in the restricted sandbox. No dependency
-installation, network access, host changes or installer changes are needed for
-the in-process checks. The real browser flow on the dev mock still needs a
-listener-capable environment. Hardware acceptance still needs the coordinator's
-host.
-
-The refresh method was checked on 2026-11-08 against the supplied local
-Jellyfin `LibraryController.cs:337-351`: `POST /Library/Refresh` requires an
-admin API key and returns 204. The local snapshot has no version marker. The
-installed Jellyfin version follows its package repository. Match this snapshot
-to that package version during host acceptance.
+The development fixture simulates conversion and media rescans. Real QSV
+output quality and the complete install and recovery flow still need testing
+on the target host and CIFS share. Check samples on the playback devices before
+processing a library.

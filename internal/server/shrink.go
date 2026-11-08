@@ -55,8 +55,8 @@ func (s *server) shrinkWork(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		var in shrink.Input
-		if !shrinkBody(w, r, 512<<10, &in) || shrink.Validate(in) != nil {
-			writeError(w, 400, "give library paths, a supported profile and confirmation to replace originals")
+		if !shrinkBody(w, r, 512<<10, &in) || apps.ValidateShrinkInput(in) != nil {
+			writeError(w, 400, "give up to 100 library .mkv file paths, a supported profile and confirmation to replace originals")
 			return
 		}
 		v, err := a.SubmitShrink(r.Context(), in)

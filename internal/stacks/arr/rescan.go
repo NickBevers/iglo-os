@@ -152,29 +152,46 @@ func lookupLibrary(ctx context.Context, paths []string, apps map[string]*servarr
 			name = "radarr"
 		}
 		var best *libraryTitle
+		matches := []libraryTitle{}
 		for i := range lists[name] {
 			t := &lists[name][i]
 			base := strings.TrimRight(t.Path, "/")
-			if (media == base || strings.HasPrefix(media, base+"/")) && (best == nil || len(base) > len(best.Path)) {
-				best = t
+			if media == base || strings.HasPrefix(media, base+"/") {
+				if best == nil || len(base) > len(best.Path) {
+					best = t
+				}
 			}
+			if strings.HasPrefix(base, media+"/") {
+				matches = append(matches, *t)
+			}
+		}
+		if best != nil {
+			matches = append(matches, *best)
 		}
 		parts := strings.Split(p, "/")
-		unmanagedTitle := strings.Join(parts[:2], "/")
-		item := ShrinkCheckResult{Path: unmanagedTitle, Paths: []string{p}, Title: parts[1], State: "ok-unmanaged", Reason: "not managed by Sonarr or Radarr"}
-		key := "unmanaged:" + unmanagedTitle
-		if best != nil {
-			if best.ID <= 0 || best.Profile <= 0 || !strings.HasPrefix(best.Path, "/data/media/") {
+		if len(matches) == 0 {
+			unmanagedTitle := strings.Join(parts[:2], "/")
+			key := "unmanaged:" + unmanagedTitle
+			if i, ok := seen[key]; ok {
+				results[i].Paths = append(results[i].Paths, p)
+			} else {
+				seen[key] = len(results)
+				results = append(results, ShrinkCheckResult{Path: unmanagedTitle, Paths: []string{p}, Title: parts[1], State: "ok-unmanaged", Reason: "not managed by Sonarr or Radarr"})
+			}
+		}
+		// CLI callers may select a parent folder. Inspect every contained managed
+		// title rather than treating the parent as an unmanaged file.
+		for _, title := range matches {
+			if title.ID <= 0 || title.Profile <= 0 || !strings.HasPrefix(title.Path, "/data/media/") {
 				return nil, errors.New("invalid media library record")
 			}
-			item = ShrinkCheckResult{Path: strings.TrimPrefix(best.Path, "/data/media/"), Paths: []string{p}, Title: best.Title, App: name, ID: best.ID, ProfileID: best.Profile, State: "ok"}
-			key = fmt.Sprintf("%s:%d", name, best.ID)
-		}
-		if i, ok := seen[key]; ok {
-			results[i].Paths = append(results[i].Paths, p)
-		} else {
-			seen[key] = len(results)
-			results = append(results, item)
+			key := fmt.Sprintf("%s:%d", name, title.ID)
+			if i, ok := seen[key]; ok {
+				results[i].Paths = append(results[i].Paths, p)
+			} else {
+				seen[key] = len(results)
+				results = append(results, ShrinkCheckResult{Path: strings.TrimPrefix(strings.TrimRight(title.Path, "/"), "/data/media/"), Paths: []string{p}, Title: title.Title, App: name, ID: title.ID, ProfileID: title.Profile, State: "ok"})
+			}
 		}
 	}
 	return results, nil

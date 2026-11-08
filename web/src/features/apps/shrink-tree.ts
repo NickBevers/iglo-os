@@ -36,18 +36,21 @@ export function toggleFiles(ready: LibraryFile[], selected: Set<string>) {
     }
     return next
 }
-// Full title and season selections use folder paths, so a large title does
-// not consume one request entry per episode. The worker expands ready files.
+export const maxShrinkFiles = 100
+
+// A folder checkbox selects the files in its snapshot. Submit those exact
+// files even when a later scan discovers more children under the same title.
 export function submissionPaths(folders: LibraryFolder[], selected: Set<string>): string[] {
-    return folders.flatMap((folder) => {
-        const stats = folderStats(folder, 'standard')
-        if (folder.path.includes('/') && stats.ready.length > 0 && stats.ready.every((f) => selected.has(f.path)))
-            return [folder.path]
-        return [
-            ...(folder.files ?? []).filter((f) => f.status === 'ready' && selected.has(f.path)).map((f) => f.path),
-            ...submissionPaths(folder.folders ?? [], selected),
-        ]
-    })
+    return [
+        ...new Set(
+            folders.flatMap((folder) => [
+                ...(folder.files ?? [])
+                    .filter((file) => file.status === 'ready' && selected.has(file.path))
+                    .map((file) => file.path),
+                ...submissionPaths(folder.folders ?? [], selected),
+            ]),
+        ),
+    ]
 }
 export function shrinkInterval(jobs: ShrinkJob[] | undefined): number | false {
     return jobs?.some((j) => j.state === 'queued' || j.state === 'running' || (j.state === 'done' && !j.rescanned))

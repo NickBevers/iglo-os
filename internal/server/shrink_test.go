@@ -36,7 +36,7 @@ func (f *shrinkRouteFake) ShrinkJobs(context.Context) (shrink.View, error) {
 func (f *shrinkRouteFake) SubmitShrink(_ context.Context, in shrink.Input) (apps.ShrinkSubmission, error) {
 	f.calls++
 	f.input = in
-	return apps.ShrinkSubmission{Jobs: []shrink.Job{{Path: "anime/Safe"}}, Refused: []arr.ShrinkCheckResult{{Path: "movies/Unsafe", Title: "Unsafe", State: "refused", Reason: "size format"}}}, f.err
+	return apps.ShrinkSubmission{Jobs: []shrink.Job{{Path: "anime/Safe/file.mkv"}}, Refused: []arr.ShrinkCheckResult{{Path: "movies/Unsafe", Title: "Unsafe", State: "refused", Reason: "size format"}}}, f.err
 }
 func (f *shrinkRouteFake) ShrinkCommand(_ context.Context, command string, _ shrink.Settings) error {
 	f.calls++
@@ -65,7 +65,7 @@ func authHash(t *testing.T) string {
 }
 func TestShrinkRoutesAuthAndValidation(t *testing.T) {
 	handler, cookie, f := shrinkHandler(t)
-	valid := `{"paths":["anime/Safe"],"profile":"standard","confirm":"replace-originals"}`
+	valid := `{"paths":["anime/Safe/file.mkv"],"profile":"standard","confirm":"replace-originals"}`
 	for _, route := range []struct {
 		method, path, body string
 		code               int
@@ -84,7 +84,7 @@ func TestShrinkRoutesAuthAndValidation(t *testing.T) {
 			t.Fatal("unauthorized call reached service")
 		}
 	}
-	for _, body := range []string{"", `{}`, `null`, `{"paths":["../escape"],"profile":"standard","confirm":"replace-originals"}`, `{"paths":["anime/Safe"],"profile":"standard"}`, strings.Replace(valid, "standard", "unknown", 1), valid + "{}", valid + strings.Repeat(" ", 512<<10)} {
+	for _, body := range []string{"", `{}`, `null`, `{"paths":["../escape"],"profile":"standard","confirm":"replace-originals"}`, `{"paths":["anime/Safe/file.mkv"],"profile":"standard"}`, strings.Replace(valid, "standard", "unknown", 1), strings.Replace(valid, "anime/Safe/file.mkv", "anime/Safe", 1), strings.Replace(valid, "anime/Safe/file.mkv", "anime/Safe/Season 01", 1), valid + "{}", valid + strings.Repeat(" ", 512<<10)} {
 		w := mediaSettingsRequest(handler, "POST", "/api/inbox/shrink", body, cookie, true)
 		if w.Code != 400 || f.calls != 0 {
 			t.Fatal(w.Code, w.Body, f.calls)
@@ -119,7 +119,7 @@ func TestShrinkRouteErrors(t *testing.T) {
 		code int
 	}{{shrink.ErrInvalid, 400}, {apps.ErrNotInstalled, 409}, {apps.ErrNotRunning, 409}, {errors.New("shrink check failed"), 502}} {
 		f.err = test.err
-		w := mediaSettingsRequest(handler, "POST", "/api/inbox/shrink", `{"paths":["anime/Safe"],"profile":"high","confirm":"replace-originals"}`, cookie, true)
+		w := mediaSettingsRequest(handler, "POST", "/api/inbox/shrink", `{"paths":["anime/Safe/file.mkv"],"profile":"high","confirm":"replace-originals"}`, cookie, true)
 		if w.Code != test.code {
 			t.Fatal(w.Code, w.Body)
 		}

@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"reflect"
 	"strings"
 	"time"
 
@@ -85,7 +86,7 @@ func addShrinkRoutes(mux *http.ServeMux, in *inbox.Service) (*shrink.Service, er
 		if strings.Contains(f.Name(), "hdr.mkv") {
 			transfer = "smpte2084"
 		}
-		p.Streams = []shrink.Stream{{Index: 0, Type: "video", Codec: codec, Width: 1920, Height: 1080, Pixel: pixel, Transfer: transfer}, {Index: 1, Type: "audio", Codec: "aac", Channels: 2, Tags: map[string]string{"language": "jpn"}}}
+		p.Streams = []shrink.Stream{{Index: 0, Type: "video", Duration: "1440", Codec: codec, Width: 1920, Height: 1080, Pixel: pixel, Transfer: transfer}, {Index: 1, Type: "audio", Codec: "aac", Channels: 2, Tags: map[string]string{"language": "jpn"}}}
 		return p, nil
 	}
 	s.Encode = func(ctx context.Context, source *os.File, out string, _ shrink.Probe, _, _ string, progress func(float64)) error {
@@ -173,14 +174,33 @@ func addShrinkRoutes(mux *http.ServeMux, in *inbox.Service) (*shrink.Service, er
 	}
 	return s, nil
 }
+
+// mockShrinkChanged mirrors the worker's state notifications. Progress can
+// notify once per 30 seconds. Final states, pause and acknowledgement are
+// immediate, even when the last progress notification was just sent.
+func mockShrinkChanged(before, after shrink.View, elapsed time.Duration) bool {
+	if reflect.DeepEqual(before, after) {
+		return false
+	}
+	before.Jobs = append([]shrink.Job{}, before.Jobs...)
+	after.Jobs = append([]shrink.Job{}, after.Jobs...)
+	for i := range before.Jobs {
+		before.Jobs[i].Progress = 0
+	}
+	for i := range after.Jobs {
+		after.Jobs[i].Progress = 0
+	}
+	return !reflect.DeepEqual(before, after) || elapsed >= 30*time.Second
+}
 func streamInboxChanges(w http.ResponseWriter, r *http.Request, in *inbox.Service, s *shrink.Service) {
 	snapshot := func() map[string]string {
 		a, _ := json.Marshal(in.Status())
 		b, _ := json.Marshal(s.Library())
-		c, _ := json.Marshal(s.Status())
-		return map[string]string{"inbox": string(a), "library": string(b), "shrink": string(c)}
+		return map[string]string{"inbox": string(a), "library": string(b)}
 	}
 	last := snapshot()
+	lastShrink := s.Status()
+	lastSent := time.Now()
 	w.Header().Set("Content-Type", "text/event-stream")
 	controller := http.NewResponseController(w)
 	fmt.Fprint(w, ": open\n\n")
@@ -190,12 +210,18 @@ func streamInboxChanges(w http.ResponseWriter, r *http.Request, in *inbox.Servic
 		select {
 		case <-r.Context().Done():
 			return
-		case <-ticker.C:
+		case now := <-ticker.C:
 			current := snapshot()
-			for _, name := range []string{"inbox", "library", "shrink"} {
+			for _, name := range []string{"inbox", "library"} {
 				if last[name] != current[name] {
 					fmt.Fprintf(w, "data: %s\n\n", name)
 				}
+			}
+			currentShrink := s.Status()
+			if mockShrinkChanged(lastShrink, currentShrink, now.Sub(lastSent)) {
+				fmt.Fprint(w, "data: shrink\n\n")
+				lastShrink = currentShrink
+				lastSent = now
 			}
 			last = current
 			fmt.Fprint(w, ": keep-alive\n\n")

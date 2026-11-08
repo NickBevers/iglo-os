@@ -29,8 +29,11 @@ EOF
         install -d -m 0755 /var/lib/iglo-inbox/admission
         # These are the arr and Jellyfin installer defaults. storage.sh has no
         # library folder list. Create them before systemd protects the share.
-        for folder in home-videos anime series movies anime-movies .iglo-shrink; do
+        for folder in home-videos anime series movies anime-movies; do
             install -d -m 0775 -o 1000 -g 1000 "/data/videos/$folder"
+            if [[ "$folder" != home-videos ]]; then
+                install -d -m 0775 -o 1000 -g 1000 "/data/videos/$folder/.iglo-shrink"
+            fi
         done
         if [[ ! -f /var/lib/iglo-inbox/admission/admit-until ]]; then printf -- "-1\n" > /var/lib/iglo-inbox/admission/admit-until; fi
         chmod 0644 /var/lib/iglo-inbox/admission/admit-until

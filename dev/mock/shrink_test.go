@@ -74,9 +74,9 @@ func TestLibraryShrinkMockFlow(t *testing.T) {
 		t.Fatal(checks)
 	}
 	os.Remove(statePath("shrink-size-format"))
-	call("POST", "/v1/inbox/104/shrink", `{"paths":["anime/Sample show (2026)"],"profile":"standard"}`, 400, nil)
+	call("POST", "/v1/inbox/104/shrink", `{"paths":["anime/Sample show (2026)/Season 01/episode.mkv"],"profile":"standard"}`, 400, nil)
 	var jobs []shrink.Job
-	call("POST", "/v1/inbox/104/shrink", `{"paths":["anime/Sample show (2026)"],"profile":"standard","confirm":"replace-originals"}`, 202, &jobs)
+	call("POST", "/v1/inbox/104/shrink", `{"paths":["anime/Sample show (2026)/Season 01/episode.mkv"],"profile":"standard","confirm":"replace-originals"}`, 202, &jobs)
 	if len(jobs) != 1 {
 		t.Fatal(jobs)
 	}
@@ -98,5 +98,31 @@ func TestLibraryShrinkMockFlow(t *testing.T) {
 	call("GET", "/v1/inbox/104/shrink", "", 200, &view)
 	if !view.Jobs[0].Rescanned {
 		t.Fatal(view)
+	}
+}
+
+func TestShrinkMockThrottlesOnlyProgress(t *testing.T) {
+	before := shrink.View{Jobs: []shrink.Job{{ID: "one", State: "running", Progress: 0.1}}}
+	after := shrink.View{Jobs: []shrink.Job{{ID: "one", State: "running", Progress: 0.4}}}
+	if mockShrinkChanged(before, after, 29*time.Second) {
+		t.Fatal("progress notified early")
+	}
+	if !mockShrinkChanged(before, after, 30*time.Second) {
+		t.Fatal("progress was not notified")
+	}
+	if before.Jobs[0].Progress != 0.1 || after.Jobs[0].Progress != 0.4 {
+		t.Fatal("comparison changed a snapshot")
+	}
+	after.Jobs[0].State = "done"
+	if !mockShrinkChanged(before, after, time.Second) {
+		t.Fatal("final state was throttled")
+	}
+	before = after
+	after = shrink.View{Paused: true, Jobs: append([]shrink.Job{}, before.Jobs...)}
+	if !mockShrinkChanged(before, after, time.Second) {
+		t.Fatal("pause was throttled")
+	}
+	if mockShrinkChanged(after, after, time.Hour) {
+		t.Fatal("idle queue notified")
 	}
 }

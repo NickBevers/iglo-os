@@ -185,7 +185,7 @@ func TestLibraryShrinkThroughManager(t *testing.T) {
 	}
 	until := func(ready func() bool) {
 		t.Helper()
-		deadline := time.Now().Add(15 * time.Second)
+		deadline := time.Now().Add(45 * time.Second)
 		for !ready() {
 			if time.Now().After(deadline) {
 				t.Fatal("manager flow timed out")
@@ -229,7 +229,7 @@ func TestLibraryShrinkThroughManager(t *testing.T) {
 	if err := os.WriteFile(statePath("shrink-check-error"), nil, 0600); err != nil {
 		t.Fatal(err)
 	}
-	call("POST", "/api/inbox/shrink", `{"paths":["anime/Sample show (2026)"],"profile":"standard","confirm":"replace-originals"}`, 502, nil)
+	call("POST", "/api/inbox/shrink", `{"paths":["anime/Sample show (2026)/Season 01/episode.mkv"],"profile":"standard","confirm":"replace-originals"}`, 502, nil)
 	var untouched shrink.View
 	call("GET", "/api/inbox/shrink", "", 200, &untouched)
 	if len(untouched.Jobs) != 0 {
@@ -239,7 +239,7 @@ func TestLibraryShrinkThroughManager(t *testing.T) {
 		t.Fatal(err)
 	}
 	var submission apps.ShrinkSubmission
-	call("POST", "/api/inbox/shrink", `{"paths":["anime/Sample show (2026)","anime/Size scored title","movies/Not smaller"],"profile":"standard","confirm":"replace-originals"}`, 202, &submission)
+	call("POST", "/api/inbox/shrink", `{"paths":["anime/Sample show (2026)/Season 01/episode.mkv","anime/Size scored title/Season 01/episode.mkv","movies/Not smaller/episode.mkv"],"profile":"standard","confirm":"replace-originals"}`, 202, &submission)
 	if len(submission.Jobs) != 2 || len(submission.Refused) != 1 {
 		t.Fatal(submission)
 	}

@@ -8,6 +8,8 @@ import (
 	"errors"
 	"fmt"
 	"io/fs"
+	"log"
+	"math"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -31,9 +33,10 @@ type cached struct {
 	Done     bool      `json:"done"`
 }
 type state struct {
-	Paused bool              `json:"paused"`
-	Jobs   []Job             `json:"jobs"`
-	Cache  map[string]cached `json:"cache"`
+	Paused bool                  `json:"paused"`
+	Jobs   []Job                 `json:"jobs"`
+	Cache  map[string]cached     `json:"cache"`
+	Swaps  map[string]swapIntent `json:"swaps,omitempty"`
 }
 type Service struct {
 	Dir, Root, AdmissionDir string
@@ -42,6 +45,11 @@ type Service struct {
 	MountOK                 func() bool
 	// Gate is shared with Inbox conversion. Only one encode runs in the guest.
 	Gate           chan struct{}
+	logf           func(string, ...any)
+	rename         func(int, string, int, string) error
+	remove         func(int, string) error
+	checkpoint     func(string)
+	saveFault      func() error
 	mu             sync.Mutex
 	probeMu        sync.Mutex
 	state          state
@@ -54,7 +62,9 @@ type Service struct {
 	scanMu         sync.Mutex
 }
 
-func New(dir, root string) (*Service, error) {
+func New(dir, root string) (*Service, error) { return newService(dir, root, nil) }
+
+func newService(dir, root string, configure func(*Service)) (*Service, error) {
 	resolved, err := filepath.EvalSymlinks(root)
 	if err != nil {
 		return nil, err
@@ -66,6 +76,10 @@ func New(dir, root string) (*Service, error) {
 		return nil, err
 	}
 	s := &Service{Dir: dir, Root: root, AdmissionDir: filepath.Join(dir, "admission"), subs: map[chan string]struct{}{}, wake: make(chan struct{}, 1), scanWake: make(chan struct{}, 1), files: map[string]File{}, state: state{Paused: true, Jobs: []Job{}, Cache: map[string]cached{}}, library: Library{Kinds: []Folder{}}}
+	s.logf = log.Printf
+	if configure != nil {
+		configure(s)
+	}
 	e := NewEncoder()
 	s.Inspect = e.Probe
 	s.Encode = e.Encode
@@ -93,41 +107,23 @@ func New(dir, root string) (*Service, error) {
 	if len(s.state.Jobs) > maxJobs {
 		return nil, errors.New("invalid shrink history")
 	}
-	changed := false
-	for i, j := range s.state.Jobs {
+	if s.state.Swaps == nil {
+		s.state.Swaps = map[string]swapIntent{}
+	}
+	for _, j := range s.state.Jobs {
 		if ValidatePath(j.Path) != nil || (j.Profile != "standard" && j.Profile != "high") || !validID(j.ID) {
 			return nil, ErrInvalid
 		}
-		if j.State == "running" {
-			s.state.Jobs[i].State = "queued"
-			s.state.Jobs[i].Progress = 0
-			changed = true
+	}
+	for id := range s.state.Swaps {
+		if !validID(id) || !slices.ContainsFunc(s.state.Jobs, func(j Job) bool { return j.ID == id }) {
+			return nil, errors.New("invalid saved replacement intent")
 		}
 	}
-	// This directory is a sibling of all titles. Never recurse into stale files.
-	tmp := filepath.Join(root, ".iglo-shrink")
-	if info, err := os.Lstat(tmp); err == nil && (!info.IsDir() || info.Mode()&os.ModeSymlink != 0) {
-		return nil, errors.New("invalid shrink temporary directory")
-	}
-	if err = os.MkdirAll(tmp, 0775); err != nil {
+	if err = s.recoverFiles(); err != nil {
 		return nil, err
 	}
-	entries, err := os.ReadDir(tmp)
-	if err != nil {
-		return nil, err
-	}
-	for _, entry := range entries {
-		if strings.HasPrefix(entry.Name(), "iglo-") && !entry.IsDir() {
-			if err = os.Remove(filepath.Join(tmp, entry.Name())); err != nil {
-				return nil, err
-			}
-		}
-	}
-	if changed {
-		if err = s.save(); err != nil {
-			return nil, err
-		}
-	}
+
 	return s, nil
 }
 func validID(id string) bool { b, e := hex.DecodeString(id); return e == nil && len(b) == 16 }
@@ -139,7 +135,29 @@ func (s *Service) emit(name string) {
 		}
 	}
 }
-func (s *Service) save() error { return worker.Save(s.Dir, s.state) }
+func (s *Service) save() error {
+	if s.saveFault != nil {
+		if err := s.saveFault(); err != nil {
+			return err
+		}
+	}
+	return worker.Save(s.Dir, s.state)
+}
+
+// saveDurable also persists the queue-file rename before changing NAS names.
+// Ordinary API writes retain the existing worker.Save error semantics.
+func (s *Service) saveDurable() error {
+	if err := s.save(); err != nil {
+		return err
+	}
+	dir, err := os.Open(s.Dir)
+	if err != nil {
+		return err
+	}
+	defer dir.Close()
+	return dir.Sync()
+}
+
 func (s *Service) Status() View {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -161,11 +179,8 @@ func signal(c chan struct{}) {
 }
 func (s *Service) RequestScan() { signal(s.scanWake) }
 
-// openSource rejects every symlink, then opens through a root restricted to
-// one library kind. Retained directory descriptors also confine replacement
-// if a title directory is renamed during an encode. CIFS nlink is not used.
-// openKindRoot pins the top-level directory without following a symlink. The
-// Root made from its descriptor keeps recursive scans inside that library kind.
+// openDirectory pins one directory directly under the share without following
+// a symlink. CIFS link counts are not used for validation.
 func (s *Service) openDirectory(name string) (*os.File, error) {
 	share, err := os.Open(s.Root)
 	if err != nil {
@@ -178,6 +193,8 @@ func (s *Service) openDirectory(name string) (*os.File, error) {
 	}
 	return os.NewFile(uintptr(fd), name), nil
 }
+
+// openKindRoot keeps recursive scans inside a pinned library kind.
 func (s *Service) openKindRoot(kind string) (*os.Root, error) {
 	dir, err := s.openDirectory(kind)
 	if err != nil {
@@ -186,6 +203,8 @@ func (s *Service) openKindRoot(kind string) (*os.Root, error) {
 	defer dir.Close()
 	return os.OpenRoot(fmt.Sprintf("/dev/fd/%d", dir.Fd()))
 }
+
+// openSource rejects symlinks and retains the containing directory for replacement.
 func (s *Service) openSource(p string) (parent, input *os.File, err error) {
 	if err = ValidatePath(p); err != nil {
 		return
@@ -249,7 +268,7 @@ func (s *Service) checkSelection(p string) error {
 	if err != nil {
 		return err
 	}
-	if !info.IsDir() && (!info.Mode().IsRegular() || strings.ToLower(filepath.Ext(p)) != ".mkv") {
+	if !info.Mode().IsRegular() || strings.ToLower(filepath.Ext(p)) != ".mkv" {
 		return ErrInvalid
 	}
 	return nil
@@ -403,6 +422,9 @@ func (s *Service) scan(ctx context.Context, prefix string) error {
 			case ext != ".mkv":
 				entry.Status = "skipped"
 				entry.Reason = "not .mkv"
+			case c.Probe.UnsupportedReason() != "":
+				entry.Status = "skipped"
+				entry.Reason = c.Probe.UnsupportedReason()
 			case c.Done:
 				entry.Status = "done"
 			case entry.HDR:
@@ -462,8 +484,8 @@ func buildTree(files map[string]File) []Folder {
 	return kinds
 }
 func (s *Service) Submit(in Input) ([]Job, error) {
-	if Validate(in) != nil {
-		return nil, ErrInvalid
+	if err := Validate(in); err != nil {
+		return nil, err
 	}
 	if !s.MountOK() {
 		return nil, errors.New("Videos share is unavailable")
@@ -478,7 +500,7 @@ func (s *Service) Submit(in Input) ([]Job, error) {
 	selected := map[string]bool{}
 	for _, p := range in.Paths {
 		for name, f := range s.files {
-			if f.Status == "ready" && (name == p || strings.HasPrefix(name, p+"/")) {
+			if f.Status == "ready" && name == p {
 				selected[name] = true
 			}
 		}
@@ -488,16 +510,25 @@ func (s *Service) Submit(in Input) ([]Job, error) {
 		paths = append(paths, p)
 	}
 	slices.Sort(paths)
+	paths = slices.DeleteFunc(paths, func(p string) bool {
+		return slices.ContainsFunc(s.state.Jobs, func(j Job) bool { return j.Path == p && (j.State == "queued" || j.State == "running") })
+	})
+	available := maxJobs - len(s.state.Jobs)
+	for _, j := range s.state.Jobs {
+		if evictable(j, s.state.Swaps) {
+			available++
+		}
+	}
+	if len(paths) > available {
+		return nil, fmt.Errorf("shrink queue has room for %d of %d selected files under its 100-job limit; no files were queued. Wait for active jobs and media rescans, or select fewer files", available, len(paths))
+	}
 	jobs := slices.Clone(s.state.Jobs)
 	added := []Job{}
 	for _, p := range paths {
-		if slices.ContainsFunc(jobs, func(j Job) bool { return j.Path == p && (j.State == "queued" || j.State == "running") }) {
-			continue
-		}
 		for len(jobs) >= maxJobs {
-			i := slices.IndexFunc(jobs, func(j Job) bool { return j.State != "queued" && j.State != "running" })
+			i := slices.IndexFunc(jobs, func(j Job) bool { return evictable(j, s.state.Swaps) })
 			if i < 0 {
-				return nil, errors.New("shrink queue is full")
+				return nil, fmt.Errorf("shrink queue cannot fit %d selected files within its 100-job limit; no files were queued. Wait for active jobs and media rescans, or select fewer files", len(paths))
 			}
 			jobs = slices.Delete(jobs, i, i+1)
 		}
@@ -545,6 +576,9 @@ func (s *Service) Settings(paused bool) error {
 func (s *Service) Cancel(id string) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	if _, committed := s.state.Swaps[id]; committed {
+		return fmt.Errorf("%w: replacement has started and cannot be cancelled", ErrInvalid)
+	}
 	i := slices.IndexFunc(s.state.Jobs, func(j Job) bool { return j.ID == id && (j.State == "queued" || j.State == "running") })
 	if i < 0 {
 		return ErrInvalid
@@ -617,6 +651,7 @@ func (s *Service) step(ctx context.Context) bool {
 	}
 	job := s.state.Jobs[i]
 	process, cancel := context.WithCancel(ctx)
+	defer cancel()
 	s.cancel = cancel
 	s.active = job.ID
 	s.state.Jobs[i].State = "running"
@@ -655,7 +690,7 @@ func (s *Service) step(ctx context.Context) bool {
 	job = s.state.Jobs[i]
 	s.cancel = nil
 	s.active = ""
-	if job.State != "cancelled" {
+	if job.State != "cancelled" && job.State != "done" && !errors.Is(err, errSwapPending) {
 		switch {
 		case errors.Is(err, context.Canceled):
 			job.State = "queued"
@@ -682,8 +717,10 @@ func (s *Service) step(ctx context.Context) bool {
 		}
 		s.state.Jobs[i] = job
 	}
-	if err := s.save(); err != nil {
-		s.state.Paused = true
+	if job.State != "done" {
+		if err := s.save(); err != nil {
+			s.state.Paused = true
+		}
 	}
 	s.emit("shrink")
 	s.mu.Unlock()
@@ -733,42 +770,46 @@ func (s *Service) process(ctx context.Context, j Job) (int64, Probe, fs.FileInfo
 		return fail(err)
 	}
 	video, err := probe.Video()
-	if err != nil || video.HDR() || before.Size() < 300000000 || time.Since(before.ModTime()) < 30*time.Minute || strings.ToLower(filepath.Ext(j.Path)) != ".mkv" {
+	if err != nil || probe.UnsupportedReason() != "" || video.HDR() || before.Size() < 300000000 || time.Since(before.ModTime()) < 30*time.Minute || strings.ToLower(filepath.Ext(j.Path)) != ".mkv" {
 		return fail(errors.New("source is no longer ready"))
 	}
-	tempDir, err := s.openDirectory(".iglo-shrink")
+	kind := strings.Split(j.Path, "/")[0]
+	tempDir, err := s.stageDirectory(kind)
 	if err != nil {
 		return fail(err)
 	}
 	defer tempDir.Close()
-	base := "iglo-" + j.ID + ".mkv"
+	base := tempName(j.ID)
 	fd, err := unix.Openat(int(tempDir.Fd()), base, unix.O_CREAT|unix.O_EXCL|unix.O_WRONLY|unix.O_NOFOLLOW, 0664)
 	if err != nil {
 		return fail(err)
 	}
 	unix.Close(fd)
+	// Test checkpoints model abrupt process exits. Do not run destructive
+	// deferred cleanup when unwinding such a crash. Real exits close descriptors.
+	protectTemp := false
+	defer func() {
+		if crash := recover(); crash != nil {
+			panic(crash)
+		}
+		if !protectTemp {
+			// No source rename has been attempted before the commit boundary.
+			if err := s.removeAt(tempDir, base); err != nil && !os.IsNotExist(err) {
+				s.logf("shrink %s: could not remove uncommitted output: %v", j.ID, err)
+			}
+		}
+	}()
+	s.checkpointAt("temp-created")
 	if err = unix.Unlinkat(int(tempDir.Fd()), base, 0); err != nil {
 		return fail(err)
 	}
-	defer unix.Unlinkat(int(tempDir.Fd()), base, 0)
-	out := filepath.Join(s.Root, ".iglo-shrink", base)
-	kind := strings.Split(j.Path, "/")[0]
+	out := filepath.Join(s.Root, kind, ".iglo-shrink", base)
 	input.Seek(0, 0)
-	last := time.Time{}
-	progress := func(v float64) {
-		s.mu.Lock()
-		defer s.mu.Unlock()
-		if time.Since(last) < time.Second {
-			return
-		}
-		last = time.Now()
-		i := slices.IndexFunc(s.state.Jobs, func(job Job) bool { return job.ID == j.ID })
-		if i >= 0 && s.state.Jobs[i].State == "running" {
-			s.state.Jobs[i].Progress = v
-			s.emit("shrink")
-		}
-	}
+	last := time.Now()
+	progress := func(v float64) { s.recordProgress(j.ID, v, time.Now(), &last) }
+
 	err = s.Encode(ctx, input, out, probe, kind, j.Profile, progress)
+	s.checkpointAt("encoded")
 	if ctx.Err() != nil {
 		return fail(ctx.Err())
 	}
@@ -803,8 +844,15 @@ func (s *Service) process(ctx context.Context, j Job) (int64, Probe, fs.FileInfo
 	if err = CheckSize(before.Size(), outInfo.Size()); err != nil {
 		return outInfo.Size(), after, outInfo, err
 	}
-	// Pause/cancel serialize with replacement. Recheck admission, storage and
-	// the visible source immediately before the rename. A moved title is changed.
+	// Release every media-file handle before the first CIFS rename. Directory
+	// handles remain pinned so replacement cannot follow a new path or symlink.
+	if err = input.Close(); err != nil {
+		return fail(err)
+	}
+	if err = output.Close(); err != nil {
+		return fail(err)
+	}
+	s.checkpointAt("result-verified")
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if ctx.Err() != nil || s.state.Paused || !worker.Admitted(s.AdmissionDir) {
@@ -823,8 +871,51 @@ func (s *Service) process(ctx context.Context, j Job) (int64, Probe, fs.FileInfo
 	if err != nil || SourceChanged(before, currentInfo) || !os.SameFile(before, currentInfo) {
 		return fail(errChanged)
 	}
-	if err = unix.Renameat(int(tempDir.Fd()), filepath.Base(out), int(parent.Fd()), filepath.Base(j.Path)); err != nil {
+	intent := swapIntent{Result: cached{Bytes: outInfo.Size(), Modified: outInfo.ModTime(), Probe: after, Done: true}}
+	protectTemp = true
+	s.state.Swaps[j.ID] = intent
+	if err = s.saveDurable(); err != nil {
+		return fail(s.recoveryErrorLocked(j, err))
+	}
+	s.checkpointAt("swap-recorded")
+	if err = s.finishSwapLocked(j, parent, tempDir, intent); err != nil {
 		return fail(err)
 	}
+
 	return outInfo.Size(), after, outInfo, nil
+}
+
+const progressEventEvery = 30 * time.Second
+
+// Polls can read current progress at any time. Events are limited to two a
+// minute during an encode because each event causes a host pct exec refresh.
+func (s *Service) recordProgress(id string, v float64, now time.Time, last *time.Time) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if math.IsNaN(v) || math.IsInf(v, 0) {
+		return
+	}
+	i := slices.IndexFunc(s.state.Jobs, func(j Job) bool { return j.ID == id })
+	if i < 0 || s.state.Jobs[i].State != "running" {
+		return
+	}
+	s.state.Jobs[i].Progress = math.Max(0, math.Min(0.99, v))
+	if now.Sub(*last) >= progressEventEvery {
+		*last = now
+		s.emit("shrink")
+	}
+}
+
+func evictable(j Job, swaps map[string]swapIntent) bool {
+	if _, pending := swaps[j.ID]; pending {
+		return false
+	}
+	switch j.State {
+	case "done":
+		return j.Rescanned
+	case "failed", "cancelled", "not-smaller", "changed":
+		return true
+	default:
+		return false
+	}
 }

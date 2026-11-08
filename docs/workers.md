@@ -53,7 +53,9 @@ entitled to download; no account cookies, subscriptions or login bypass are set 
 The **Inbox** section imports local videos. **Shrink library** replaces chosen
 library files after confirmation. See [Library shrink](library-shrink.md).
 
-Video tools uses a native Go service and Debian FFmpeg, without Docker. One
+Video tools uses a native Go service without Docker. Inbox imports use Debian
+FFmpeg. Library shrink uses Jellyfin FFmpeg 7 with a verified HEVC Main10 QSV
+encoder and a CPU fallback. One
 worker runs at a time, with two CPU cores and a 1536 MiB systemd ceiling in the
 existing 2048 MiB guest budget. These are limits, not measured memory use.
 The loopback API on port 8789 reaches clients only through the manager/agent.

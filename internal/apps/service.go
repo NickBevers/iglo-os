@@ -269,6 +269,10 @@ type Service struct {
 	// gamingWake makes WatchGaming look at once, after Play or Stop.
 	gamingWake     chan struct{}
 	shrinkWake     chan struct{}
+	shrinkChanged  chan struct{}
+	shrinkStatus   shrinkStatusCache
+	shrinkVMID     int
+	shrinkRescans  map[string]bool
 	libraryRefresh func(context.Context) error
 
 	// descriptions, addresses and storages change rarely, so the Apps view
@@ -311,7 +315,7 @@ func New(options Options) *Service {
 		options.Changed = func(string) {}
 	}
 
-	return &Service{Options: options, rollbacks: map[string]string{}, wake: make(chan struct{}, 1), gamingWake: make(chan struct{}, 1), shrinkWake: make(chan struct{}, 1)}
+	return &Service{Options: options, rollbacks: map[string]string{}, wake: make(chan struct{}, 1), gamingWake: make(chan struct{}, 1), shrinkWake: make(chan struct{}, 1), shrinkChanged: make(chan struct{}, 1)}
 }
 
 func (s *Service) Status(ctx context.Context) (View, error) {

@@ -26,7 +26,7 @@ func TestArguments(t *testing.T) {
 					if profile == "high" {
 						q = "17"
 					}
-					if !strings.Contains(a, "-c:v hevc_qsv -profile:v main10 -preset veryslow -global_quality:v "+q) {
+					if !strings.Contains(a, "-c:v:0 hevc_qsv -profile:v:0 main10 -preset:v:0 veryslow -global_quality:v:0 "+q) {
 						t.Fatal(a)
 					}
 				} else {
@@ -34,7 +34,7 @@ func TestArguments(t *testing.T) {
 					if profile == "high" {
 						q = "17"
 					}
-					if !strings.Contains(a, "-c:v libx265 -preset slow -crf "+q) || !strings.Contains(a, "yuv420p10le") {
+					if !strings.Contains(a, "-c:v:0 libx265 -preset:v:0 slow -crf:v:0 "+q) || !strings.Contains(a, "yuv420p10le") {
 						t.Fatal(a)
 					}
 				}
@@ -95,11 +95,11 @@ func TestEstimatesAndVerification(t *testing.T) {
 	if err := Verify(src, out, "anime"); err != nil {
 		t.Fatal(err)
 	}
-	out.Format.Duration = "1442"
+	out.Streams[0].Duration = "1442"
 	if err := Verify(src, out, "anime"); err != nil {
-		t.Fatal("0.2 percent tolerance", err)
+		t.Fatal("video duration tolerance", err)
 	}
-	out.Format.Duration = "1444"
+	out.Streams[0].Duration = "1444"
 	if err := Verify(src, out, "anime"); err == nil {
 		t.Fatal("duration mismatch accepted")
 	}

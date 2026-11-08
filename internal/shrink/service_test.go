@@ -16,7 +16,7 @@ import (
 func sourceProbe() Probe {
 	p := Probe{}
 	p.Format.Duration = "1440"
-	p.Streams = []Stream{{Index: 0, Type: "video", Codec: "h264", Pixel: "yuv420p", Width: 1920, Height: 1080}, {Index: 1, Type: "audio", Codec: "flac", Channels: 2, Tags: map[string]string{"language": "jpn"}}, {Index: 2, Type: "audio", Codec: "aac", Channels: 6, Tags: map[string]string{"language": "eng"}}, {Index: 3, Type: "subtitle", Codec: "ass"}, {Index: 4, Type: "attachment", Codec: "ttf"}}
+	p.Streams = []Stream{{Duration: "1440", Index: 0, Type: "video", Codec: "h264", Pixel: "yuv420p", Width: 1920, Height: 1080}, {Index: 1, Type: "audio", Codec: "flac", Channels: 2, Tags: map[string]string{"language": "jpn"}}, {Index: 2, Type: "audio", Codec: "aac", Channels: 6, Tags: map[string]string{"language": "eng"}}, {Index: 3, Type: "subtitle", Codec: "ass"}, {Index: 4, Type: "attachment", Codec: "ttf"}}
 	return p
 }
 func resultProbe() Probe {
@@ -35,6 +35,9 @@ func writeSource(t *testing.T, root, p string) string {
 	}
 	f, err := os.Create(full)
 	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err = f.WriteString("original library source"); err != nil {
 		t.Fatal(err)
 	}
 	if err = f.Truncate(400000000); err != nil {
@@ -71,6 +74,9 @@ func fixture(t *testing.T) (*Service, string) {
 			return err
 		}
 		defer f.Close()
+		if _, err = f.WriteString("encoded library result"); err != nil {
+			return err
+		}
 		return f.Truncate(40000000)
 	}
 	os.MkdirAll(s.AdmissionDir, 0700)
@@ -110,7 +116,7 @@ func TestPathValidationAndConfirmation(t *testing.T) {
 		}
 	}
 }
-func TestExpansionAndProbeCache(t *testing.T) {
+func TestFileSelectionAndProbeCache(t *testing.T) {
 	s, _ := fixture(t)
 	writeSource(t, s.Root, "anime/Show/Season 01/b.mkv")
 	writeSource(t, s.Root, "anime/Show/Season 02/c.mkv")
@@ -129,13 +135,13 @@ func TestExpansionAndProbeCache(t *testing.T) {
 	if count.Load() != 2 {
 		t.Fatal("reprobed unchanged files")
 	}
-	jobs, err := s.Submit(Input{Paths: []string{"anime/Show/Season 01", "anime/Show/Season 01/a.mkv"}, Profile: "high", Confirm: "replace-originals"})
+	jobs, err := s.Submit(Input{Paths: []string{"anime/Show/Season 01/a.mkv", "anime/Show/Season 01/b.mkv", "anime/Show/Season 01/a.mkv"}, Profile: "high", Confirm: "replace-originals"})
 	if err != nil || len(jobs) != 2 {
-		t.Fatalf("season expansion: %v %v", jobs, err)
+		t.Fatalf("file selection: %v %v", jobs, err)
 	}
-	jobs, err = s.Submit(Input{Paths: []string{"anime/Show"}, Profile: "standard", Confirm: "replace-originals"})
+	jobs, err = s.Submit(Input{Paths: []string{"anime/Show/Season 01/a.mkv", "anime/Show/Season 01/b.mkv", "anime/Show/Season 02/c.mkv"}, Profile: "standard", Confirm: "replace-originals"})
 	if err != nil || len(jobs) != 1 {
-		t.Fatalf("title expansion: %v %v", jobs, err)
+		t.Fatalf("file deduplication: %v %v", jobs, err)
 	}
 	// A different fingerprint is probed once.
 	f, _ := os.OpenFile(filepath.Join(s.Root, "anime/Show/Season 02/c.mkv"), os.O_WRONLY, 0)
@@ -155,7 +161,11 @@ func TestLibraryStatuses(t *testing.T) {
 		p.Streams[0].SideData = append(p.Streams[0].SideData, struct {
 			Type string `json:"side_data_type"`
 		}{"DOVI configuration record"})
-	}}, {"small", "small", func(p *Probe) { p.Streams[0].Codec = "hevc"; p.Format.Duration = "3600" }}} {
+	}}, {"small", "small", func(p *Probe) {
+		p.Streams[0].Codec = "hevc"
+		p.Format.Duration = "3600"
+		p.Streams[0].Duration = "3600"
+	}}} {
 		t.Run(tc.name, func(t *testing.T) {
 			s.mu.Lock()
 			s.state.Cache = map[string]cached{}
@@ -215,7 +225,7 @@ func TestSuccessfulReplacementAndRescanAck(t *testing.T) {
 }
 func assertNoTemp(t *testing.T, s *Service) {
 	t.Helper()
-	entries, err := os.ReadDir(filepath.Join(s.Root, ".iglo-shrink"))
+	entries, err := os.ReadDir(filepath.Join(s.Root, "anime", ".iglo-shrink"))
 	if err != nil || len(entries) != 0 {
 		t.Fatalf("temporary output remains: %v %v", entries, err)
 	}
@@ -248,6 +258,7 @@ func TestFailuresLeaveOriginal(t *testing.T) {
 					switch kind {
 					case "duration":
 						probe.Format.Duration = "1300"
+						probe.Streams[0].Duration = "1300"
 					case "audio":
 						probe.Streams[1].Channels = 8
 					case "subtitle":
@@ -360,7 +371,7 @@ func TestHTTPContract(t *testing.T) {
 	}
 }
 
-func TestReadyExpansionExcludesSkippedAndSmall(t *testing.T) {
+func TestFileSelectionExcludesSkippedAndSmall(t *testing.T) {
 	s, p := fixture(t)
 	small := writeSource(t, s.Root, "anime/Show/Season 01/small.mkv")
 	os.Truncate(small, 1000000)
@@ -374,6 +385,7 @@ func TestReadyExpansionExcludesSkippedAndSmall(t *testing.T) {
 		if strings.Contains(f.Name(), "already.mkv") {
 			probe.Streams[0].Codec = "hevc"
 			probe.Format.Duration = "3600"
+			probe.Streams[0].Duration = "3600"
 		}
 		return probe, err
 	}
@@ -381,7 +393,7 @@ func TestReadyExpansionExcludesSkippedAndSmall(t *testing.T) {
 	if err := s.Scan(context.Background()); err != nil {
 		t.Fatal(err)
 	}
-	jobs, err := s.Submit(Input{Paths: []string{"anime/Show"}, Profile: "standard", Confirm: "replace-originals"})
+	jobs, err := s.Submit(Input{Paths: []string{p, "anime/Show/Season 01/small.mkv", "anime/Show/Season 01/recent.mkv", "anime/Show/Season 01/already.mkv"}, Profile: "standard", Confirm: "replace-originals"})
 	if err != nil || len(jobs) != 1 || jobs[0].Path != p {
 		t.Fatal(jobs, err)
 	}
@@ -401,19 +413,25 @@ func TestUnchangedCacheDoesNotWriteState(t *testing.T) {
 		t.Fatal("rewrote unchanged cache", info, err)
 	}
 }
-func TestStartupCleansOnlyWorkerTempFiles(t *testing.T) {
+func TestStartupPreservesUnknownAndLegacyFiles(t *testing.T) {
 	s, _ := fixture(t)
-	dir := filepath.Join(s.Root, ".iglo-shrink")
-	os.WriteFile(filepath.Join(dir, "iglo-stale.mkv"), []byte("partial"), 0600)
-	os.WriteFile(filepath.Join(dir, "unrelated"), []byte("leave"), 0600)
+	for _, dir := range []string{filepath.Join(s.Root, ".iglo-shrink"), filepath.Join(s.Root, "anime/.iglo-shrink")} {
+		os.MkdirAll(dir, 0700)
+		for _, name := range []string{"iglo-stale.mkv", "unrelated", "backup-unknown"} {
+			if err := os.WriteFile(filepath.Join(dir, name), []byte("keep"), 0600); err != nil {
+				t.Fatal(err)
+			}
+		}
+	}
 	if _, err := New(s.Dir, s.Root); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := os.Stat(filepath.Join(dir, "iglo-stale.mkv")); !os.IsNotExist(err) {
-		t.Fatal("stale file remains", err)
-	}
-	if _, err := os.Stat(filepath.Join(dir, "unrelated")); err != nil {
-		t.Fatal("removed unrelated file", err)
+	for _, dir := range []string{filepath.Join(s.Root, ".iglo-shrink"), filepath.Join(s.Root, "anime/.iglo-shrink")} {
+		for _, name := range []string{"iglo-stale.mkv", "unrelated", "backup-unknown"} {
+			if _, err := os.Stat(filepath.Join(dir, name)); err != nil {
+				t.Fatal("removed an unknown file", err)
+			}
+		}
 	}
 }
 
