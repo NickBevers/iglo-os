@@ -159,10 +159,14 @@ create_container() {
 # require_binding. It makes the folder when it is missing and the share has
 # write access. Without it, Jellyfin gets no library for the folder.
 optional_folder() {
-    [[ ! -d "$BINDING_PATH/$1" ]] || return 0
+    if [[ -d "$BINDING_PATH/$1" ]]; then
+        keep_library_folder "$BINDING_PATH/$1"
+        return 0
+    fi
     if [[ "$BINDING_READ_ONLY" == false ]]; then
         log "Making the folder $1 on the share"
         if mkdir -m 0775 "$BINDING_PATH/$1"; then
+            keep_library_folder "$BINDING_PATH/$1"
             return 0
         fi
     fi

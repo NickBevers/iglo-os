@@ -20,6 +20,7 @@ import (
 	"time"
 
 	"iglo/internal/agent"
+	"iglo/internal/stacks/arr"
 )
 
 var version = "dev"
@@ -152,6 +153,20 @@ func run(socketPath, adminPath string, socketGID int, logger *slog.Logger) error
 			return
 		}
 		logger.Info("flaresolverr change started", "vmid", request.VMID, "enabled", request.Enabled)
+		w.WriteHeader(http.StatusAccepted)
+	})
+	registerMediaSettingsGet(mux, apps.MediaSettings, logger)
+	mux.HandleFunc("PUT /v1/apps/media/settings", func(w http.ResponseWriter, r *http.Request) {
+		var request agent.MediaSettingsRequest
+		if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, 64*1024)).Decode(&request); err != nil {
+			http.Error(w, "invalid request body", http.StatusBadRequest)
+			return
+		}
+		if err := apps.ChangeMediaSettings(request.VMID, request.Settings); err != nil {
+			writeAppError(w, logger, agent.MediaStackApp, err)
+			return
+		}
+		logger.Info("media settings change started", "vmid", request.VMID)
 		w.WriteHeader(http.StatusAccepted)
 	})
 	// Music reports its queue and Gaming its library. Photos and Inbox will follow.
@@ -479,4 +494,24 @@ func writeJSON(w http.ResponseWriter, status int, value any) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(status)
 	json.NewEncoder(w).Encode(value)
+}
+
+func registerMediaSettingsGet(mux *http.ServeMux, read func(context.Context, int) (arr.MediaSettings, error), logger *slog.Logger) {
+	mux.HandleFunc("GET /v1/apps/media/settings", func(w http.ResponseWriter, r *http.Request) {
+		vmid, _ := strconv.Atoi(r.URL.Query().Get("vmid"))
+		settings, err := read(r.Context(), vmid)
+		if errors.Is(err, agent.ErrMediaSettingsUnavailable) {
+			http.Error(w, err.Error(), http.StatusServiceUnavailable)
+			return
+		}
+		if errors.Is(err, agent.ErrMediaSettingsNeedsUpdate) || errors.Is(err, agent.ErrMediaSettingsUnreadable) {
+			http.Error(w, err.Error(), http.StatusConflict)
+			return
+		}
+		if err != nil {
+			writeAppError(w, logger, agent.MediaStackApp, err)
+			return
+		}
+		writeJSON(w, http.StatusOK, settings)
+	})
 }

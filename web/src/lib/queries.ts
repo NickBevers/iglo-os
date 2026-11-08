@@ -96,3 +96,13 @@ export const appsQuery = queryOptions({
         return running ? 2000 : 30000
     },
 })
+
+export function mediaSettingsQuery(id: string) {
+    return queryOptions({
+        queryKey: ['apps', id, 'media-settings'],
+        queryFn: () => api.mediaSettings(id),
+        retry: false,
+        staleTime: 0,
+        refetchOnWindowFocus: false,
+    })
+}

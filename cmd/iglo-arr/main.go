@@ -3,6 +3,7 @@
 //	iglo-arr configure --env /opt/arr/.env < passwords
 //	iglo-arr vpn --env /opt/arr/.env < settings
 //	iglo-arr flaresolverr --env /opt/arr/.env on|off
+//	iglo-arr media get|set --env /opt/arr/.env
 //
 // For configure, the first line on stdin is the password for the apps.
 // Optional next lines are the password of the Jellyfin admin, for the setup
@@ -22,6 +23,7 @@ package main
 import (
 	"bufio"
 	"context"
+	"encoding/json"
 	"errors"
 	"flag"
 	"fmt"
@@ -37,11 +39,12 @@ import (
 )
 
 func main() {
-	commands := map[string]func([]string) error{"configure": configure, "vpn": applyVPN, "flaresolverr": setFlareSolverr}
+	commands := map[string]func([]string) error{"configure": configure, "vpn": applyVPN, "flaresolverr": setFlareSolverr, "media": mediaSettings}
 	if len(os.Args) < 2 || commands[os.Args[1]] == nil {
 		fmt.Fprintln(os.Stderr, "usage: iglo-arr configure [--env FILE] [--data-dir DIR] [--bazarr-config FILE] < passwords")
 		fmt.Fprintln(os.Stderr, "       iglo-arr vpn [--env FILE] [--gluetun-dir DIR] < settings")
 		fmt.Fprintln(os.Stderr, "       iglo-arr flaresolverr [--env FILE] on|off")
+		fmt.Fprintln(os.Stderr, "       iglo-arr media get|set [--env FILE]")
 		os.Exit(2)
 	}
 
@@ -109,6 +112,47 @@ func setFlareSolverr(args []string) error {
 
 	return arr.SetFlareSolverr(ctx, flags.Arg(0) == "on", *envPath, arr.DefaultEndpoints.Prowlarr, func(format string, args ...any) {
 		fmt.Printf("==> "+format+"\n", args...)
+	})
+}
+
+// mediaSettings uses the stack folder of --env for state and app configs.
+// Get reads Bazarr when no choices have been saved. Its stdout stays JSON.
+func mediaSettings(args []string) error {
+	if len(args) == 0 || (args[0] != "get" && args[0] != "set") {
+		return errors.New("usage: iglo-arr media get|set [--env FILE]")
+	}
+	action := args[0]
+	flags := flag.NewFlagSet("media "+action, flag.ContinueOnError)
+	envPath := flags.String("env", "/opt/arr/.env", "stack .env file")
+	if err := flags.Parse(args[1:]); err != nil {
+		return err
+	}
+	if flags.NArg() != 0 {
+		return errors.New("unexpected media command arguments")
+	}
+	settingsPath, bazarrConfig, seerrConfig := arr.MediaSettingsPaths(*envPath)
+	if action == "get" {
+		settings, err := arr.GetMediaSettings(settingsPath, arr.MediaSettingsConfig{EnvPath: *envPath, BazarrConfigPath: bazarrConfig})
+		if err != nil {
+			return err
+		}
+		return json.NewEncoder(os.Stdout).Encode(settings)
+	}
+	settings, err := arr.DecodeMediaSettings(os.Stdin)
+	if err != nil {
+		return err
+	}
+	env, err := readEnv(*envPath, "SONARR_API_KEY", "RADARR_API_KEY")
+	if err != nil {
+		return err
+	}
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer stop()
+	return arr.ApplyMediaSettings(ctx, settings, arr.MediaSettingsConfig{
+		Endpoints:    arr.DefaultEndpoints,
+		SonarrAPIKey: env["SONARR_API_KEY"], RadarrAPIKey: env["RADARR_API_KEY"],
+		SettingsPath: settingsPath, BazarrConfigPath: bazarrConfig, SeerrConfigPath: seerrConfig,
+		Logf: func(format string, args ...any) { fmt.Printf("==> "+format+"\n", args...) },
 	})
 }
 
@@ -182,7 +226,7 @@ func configure(args []string) error {
 }
 
 // readEnv parses the simple KEY=VALUE lines Docker Compose reads too.
-func readEnv(path string) (map[string]string, error) {
+func readEnv(path string, required ...string) (map[string]string, error) {
 	data, err := os.ReadFile(path)
 	if err != nil {
 		return nil, err
@@ -199,7 +243,10 @@ func readEnv(path string) (map[string]string, error) {
 		}
 	}
 
-	for _, key := range []string{"ARR_USERNAME", "RADARR_API_KEY", "SONARR_API_KEY", "PROWLARR_API_KEY", "SUBTITLE_LANGUAGES"} {
+	if len(required) == 0 {
+		required = []string{"ARR_USERNAME", "RADARR_API_KEY", "SONARR_API_KEY", "PROWLARR_API_KEY", "SUBTITLE_LANGUAGES"}
+	}
+	for _, key := range required {
 		if env[key] == "" {
 			return nil, fmt.Errorf("%s is missing in %s", key, path)
 		}

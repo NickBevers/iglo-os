@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
-import { ArrowUpCircleIcon, CloudIcon, Loader2Icon, ShieldIcon, Trash2Icon } from 'lucide-react'
+import { ArrowUpCircleIcon, CloudIcon, LanguagesIcon, Loader2Icon, ShieldIcon, Trash2Icon } from 'lucide-react'
 import { toast } from 'sonner'
 
 import {
@@ -19,6 +19,7 @@ import { Label } from '@/components/ui/label'
 import { api, type CatalogApp } from '@/lib/api'
 import { appsQuery } from '@/lib/queries'
 import { FlareSolverrDialog } from './flaresolverr-dialog'
+import { MediaSettingsDialog } from './media-settings-dialog'
 import { VpnDialog } from './vpn-dialog'
 
 const updateText: Record<string, string> = {
@@ -43,13 +44,13 @@ const removeText: Record<string, string> = {
         'Its settings, users and watch history go with it, and the Jellyfin page disconnects. Your movies and series stay on the Videos share.',
 }
 
-// AppActions are the buttons of an app that Iglo-OS installed: VPN and FlareSolverr (media stack only),
-// Update and Remove.
+// AppActions shows settings, Update and Remove for an installed app.
 export function AppActions({ app }: { app: CatalogApp }) {
     const queryClient = useQueryClient()
     const [confirm, setConfirm] = useState<'update' | 'remove' | null>(null)
     const [vpnOpen, setVpnOpen] = useState(false)
     const [flareSolverrOpen, setFlareSolverrOpen] = useState(false)
+    const [mediaSettingsOpen, setMediaSettingsOpen] = useState(false)
     const [hostname, setHostname] = useState('')
 
     const refresh = () => queryClient.invalidateQueries({ queryKey: appsQuery.queryKey })
@@ -107,6 +108,16 @@ export function AppActions({ app }: { app: CatalogApp }) {
                     FlareSolverr
                 </Button>
             )}
+            {app.id === 'media' && app.installed && (
+                <Button
+                    variant="outline"
+                    disabled={busy || app.status !== 'running'}
+                    onClick={() => setMediaSettingsOpen(true)}
+                >
+                    <LanguagesIcon />
+                    Languages
+                </Button>
+            )}
             <Button
                 variant={app.updateAvailable ? 'default' : 'outline'}
                 disabled={busy || app.status !== 'running'}
@@ -122,6 +133,7 @@ export function AppActions({ app }: { app: CatalogApp }) {
 
             <VpnDialog app={app} open={vpnOpen} onOpenChange={setVpnOpen} />
             <FlareSolverrDialog app={app} open={flareSolverrOpen} onOpenChange={setFlareSolverrOpen} />
+            <MediaSettingsDialog app={app} open={mediaSettingsOpen} onOpenChange={setMediaSettingsOpen} />
 
             <AlertDialog open={confirm === 'update'} onOpenChange={(open) => !open && setConfirm(null)}>
                 <AlertDialogContent>
