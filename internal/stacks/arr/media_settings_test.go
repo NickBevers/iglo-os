@@ -262,6 +262,13 @@ func (f *mediaFake) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		json.NewEncoder(w).Encode(rows)
 		return
 	}
+	if r.Method == "DELETE" {
+		collection := app + "/" + strings.Join(parts[3:len(parts)-1], "/")
+		id := parts[len(parts)-1]
+		f.resources[collection] = slices.DeleteFunc(f.resources[collection], func(p map[string]any) bool { return fmt.Sprint(p["id"]) == id })
+		w.WriteHeader(http.StatusNoContent)
+		return
+	}
 	var body map[string]any
 	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
 		http.Error(w, "bad body", 400)

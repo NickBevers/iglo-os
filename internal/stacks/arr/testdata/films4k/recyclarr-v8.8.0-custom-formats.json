@@ -1,0 +1,37 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema",
+  "type": ["null", "array"],
+  "items": {
+    "type": "object",
+    "additionalProperties": false,
+    "description": "A list of one or more sets of custom formats each with an optional set of quality profiles names that identify which quality profiles to assign the scores for those custom formats to.",
+    "required": ["trash_ids"],
+    "properties": {
+      "trash_ids": {
+        "type": ["null", "array"],
+        "description": "A list of one or more Trash IDs taken from the Trash Guide JSON files.",
+        "uniqueItems": true,
+        "items": {
+          "type": "string"
+        }
+      },
+      "score": {
+        "type": "integer",
+        "description": "Default score applied to every profile under 'assign_scores_to' that does not define its own 'score'. Per-profile scores still override this default."
+      },
+      "assign_scores_to": {
+        "type": ["null", "array"],
+        "description": "One or more quality profiles to update with the scores from the specified custom formats.",
+        "items": {
+          "allOf": [{ "$ref": "profile-reference.json" }],
+          "properties": {
+            "score": {
+              "type": "integer",
+              "description": "A positive or negative number representing the score to apply to *all* custom formats listed in the trash_ids list. Overrides the entry-level 'score' when both are present."
+            }
+          }
+        }
+      }
+    }
+  }
+}

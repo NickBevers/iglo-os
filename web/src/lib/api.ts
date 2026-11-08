@@ -567,6 +567,7 @@ export type AppOperation = {
 export type KindSettings = { subtitles: string[]; audio: 'original' | 'dutch' }
 
 export type MediaSettings = {
+    uhdFilms: boolean
     anime: KindSettings
     dutch: KindSettings
     series: KindSettings

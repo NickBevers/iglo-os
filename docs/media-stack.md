@@ -111,6 +111,35 @@ Titles whose original language is Dutch get the Dutch profile and the `dutch` ta
 
 The settings are saved in `/opt/arr/iglo-media.json`. A media stack from before this feature needs **Update** first. This behavior follows Sonarr v4.0.20.3014, Radarr v6.4.4.10685, Bazarr v1.6.2, Seerr v3.5.1 and Recyclarr v8.8.0, checked 7 November 2026.
 
+## Films in 4K when available
+
+Open **Languages** on the media stack card and turn on **Films in 4K when available**. It is off by default. The setting is `uhdFilms` in `iglo-media.json`, separate from the size limit `sizes.films4k`. Old files without the switch read as false. With it off, the Recyclarr template, HD profiles and Seerr defaults keep their old behavior.
+
+New films then use **4K when available (Iglo-OS)** in Radarr. It prefers these qualities, in order:
+
+1. Bluray-2160p.
+2. WEB 2160p, with WEBDL-2160p and WEBRip-2160p grouped together.
+3. Bluray-1080p.
+4. WEB 1080p, with WEBDL-1080p and WEBRip-1080p grouped together.
+
+Remux and 720p are excluded. If no suitable 4K release exists, Radarr takes 1080p. Upgrades stay on until Bluray-2160p, with the guide's cutoff format score of 10000. A later suitable 4K release can replace the 1080p copy. The HD and 4K size limits still apply to their own qualities.
+
+Dolby Vision releases without an HDR fallback score -10000 and are skipped. The Raspberry Pi 4 with Kodi can play 4K HEVC, HDR10 and HDR10+, but cannot play Dolby Vision alone. HDR and HDR10+ keep their TRaSH scores. DV Boost is not selected. Format matching follows release names and the guide's rules, so check a release in Kodi if its name is misleading. Atmos has no extra preference here.
+
+Recyclarr creates and keeps this profile from **UHD Bluray + WEB**, TRaSH ID `64fb5f9858489bdac2af690e27c8f42f`. The HD profile remains separate. The v8.8.0 schema allows `trash_id` together with `name`, `qualities`, `quality_sort`, `min_format_score` and `upgrade`. We use those overrides and assign extra formats by profile name. The guide's release tiers, repacks and default unwanted formats keep their guide scores. The minimum score stays zero, so a clean 1080p H.264 WEB-DL or Bluray encode with no positive formats is accepted. It matches neither x265 format. Golden Rule UHD keeps its x265 (no HDR/DV) penalty, including for 4K SDR x265 re-encodes. Iglo-OS also assigns x265 (HD) a score of -10000. This matches the existing HD film profile on the live host and blocks 1080p x265 releases even when they have HDR. The UHD group alone does not select x265 (HD) by default. Optional SDR penalties are not selected. Their required 2160p condition would not match the fallback anyway.
+
+These choices were checked offline on 2026-11-08 against the supplied Recyclarr v8.8.0 quality profile, custom format and profile reference schemas, the TRaSH UHD and HD profile snapshots, the HDR format groups, unwanted formats and Golden Rule groups, and the HDR, HDR10+, DV and SDR format definitions. The schemas and relevant guide snapshots are kept in `internal/stacks/arr/testdata/films4k`. The guide clone is not pinned and can change later. HDR scores in this snapshot are 500, HDR10+ Boost 100 and DV without fallback -10000. The owner reported the live HD profile's x265 (HD) score of -10000 and minimum score of zero on 2026-11-08. Iglo-OS fixes that HD penalty and the DV penalty in the rendered config. x265 (no HDR/DV) keeps its guide score through the default UHD group. Other guide scores continue to follow Recyclarr's guide clone.
+
+Dutch films follow the switch through **Dutch 4K (Iglo-OS)**. It is copied once from the new 4K profile and gets the same Dutch audio changes as **Dutch (Iglo-OS)**. Like the existing Dutch profile, it does not follow later Recyclarr changes except for the two x265 penalties. Saving media settings copies those penalties from the Recyclarr profile, including into an existing Dutch 4K profile. A separate profile keeps existing Dutch films from gaining 4K upgrades when you turn the switch on. Seerr's Dutch film rule selects it. For a Dutch dub, choose **Dutch 4K (Iglo-OS)** and the `dutch` tag in the request dialog. Dutch series and anime keep their existing profiles.
+
+Seerr keeps one normal Radarr server with `is4k: false`. Its `activeProfileId` and `activeProfileName` select the new profile. Make a normal film request in Seerr. Radarr chooses the resolution through that profile. Seerr must be set up and reachable to change this default. A failed Dutch override rule still only warns, as with language settings.
+
+Existing films keep their profiles. To opt one in, open that film in Radarr, choose **Edit**, set **Quality Profile** to **4K when available (Iglo-OS)**, or **Dutch 4K (Iglo-OS)** for Dutch audio, and save. Use Radarr's search for an immediate search. Turning the switch on itself never changes film records or starts a library search.
+
+Turning it off sends new films back to **HD Bluray + WEB** and Dutch films to **Dutch (Iglo-OS)**. The 4K profiles are removed only when no film uses them and no Seerr service or override rule still points at them. Otherwise the log says which profile was kept and why. A kept profile retains its current settings after its Recyclarr config is removed. Existing films on it can still upgrade. Change those films' profiles in Radarr if you also want their upgrades to stop. The stored 4K size limit stays when the switch is off.
+
+Install, Update, VPN changes and FlareSolverr changes use `iglo-arr media render` to combine the saved switch and size limits with the template before Recyclarr starts. Saving the switch renders and syncs the film profile before setting Seerr's default. A failed sync or missing profile fails the change. A later failure restores the previous YAML, Seerr default and owned Dutch film rule. Harmless new profiles can remain after a failed change, without changing any film records.
+
 ## Maximum download size
 
 Open **Languages** on the media stack card for **Maximum download size**. Series, Dutch series and anime share one limit because Sonarr's quality definitions apply to all series. Films have separate Radarr limits for **Films in HD (1080p and lower)** and **Films in 4K**. The choices show sizes per 24-minute episode or 2-hour film. They use decimal GB (1000 MB), rounded down to whole MB per minute of runtime. The 4K choices are 40 GB (333 MB/min), 25 GB (208 MB/min), 20 GB (166 MB/min) and 15 GB (125 MB/min). A saved value outside the choices appears as **Custom** and stays available until you close the dialog.
@@ -127,7 +156,7 @@ Recyclarr carries the guide overrides on its daily sync. Iglo-OS prefers names a
 
 Iglo-OS also caps every quality definition that the guide leaves alone, including SD qualities, through the Sonarr and Radarr APIs after the sync. It uses the smaller of the app's default maximum and your limit, and keeps preferred and minimum sizes below that maximum. **No limit** restores those qualities to the pinned app defaults, including unlimited values stored as `null`. The defaults and API rules follow Sonarr v4.0.20.3014 and Radarr v6.4.4.10685, checked 2026-11-08.
 
-Saving a changed limit runs the stack's existing `docker exec recyclarr recyclarr sync` command immediately for both instances, after the language steps finish. A failed sync, config parse error or missing successful size result fails the settings change. The YAML and live API sizes are restored if a later size update or settings save fails. On install and update, `iglo-arr media render` combines `/opt/arr/recyclarr.template.yml` with the saved choices before Recyclarr starts. If those choices cannot be read, it warns and uses the plain template so Update can continue. VPN and FlareSolverr changes use the same step. With no limit, the rendered file is the template without a `qualities` key. This uses the per-quality override schema of Recyclarr v8.8.0, checked 2026-11-08.
+Saving a changed limit runs the stack's existing `docker exec recyclarr recyclarr sync` command immediately for both instances, after the language steps finish. A failed sync, config parse error or missing successful size result fails the settings change. The YAML and live API sizes are restored if a later size update or settings save fails. On install and update, `iglo-arr media render` combines `/opt/arr/recyclarr.template.yml` with the saved choices before Recyclarr starts. If those choices cannot be read, it warns and uses the plain template so Update can continue. VPN and FlareSolverr changes use the same step. With no limit, the rendered quality definition has no `qualities` key. This uses the per-quality override schema of Recyclarr v8.8.0, checked 2026-11-08.
 
 ## FlareSolverr
 

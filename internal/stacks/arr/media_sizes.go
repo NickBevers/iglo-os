@@ -259,7 +259,7 @@ func writeMediaSizes(path string, template []byte, sizes SizeLimits) (bool, erro
 	return true, nil
 }
 
-// RenderMediaSizes combines this release's template with the stored settings
+// RenderMediaSizes adds stored film profile and size choices to the template
 // before the installer starts Recyclarr. It needs no running apps or secrets.
 func RenderMediaSizes(templatePath, configPath, settingsPath string, warnings ...func(string, ...any)) error {
 	saved, err := readMediaSettings(settingsPath)
@@ -272,6 +272,10 @@ func RenderMediaSizes(templatePath, configPath, settingsPath string, warnings ..
 		saved.Settings = DefaultMediaSettings()
 	}
 	template, err := os.ReadFile(templatePath)
+	if err != nil {
+		return err
+	}
+	template, err = mediaFilmsYAML(template, saved.Settings.UHDFilms)
 	if err != nil {
 		return err
 	}
