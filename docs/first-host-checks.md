@@ -92,9 +92,9 @@ Do these with the browser's developer tools open, and look for errors.
 - [ ] **Container updates.** Updating a guest from the Updates page works for
       each kind of app. (#92)
 
-## 6. Inbox, Music and Background work
+## 6. Video tools, Music and Background work
 
-- [ ] **Inbox.** Drop a file in the Inbox. **Scan Inbox now** picks it up, and
+- [ ] **Video tools.** Drop a file in the Inbox. **Scan Inbox now** picks it up, and
       it ends up in Home Videos. (#84, #88)
 - [ ] **NAS disks sleep.** Outside the processing window, the NAS disks spin
       down and stay down. The NAS's own log shows it. (#88)

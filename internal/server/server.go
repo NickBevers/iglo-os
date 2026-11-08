@@ -182,6 +182,13 @@ type server struct {
 
 func New(options Options) http.Handler {
 	s := &server{Options: options}
+	if a, ok := options.Apps.(interface {
+		SetLibraryRefresh(func(context.Context) error)
+	}); ok {
+		if j, ok := options.Jellyfin.(interface{ RefreshLibrary(context.Context) error }); ok {
+			a.SetLibraryRefresh(j.RefreshLibrary)
+		}
+	}
 	mux := http.NewServeMux()
 
 	mux.HandleFunc("POST /api/auth/login", s.login)
@@ -244,6 +251,9 @@ func New(options Options) http.Handler {
 	mux.Handle("PUT /api/photos/backups", s.requireSession(http.HandlerFunc(s.photosBackups)))
 	for _, route := range []string{"GET /api/inbox", "POST /api/inbox", "PUT /api/inbox/settings", "POST /api/inbox/scan", "POST /api/inbox/retry/{id}"} {
 		mux.Handle(route, s.requireSession(http.HandlerFunc(s.inboxWork)))
+	}
+	for _, route := range []string{"GET /api/inbox/library", "POST /api/inbox/library/scan", "GET /api/inbox/shrink", "POST /api/inbox/shrink", "PUT /api/inbox/shrink/settings", "POST /api/inbox/shrink/cancel/{id}"} {
+		mux.Handle(route, s.requireSession(http.HandlerFunc(s.shrinkWork)))
 	}
 	mux.Handle("GET /api/music/jobs", s.requireSession(http.HandlerFunc(s.musicJobs)))
 	mux.Handle("POST /api/music/jobs", s.requireSession(http.HandlerFunc(s.musicJobs)))

@@ -26,7 +26,7 @@ const updateText: Record<string, string> = {
     headscale:
         'The controller and relay pause briefly. Iglo keeps a checked local database backup and preserves device identities, certificates and policy. Unsupported version changes are refused. An interrupted upgrade can lose registrations made after its backup.',
     music: 'Iglo-OS updates the worker and its pinned download tools. An active job can be interrupted and will need resubmission; queued jobs and published NAS files stay.',
-    inbox: 'Iglo-OS updates the worker and FFmpeg. An active job can be interrupted and will need a retry; queued jobs and published NAS files stay.',
+    inbox: 'Iglo-OS updates Video tools and FFmpeg. An Inbox import can be interrupted and need a retry. Interrupted shrink jobs are queued again. Settings, queues and NAS files stay.',
     photos: 'Iglo-OS backs up the database and the originals with restic first, like the nightly backup, then installs the Immich version bundled with this Iglo-OS release. Photos restarts, so it is offline for a few minutes.',
     media: 'Iglo-OS makes a snapshot, updates the packages, copies the stack of this Iglo-OS release, and downloads the new images. The apps restart, so they are offline for a few minutes. Your settings in the apps stay. Recyclarr then names new files the way Jellyfin reads them, and adds the anime profile to Radarr; files that are there keep their names.',
     jellyfin:

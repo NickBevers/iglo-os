@@ -3,10 +3,12 @@ package apps
 import (
 	"context"
 	"encoding/hex"
-	"iglo/internal/events"
-	"iglo/internal/inbox"
 	"strings"
 	"time"
+
+	"iglo/internal/events"
+	"iglo/internal/inbox"
+	"iglo/internal/proxmox"
 )
 
 type inboxAgent interface {
@@ -68,25 +70,74 @@ func (s *Service) WatchInbox(ctx context.Context) {
 	if !ok {
 		return
 	}
-	follow := newFollower(a.InboxEvents)
-	defer follow.stop()
-	for {
-		look, cancel := context.WithTimeout(ctx, 30*time.Second)
-		_, g, err := s.managedGuest(look, "inbox")
-		cancel()
-		follow.keep(ctx, g.VMID, err == nil && g.Status == "running")
-		timer := time.NewTimer(30 * time.Second)
-	wait:
-		for {
-			select {
-			case <-ctx.Done():
-				timer.Stop()
-				return
-			case <-follow.events:
+	// Publish names immediately, even while a rescan round waits on an app.
+	// The buffered wake coalesces shrink events without dropping another topic.
+	follow := newFollower(func(ctx context.Context, id int, _ func(string)) error {
+		return a.InboxEvents(ctx, id, func(topic string) {
+			switch topic {
+			case "":
 				s.Changed(events.Inbox)
-			case <-timer.C:
-				break wait
+				s.Changed(events.Library)
+				s.Changed(events.Shrink)
+				s.wakeShrink()
+			case events.Inbox:
+				s.Changed(events.Inbox)
+			case events.Library:
+				s.Changed(events.Library)
+			case events.Shrink:
+				s.Changed(events.Shrink)
+				s.wakeShrink()
 			}
+		})
+	})
+	defer follow.stop()
+	look := time.NewTicker(30 * time.Second)
+	defer look.Stop()
+	var poll *time.Timer
+	var pollC <-chan time.Time
+	defer func() {
+		if poll != nil {
+			poll.Stop()
+		}
+	}()
+	var guest proxmox.Resource
+	update := func() {
+		c, cancel := context.WithTimeout(ctx, 30*time.Second)
+		_, g, err := s.managedGuest(c, "inbox")
+		cancel()
+		if err != nil {
+			g = proxmox.Resource{}
+		}
+		changed := g.VMID != guest.VMID || g.Status != guest.Status
+		guest = g
+		follow.keep(ctx, g.VMID, err == nil && g.Status == "running")
+		if changed {
+			s.wakeShrink()
+		}
+	}
+	round := func() {
+		if poll != nil {
+			poll.Stop()
+			poll = nil
+			pollC = nil
+		}
+		if s.shrinkRound(ctx, guest) {
+			poll = time.NewTimer(shrinkPoll)
+			pollC = poll.C
+		}
+	}
+	update()
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-look.C:
+			update()
+		case <-s.shrinkWake:
+			round()
+		case <-pollC:
+			pollC = nil
+			round()
 		}
 	}
 }

@@ -18,7 +18,7 @@ type inboxApps interface {
 func (s *server) inboxWork(w http.ResponseWriter, r *http.Request) {
 	a, ok := s.Apps.(inboxApps)
 	if !ok {
-		writeError(w, 503, "update Iglo-OS to manage Inbox work")
+		writeError(w, 503, "update Iglo-OS to manage Video tools")
 		return
 	}
 	result := func(err error, code int) {

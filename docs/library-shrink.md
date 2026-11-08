@@ -1,7 +1,8 @@
 # Library shrink
 
-The Inbox guest can shrink selected library files in place. Its app ID stays
-`inbox`. Inbox imports and their API keep working. Inbox uses Debian FFmpeg;
+Video tools can shrink selected library files in place. Its app ID stays
+`inbox`, and the page stays at `/inbox`. Inbox imports and their API keep
+working. Inbox uses Debian FFmpeg;
 shrink uses Jellyfin FFmpeg 7, including its Intel driver and oneVPL runtime.
 Jellyfin FFmpeg is GPL software. The installer uses the same repository key
 and deb822 sources file as the Jellyfin installer. No extra container is needed.
@@ -15,6 +16,51 @@ removes the temporary file, and queues that file again. Cancellation removes
 the temporary file and ends that job. Existing Inbox pause behaviour stays as it
 was. Admission comes from the agent's host memory and PSI policy, through the
 same `admit-until` file. An expired lease holds work.
+
+## Pick files and start
+
+Open **Services → Video tools → Shrink library**. Inbox imports stay in the
+**Inbox** section with their existing controls. Each queue starts paused and
+has its own pause button.
+
+Scan the library, then expand Anime, Series, Films or Anime films. Expand a
+title and season to see files. A checkbox on a folder selects its ready files.
+A partly selected folder shows a mixed checkbox. Already small files, skipped
+files and files already shrunk cannot be selected. Skipped files show why,
+including HDR and files outside Matroska. Home Videos is excluded.
+
+Choose **Standard** or **High**. A 24-minute episode is about 0.27 GB with
+Standard or 0.37 GB with High. The rows and selection summary show the current
+size and an estimate for that profile. Actual output varies. The GPU encodes
+HEVC where available, with a CPU fallback. Anime keeps Japanese audio when
+present. If there is no Japanese track, it keeps all audio. Subtitles and fonts
+stay.
+
+Choose **Shrink…**, review the numbers and tick **I understand the originals
+are replaced**. Only then can you confirm. **The originals are replaced and
+can't be restored.** Keep a separate backup if you need the source later.
+Confirmation adds jobs. Resume the shrink queue when ready. You can pause the
+queue or cancel queued and running jobs. A completed replacement cannot be
+cancelled. Jobs show progress and saved space. A source that changed or an
+output that did not save enough space stays untouched, with a reason.
+
+## Media apps after shrinking
+
+Before adding jobs, the manager asks Sonarr and Radarr whether the selected
+titles can safely shrink. A title is refused when its profile scores a size
+custom format or cannot be inspected. Refused titles appear with a reason and
+never reach the worker. If the check fails, nothing is submitted. With no media
+stack installed, the files count as unmanaged and can still shrink. A stopped
+or unreachable installed media stack must be started or fixed first.
+
+After successful replacement, the manager groups completed files by title and
+asks Sonarr or Radarr to rescan it. This updates size and media info while
+keeping the existing file record, quality and release identity. Stored audio
+language labels are kept too. The command is accepted asynchronously, so the
+media app may still be scanning after the job is acknowledged. Unmanaged titles
+need no media rescan. The manager asks the connected Jellyfin to refresh once
+per round, then acknowledges those jobs. A failed rescan, refresh or
+acknowledgement is retried. There is no repeated queue poll while idle.
 
 ## Library and conversion
 
@@ -108,8 +154,9 @@ the command instead of claiming a title is unmanaged. A successful library
 lookup with no matching title returns `ok-unmanaged`, reason
 `not managed by Sonarr or Radarr`. These files may still be shrunk.
 
-T23 must run shrink-check before submission and remove refused titles with
-their reasons. This is a check at submission time. Changes to profiles after
+The manager runs shrink-check before submission and leaves out refused titles
+with their reasons. A failed or incomplete check submits nothing. This is a
+check at submission time. Changes to profiles after
 the check require checking again before submitting more work.
 
 `iglo-arr rescan PATH...` maps share-relative paths to `/data/media`, matches
@@ -117,9 +164,10 @@ whole title path components, and submits one `RescanSeries` or `RescanMovie`
 command per managed title. Unmanaged paths need no rescan. JSON output lists
 commands accepted by the apps, not completed scans. After the manager has told
 the media apps, it acknowledges the worker's done jobs through `rescanned`.
-There is no manager or web integration in T22.
+The manager retries failed notifications. Jobs stay unacknowledged until the
+rescan request and the Jellyfin refresh succeed.
 
-## Contract for T23
+## Manager and worker contract
 
 Types are in **`iglo/internal/shrink`**:
 
@@ -158,7 +206,13 @@ are validated before any jobs are added. A queue capacity failure adds nothing.
 Agent relays use the same methods and suffixes under **`/v1/inbox/{vmid}`**.
 The existing event stream stays `/v1/inbox/{vmid}/events`: Inbox jobs map to
 `inbox`, while `library` and `shrink` stay distinct. Only names pass through.
-T23 should retain a fallback poll of about one minute while the stream is up.
+The manager keeps a one-minute fallback while jobs are queued, running or
+unacknowledged. It stops polling the queue when idle. Container discovery
+continues every 30 seconds through the shared Proxmox client.
+The active fallback costs one worker-status call per minute in the manager,
+plus one per open Video tools page. A page polls the library once a minute
+while a scan is pending. These fallback calls stop when idle. Events still
+refresh their normal queries when something changes.
 
 Media agent routes:
 
@@ -186,16 +240,33 @@ Real QSV output quality, CIFS rename behaviour and guest installation still need
 the coordinator's host acceptance check. Docker ShellCheck and HTTP-listener
 tests must run outside the restricted agent sandbox.
 
-The coordinator must rerun these commands outside the sandbox. Restore the
-shared web dependencies first; no dependency installation was run here.
+The T23 checks cover authenticated manager routes, validation, refusal and
+failed-check behaviour, grouped rescans, acknowledgements, refresh failures,
+retries, event topics and idle fallback timing. The mock flow runs the real
+manager and worker through in-process handlers without opening a listener.
+The web checks render the section and exercise selection and confirmation.
+They live under `web/src` to keep this task within its write scope.
+
+Run the full checks outside a sandbox that blocks TCP and Unix listeners:
 
 ```sh
-go test -race ./internal/stacks/arr ./internal/agent ./cmd/iglo-agent
-make shellcheck
 (cd web && npm run build)
+make test
+go test -race ./internal/... ./cmd/...
+(cd web && node --experimental-strip-types --test src/features/apps/shrink.test.mjs)
+gofmt -l cmd internal dev web/embed.go
+(cd web && ./node_modules/.bin/prettier --check '**/*.{ts,tsx}')
+make shellcheck
 ```
 
-The full race command includes `TestLibraryLoopbackServer`, which exercises
-the rescan and guard against a real loopback HTTP listener. The new mapping,
-guard, relay and mock flow also have in-process tests which need no listener.
-No web files changed, so there are no changed web files for Prettier to check.
+The existing listener tests cannot run in the restricted sandbox. No dependency
+installation, network access, host changes or installer changes are needed for
+the in-process checks. The real browser flow on the dev mock still needs a
+listener-capable environment. Hardware acceptance still needs the coordinator's
+host.
+
+The refresh method was checked on 2026-11-08 against the supplied local
+Jellyfin `LibraryController.cs:337-351`: `POST /Library/Refresh` requires an
+admin API key and returns 204. The local snapshot has no version marker. The
+installed Jellyfin version follows its package repository. Match this snapshot
+to that package version during host acceptance.

@@ -860,7 +860,49 @@ async function request<T>(method: string, path: string, body?: unknown, contentT
     return (await response.json().catch(() => ({}))) as T
 }
 
+export type ShrinkProfile = 'standard' | 'high'
+export type LibraryFile = {
+    path: string
+    bytes: number
+    modified: string
+    duration: number
+    codec: string
+    height: number
+    bitDepth: number
+    hdr: boolean
+    audio: { index: number; codec: string; language: string; channels: number }[]
+    estimates: Record<ShrinkProfile, number>
+    status: 'ready' | 'small' | 'skipped' | 'done'
+    reason?: string
+}
+export type LibraryFolder = { path: string; name: string; folders: LibraryFolder[] | null; files: LibraryFile[] | null }
+export type ShrinkLibrary = { kinds: LibraryFolder[] | null; scanning: boolean; scannedAt?: string; error?: string }
+export type ShrinkJob = {
+    id: string
+    path: string
+    profile: ShrinkProfile
+    state: 'queued' | 'running' | 'done' | 'failed' | 'not-smaller' | 'changed' | 'cancelled'
+    progress: number
+    sourceBytes: number
+    resultBytes: number
+    savedBytes: number
+    sourceModified: string
+    error?: string
+    finishedAt?: string
+    rescanned: boolean
+}
+export type ShrinkQueue = { paused: boolean; jobs: ShrinkJob[] }
+export type ShrinkRefusal = { path: string; paths: string[]; title: string; state: 'refused'; reason?: string }
+export type ShrinkSubmission = { jobs: ShrinkJob[]; refused: ShrinkRefusal[] }
+
 export const api = {
+    library: () => request<ShrinkLibrary>('GET', '/inbox/library'),
+    scanLibrary: () => request<void>('POST', '/inbox/library/scan'),
+    shrinkJobs: () => request<ShrinkQueue>('GET', '/inbox/shrink'),
+    submitShrink: (input: { paths: string[]; profile: ShrinkProfile; confirm: 'replace-originals' }) =>
+        request<ShrinkSubmission>('POST', '/inbox/shrink', input),
+    shrinkSettings: (paused: boolean) => request<void>('PUT', '/inbox/shrink/settings', { paused }),
+    cancelShrink: (id: string) => request<void>('POST', `/inbox/shrink/cancel/${encodeURIComponent(id)}`),
     inboxJobs: () => request<InboxQueue>('GET', '/inbox'),
     submitInbox: (input: { path: string; profile: InboxProfile }) => request<InboxJob>('POST', '/inbox', input),
     inboxSettings: (input: { paused: boolean; profile: InboxProfile }) =>

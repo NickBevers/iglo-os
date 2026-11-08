@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"log/slog"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -31,22 +32,37 @@ func addShrinkRoutes(mux *http.ServeMux, in *inbox.Service) (*shrink.Service, er
 	if err != nil {
 		return nil, err
 	}
-	sample := filepath.Join(root, "anime", "Sample show (2026)", "Season 01", "episode.mkv")
-	if err = os.MkdirAll(filepath.Dir(sample), 0700); err != nil {
-		return nil, err
-	}
-	if _, err = os.Stat(sample); os.IsNotExist(err) {
-		f, e := os.Create(sample)
-		if e != nil {
-			return nil, e
+	samples := map[string]int64{"anime/Sample show (2026)/Season 01/episode.mkv": 400000000}
+	for _, kind := range shrink.LibraryFolders {
+		for _, name := range []string{"Ready title/Season 01/episode.mkv", "Already small/episode.mkv", "HDR title/hdr.mkv", "Camera video/video.mp4", "Not smaller/episode.mkv"} {
+			size := int64(400000000)
+			if strings.HasPrefix(name, "Already small/") {
+				size = 310000000
+			}
+			samples[kind+"/"+name] = size
 		}
-		err = f.Truncate(400000000)
-		f.Close()
-		if err != nil {
+	}
+	samples["anime/Size scored title/Season 01/episode.mkv"] = 400000000
+	for name, size := range samples {
+		sample := filepath.Join(root, filepath.FromSlash(name))
+		if err = os.MkdirAll(filepath.Dir(sample), 0700); err != nil {
 			return nil, err
 		}
-		old := time.Now().Add(-time.Hour)
-		os.Chtimes(sample, old, old)
+		if _, err = os.Stat(sample); os.IsNotExist(err) {
+			f, e := os.Create(sample)
+			if e != nil {
+				return nil, e
+			}
+			err = f.Truncate(size)
+			f.Close()
+			if err != nil {
+				return nil, err
+			}
+			old := time.Now().Add(-time.Hour)
+			if err = os.Chtimes(sample, old, old); err != nil {
+				return nil, err
+			}
+		}
 	}
 	s, err := shrink.New(statePath("shrink-worker"), root)
 	if err != nil {
@@ -65,10 +81,14 @@ func addShrinkRoutes(mux *http.ServeMux, in *inbox.Service) (*shrink.Service, er
 		if info.Size() < 400000000 {
 			codec, pixel = "hevc", "yuv420p10le"
 		}
-		p.Streams = []shrink.Stream{{Index: 0, Type: "video", Codec: codec, Width: 1920, Height: 1080, Pixel: pixel}, {Index: 1, Type: "audio", Codec: "aac", Channels: 2, Tags: map[string]string{"language": "jpn"}}}
+		transfer := ""
+		if strings.Contains(f.Name(), "hdr.mkv") {
+			transfer = "smpte2084"
+		}
+		p.Streams = []shrink.Stream{{Index: 0, Type: "video", Codec: codec, Width: 1920, Height: 1080, Pixel: pixel, Transfer: transfer}, {Index: 1, Type: "audio", Codec: "aac", Channels: 2, Tags: map[string]string{"language": "jpn"}}}
 		return p, nil
 	}
-	s.Encode = func(ctx context.Context, _ *os.File, out string, _ shrink.Probe, _, _ string, progress func(float64)) error {
+	s.Encode = func(ctx context.Context, source *os.File, out string, _ shrink.Probe, _, _ string, progress func(float64)) error {
 		for i := 1; i <= 4; i++ {
 			select {
 			case <-ctx.Done():
@@ -82,6 +102,9 @@ func addShrinkRoutes(mux *http.ServeMux, in *inbox.Service) (*shrink.Service, er
 			return err
 		}
 		defer f.Close()
+		if strings.Contains(source.Name(), "Not smaller/") {
+			return f.Truncate(380000000)
+		}
 		return f.Truncate(40000000)
 	}
 	h := s.Handler()
@@ -101,16 +124,23 @@ func addShrinkRoutes(mux *http.ServeMux, in *inbox.Service) (*shrink.Service, er
 				http.Error(w, "invalid library request", 400)
 				return
 			}
+			if command == "shrink-check" {
+				if _, err := os.Stat(statePath("shrink-check-error")); err == nil {
+					http.Error(w, "simulated shrink check failure", 502)
+					return
+				}
+			}
 			checks := []arr.ShrinkCheckResult{}
 			rescans := []arr.RescanResult{}
-			seen := map[string]bool{}
+			seen := map[string]int{}
 			for _, p := range request.Paths {
 				parts := strings.Split(p, "/")
 				title := strings.Join(parts[:2], "/")
-				if seen[title] {
+				if i, ok := seen[title]; ok {
+					checks[i].Paths = append(checks[i].Paths, p)
 					continue
 				}
-				seen[title] = true
+				seen[title] = len(checks)
 				check := arr.ShrinkCheckResult{Path: title, Paths: []string{p}, Title: parts[1], State: "ok-unmanaged", Reason: "not managed by Sonarr or Radarr"}
 				if title == "anime/Sample show (2026)" {
 					check.State = "ok"
@@ -124,11 +154,19 @@ func addShrinkRoutes(mux *http.ServeMux, in *inbox.Service) (*shrink.Service, er
 					}
 					rescans = append(rescans, arr.RescanResult{App: "sonarr", ID: 1, Path: title})
 				}
+				if title == "anime/Size scored title" {
+					check.State = "refused"
+					check.App = "sonarr"
+					check.ID = 2
+					check.ProfileID = 2
+					check.Reason = "quality profile scores a size custom format"
+				}
 				checks = append(checks, check)
 			}
 			if command == "shrink-check" {
 				writeJSON(w, checks)
 			} else {
+				slog.Info("mock media rescan", "paths", request.Paths)
 				writeJSON(w, rescans)
 			}
 		})

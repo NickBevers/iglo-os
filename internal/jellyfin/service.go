@@ -313,3 +313,21 @@ func (s *Service) Image(ctx context.Context, itemID, imageType string, maxWidth 
 
 	return client.Image(ctx, itemID, imageType, maxWidth)
 }
+
+// RefreshLibrary uses the saved connection and forgets the dashboard cache.
+func (s *Service) RefreshLibrary(ctx context.Context) error {
+	c, err := s.client()
+	if errors.Is(err, ErrNotConfigured) {
+		return nil
+	}
+	if err != nil {
+		return err
+	}
+	if err = c.RefreshLibrary(ctx); err != nil {
+		return err
+	}
+	s.mu.Lock()
+	s.libraryAt = time.Time{}
+	s.mu.Unlock()
+	return nil
+}

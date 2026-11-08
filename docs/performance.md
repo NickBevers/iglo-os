@@ -58,7 +58,7 @@ starts a Perl program that loads the Proxmox modules, which costs real CPU on
 the host. Several loops called it every 10 to 15 seconds:
 
 - the gaming check, about 12 calls a minute, exactly while you play;
-- the worker leases for Music and Inbox, about 16 a minute while they work;
+- the worker leases for Music and Video tools, about 16 a minute while they work;
 - the Music page, about 24 a minute while it is open.
 
 **What we did.**
@@ -260,7 +260,7 @@ Jellyfin used it, for two codecs. Each change below works without a GPU too.
 - **Immich** gets the render node and the OpenVINO image, so face detection and
   smart search run on the GPU. Video conversion uses Quick Sync after one
   switch in Immich.
-- **Inbox** gets the render node. FFmpeg probes H.264 VAAPI and falls back to CPU.
+- **Video tools** gets the render node. FFmpeg probes H.264 VAAPI and falls back to CPU.
 - **Optional, not assumed.** The GPU settings sit in a separate compose file
   that loads only when the host has a render node.
 
@@ -384,7 +384,7 @@ per 200 ms, so a continuous burst cannot postpone a refresh indefinitely.
 The notification worker now arms a timer only for the earliest pending retry.
 New alerts wake it immediately. An empty queue causes zero periodic wakeups.
 
-## Inbox cost
+## Video tools cost
 
 Checked on 28 October 2026. One long-lived guest SSE stream serves all tabs.
 The manager checks the shared Proxmox resources twice per minute for the guest.
@@ -397,7 +397,7 @@ Guest scans are bounded to 5000 entries. Each scan checks its two mounts once
 (two `findmnt`), not per file, then lists the Inbox share over SMB. A 10-second
 admission tick returns before mount checks when no work waits. Queue state is
 written only on change. Original-codec jobs avoid full software decoding.
-Inbox runs without Docker. Hardware savings have not been measured.
+Video tools runs without Docker. Hardware savings have not been measured.
 
 Timed scans per day, counted from the code on 29 October 2026. On-demand scans
 come on top in both cases.
@@ -466,7 +466,7 @@ These are counts, not measurements on the Mini PC.
   every 5 seconds for a guest list; the status bar already refreshes it every
   15 seconds. Tailscale polls once a minute outside a login, because each
   check starts two `tailscale` commands. Music polls once a minute while the
-  live stream is up, like Inbox.
+  live stream is up, like Video tools.
 - **API answers.** JSON over 1 KiB is gzipped at the fastest level when the
   browser accepts it, with reused writers. On the dev mock `/api/apps` went
   from 4,201 to 1,591 bytes. During an install it carries up to 64 KiB of log
