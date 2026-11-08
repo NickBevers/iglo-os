@@ -49,7 +49,7 @@ type Service struct {
 	// Gate is shared with Inbox conversion. Only one encode runs in the guest.
 	Gate           chan struct{}
 	logf           func(string, ...any)
-	rename         func(int, string, int, string) error
+	rename         func(int, string, int, string, bool) error
 	remove         func(int, string) error
 	checkpoint     func(string)
 	saveFault      func() error
@@ -63,6 +63,11 @@ type Service struct {
 	cancel         context.CancelFunc
 	active         string
 	scanMu         sync.Mutex
+	// Recovery uses local mount checks only while an intent is pending.
+	nextRecoveryCheck   time.Time
+	lastRecoveryAttempt time.Time
+	recoveryMountKnown  bool
+	recoveryMounted     bool
 }
 
 func New(dir, root string) (*Service, error) { return newService(dir, root, nil) }
@@ -125,6 +130,9 @@ func newService(dir, root string, configure func(*Service)) (*Service, error) {
 		if !validID(id) || !slices.ContainsFunc(s.state.Jobs, func(j Job) bool { return j.ID == id }) {
 			return nil, errors.New("invalid saved replacement intent")
 		}
+	}
+	if len(s.state.Swaps) > 0 {
+		s.lastRecoveryAttempt = time.Now()
 	}
 	if err = s.recoverFiles(); err != nil {
 		return nil, err
@@ -505,6 +513,14 @@ func (s *Service) Submit(in Input) ([]Job, error) {
 	if err := Validate(in); err != nil {
 		return nil, err
 	}
+	// A recovery may have no file at the library name. Report its intent before
+	// checking the filesystem, then check again under the submission lock.
+	s.mu.Lock()
+	err := s.checkPendingPathsLocked(in.Paths)
+	s.mu.Unlock()
+	if err != nil {
+		return nil, err
+	}
 	if !s.MountOK() {
 		return nil, errors.New("Videos share is unavailable")
 	}
@@ -515,6 +531,9 @@ func (s *Service) Submit(in Input) ([]Job, error) {
 	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	if err := s.checkPendingPathsLocked(in.Paths); err != nil {
+		return nil, err
+	}
 	selected := map[string]bool{}
 	for _, p := range in.Paths {
 		for name, f := range s.files {
@@ -578,6 +597,16 @@ func (s *Service) Submit(in Input) ([]Job, error) {
 	signal(s.wake)
 	return added, nil
 }
+
+func (s *Service) checkPendingPathsLocked(paths []string) error {
+	for _, j := range s.state.Jobs {
+		if _, pending := s.state.Swaps[j.ID]; pending && slices.Contains(paths, j.Path) {
+			return fmt.Errorf("%w: %s has pending replacement recovery; no files were queued. Wait for recovery before shrinking this file again", ErrInvalid, j.Path)
+		}
+	}
+	return nil
+}
+
 func (s *Service) Settings(paused bool) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -649,6 +678,12 @@ func (s *Service) Run(ctx context.Context) {
 		case <-s.scanWake:
 			s.Scan(ctx)
 		default:
+		}
+		for _, title := range s.retryRecoveries(time.Now()) {
+			if ctx.Err() != nil {
+				return
+			}
+			s.scan(ctx, title)
 		}
 		if s.step(ctx) {
 			continue
@@ -911,6 +946,10 @@ func (s *Service) process(ctx context.Context, j Job) (int64, error) {
 	protectTemp = true
 	s.state.Sources[j.ID] = intent.Original
 	s.state.Swaps[j.ID] = intent
+	s.lastRecoveryAttempt = time.Now()
+	s.nextRecoveryCheck = s.lastRecoveryAttempt.Add(recoveryMountCheckEvery)
+	s.recoveryMountKnown = true
+	s.recoveryMounted = true
 	if err = s.saveDurable(); err != nil {
 		return fail(s.recoveryErrorLocked(j, err))
 	}

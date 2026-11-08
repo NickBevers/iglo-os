@@ -143,13 +143,19 @@ languages and channel counts, and the same chapter, subtitle and attachment
 counts. Output must be strictly below 90 percent of the original size.
 
 Before replacement, the worker flushes and closes both media files, then checks
-the source's size and modification time again. It records a durable swap intent
-in worker state. From that point, cancellation cannot apply. The swap moves the
+the source's size, inode and modification time again. It records a durable swap
+intent in worker state. From that point, cancellation cannot apply. The swap moves the
 original to `.iglo-shrink/backup-<id>`, moves the verified output to the exact
 original filename, then checks the installed file against the verified size and
-modification time. It saves `done` before removing the backup. A failed rename
-restores the backup when possible. It never removes a temporary result after a
+inode. CIFS can defer the output's modification time until after close and rename.
+When the inode is unknown, the result uses a 30-second timestamp window instead.
+Originals and backups use a two-second timestamp window with size and inode.
+It saves `done` before removing the backup. A failed rename restores the backup
+when possible. It never removes a temporary result after a
 failed rename unless the original is confirmed present and unchanged.
+Install and restore use atomic no-replace renames. If Sonarr or Radarr imports
+an upgrade at the library name during the swap, the worker keeps the upgrade,
+backup and temporary output, then pauses with a recovery error.
 
 Startup replays recorded swaps. It restores a missing original from its backup
 before resuming a verified replacement, or completes `done` when the result was
@@ -157,8 +163,13 @@ already installed. Interrupted encodes are requeued after confirming that the
 original is intact and removing only their own temporary file. Unrecognized
 files and old share-level `.iglo-shrink` files are retained. Recovery actions
 are logged. An ambiguous or failed recovery pauses the queue, retains the
-remaining copies and reports the recovery error on the job. Fix storage and
-restart Video tools to retry recovery; do not remove those copies blindly.
+remaining copies and reports the recovery error on the job. Pending intents
+retry when the share returns, checked locally every 30 seconds, or every ten
+minutes while the share stays available. Retry checks do not scan the library
+or call the host agent. Only a completed recovery refreshes its title once.
+Recovery leaves the queue paused. A path with a pending intent cannot be
+submitted again. Fix storage before retrying; do not remove
+those copies blindly. Restarting Video tools also retries recovery.
 
 `not-smaller` and `changed` leave the source untouched. Progress stays in memory
 and emits at most once every 30 seconds while encoding. State changes emit at

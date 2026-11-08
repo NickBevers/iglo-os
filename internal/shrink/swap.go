@@ -29,10 +29,22 @@ func (s *Service) checkpointAt(point string) {
 	}
 }
 func (s *Service) renameAt(from *os.File, old string, to *os.File, name string) error {
+	return s.renameWithMode(from, old, to, name, false)
+}
+func (s *Service) renameNoReplaceAt(from *os.File, old string, to *os.File, name string) error {
+	return s.renameWithMode(from, old, to, name, true)
+}
+func (s *Service) renameWithMode(from *os.File, old string, to *os.File, name string, noReplace bool) error {
 	if s.rename != nil {
-		return s.rename(int(from.Fd()), old, int(to.Fd()), name)
+		return s.rename(int(from.Fd()), old, int(to.Fd()), name, noReplace)
 	}
-	return unix.Renameat(int(from.Fd()), old, int(to.Fd()), name)
+	return renameFile(int(from.Fd()), old, int(to.Fd()), name, noReplace)
+}
+func renameFile(from int, old string, to int, name string, noReplace bool) error {
+	if noReplace {
+		return renameNoReplace(from, old, to, name)
+	}
+	return unix.Renameat(from, old, to, name)
 }
 func (s *Service) removeAt(dir *os.File, name string) error {
 	if s.remove != nil {
@@ -227,7 +239,7 @@ func (s *Service) rollbackSwapLocked(j Job, parent, stage *os.File, intent swapI
 	}
 	backup, backupErr := statAt(stage, backupName(j.ID))
 	if os.IsNotExist(originalErr) && backupErr == nil && s.originalMatches(backup, j) {
-		if err := s.renameAt(stage, backupName(j.ID), parent, filepath.Base(j.Path)); err != nil {
+		if err := s.renameNoReplaceAt(stage, backupName(j.ID), parent, filepath.Base(j.Path)); err != nil {
 			return s.recoveryErrorLocked(j, fmt.Errorf("restore original: %w", err))
 		}
 		s.checkpointAt("backup-restored")
@@ -241,7 +253,7 @@ func (s *Service) rollbackSwapLocked(j Job, parent, stage *os.File, intent swapI
 	return s.recoveryErrorLocked(j, cause)
 }
 
-// finishSwapLocked is idempotent and is used both after encoding and on start.
+// finishSwapLocked is idempotent and is used after encoding and during recovery.
 // Recovery restores a missing original from its backup before resuming a
 // verified swap. Ambiguous files are never removed or overwritten.
 func (s *Service) finishSwapLocked(j Job, parent, stage *os.File, intent swapIntent) error {
@@ -252,7 +264,7 @@ func (s *Service) finishSwapLocked(j Job, parent, stage *os.File, intent swapInt
 		return s.completeSwapLocked(j, parent, stage, intent)
 	}
 	if os.IsNotExist(originalErr) && backupErr == nil && s.originalMatches(backup, j) {
-		if err := s.renameAt(stage, backupName(j.ID), parent, filepath.Base(j.Path)); err != nil {
+		if err := s.renameNoReplaceAt(stage, backupName(j.ID), parent, filepath.Base(j.Path)); err != nil {
 			return s.recoveryErrorLocked(j, fmt.Errorf("restore original: %w", err))
 		}
 		s.checkpointAt("backup-restored")
@@ -277,12 +289,64 @@ func (s *Service) finishSwapLocked(j Job, parent, stage *os.File, intent swapInt
 	if backupErr != nil || !s.originalMatches(backup, j) {
 		return s.recoveryErrorLocked(j, errors.New("could not verify the original backup"))
 	}
-	if err := s.renameAt(stage, tempName(j.ID), parent, filepath.Base(j.Path)); err != nil {
+	if err := s.renameNoReplaceAt(stage, tempName(j.ID), parent, filepath.Base(j.Path)); err != nil {
+		if errors.Is(err, unix.EEXIST) {
+			return s.recoveryErrorLocked(j, fmt.Errorf("install result: library name already exists: %w", err))
+		}
 		return s.rollbackSwapLocked(j, parent, stage, intent, err)
 	}
 	s.checkpointAt("result-installed")
 	return s.completeSwapLocked(j, parent, stage, intent)
 }
+
+const (
+	recoveryRetryEvery      = 10 * time.Minute
+	recoveryMountCheckEvery = 30 * time.Second
+)
+
+// Run calls this between files. Only pending intents trigger a local findmnt,
+// at most twice a minute. A mount return retries immediately at that check;
+// other retries are ten minutes apart. No host call, probe or scan is needed.
+// Return only completed titles so Run refreshes them once after recovery.
+func (s *Service) retryRecoveries(now time.Time) []string {
+	s.mu.Lock()
+	if len(s.state.Swaps) == 0 || now.Before(s.nextRecoveryCheck) {
+		s.mu.Unlock()
+		return nil
+	}
+	s.nextRecoveryCheck = now.Add(recoveryMountCheckEvery)
+	s.mu.Unlock()
+	mounted := s.MountOK()
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	returned := s.recoveryMountKnown && !s.recoveryMounted && mounted
+	s.recoveryMountKnown = true
+	s.recoveryMounted = mounted
+	if len(s.state.Swaps) == 0 || !mounted {
+		return nil
+	}
+	if !returned && !s.lastRecoveryAttempt.IsZero() && now.Sub(s.lastRecoveryAttempt) < recoveryRetryEvery {
+		return nil
+	}
+	s.lastRecoveryAttempt = now
+	var titles []string
+	for i, j := range s.state.Jobs {
+		if _, pending := s.state.Swaps[j.ID]; pending {
+			if err := s.recoverJob(i); err != nil {
+				s.logf("shrink %s: could not retry recovery: %v", j.ID, err)
+			}
+			if _, pending := s.state.Swaps[j.ID]; !pending && s.state.Jobs[i].State == "done" {
+				title := titlePath(j.Path)
+				if !slices.Contains(titles, title) {
+					titles = append(titles, title)
+				}
+			}
+		}
+	}
+	s.emit("shrink")
+	return titles
+}
+
 func (s *Service) recoverFiles() error {
 	for _, kind := range LibraryFolders {
 		stage, err := s.stageDirectory(kind)

@@ -408,6 +408,11 @@ Library shrink costs, checked 2026-11-08. Its startup QSV probe is a local
 The worker probes library files serially at nice 15 and idle I/O priority,
 caching by path, size and mtime. Completed jobs rescan only their title.
 Unchanged scans do not rewrite the probe cache.
+While a replacement intent needs recovery, a local `findmnt` runs at most twice
+a minute. Recovery retries after the mount returns or every ten minutes on an
+available share. This loop makes no host agent call and does not scan or probe
+the library. A completed recovery refreshes only its title once. With no pending
+intent, the retry loop does no mount check.
 
 Shrink progress emits at most once every 30 seconds, plus state changes.
 Manager status reads use one shared 30-second snapshot across all tabs and the

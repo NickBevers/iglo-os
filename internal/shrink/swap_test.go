@@ -133,7 +133,7 @@ func TestSwapRenameFailuresAndLostReplies(t *testing.T) {
 			s, p := fixture(t)
 			j := submit(t, s, p)
 			s.Settings(false)
-			s.rename = func(from int, old string, to int, name string) error {
+			s.rename = func(from int, old string, to int, name string, noReplace bool) error {
 				switch {
 				case old == filepath.Base(p) && mode == "backup-fails":
 					return unix.EXDEV
@@ -147,7 +147,7 @@ func TestSwapRenameFailuresAndLostReplies(t *testing.T) {
 				case old == backupName(j.ID) && mode == "restore-fails":
 					return unix.EIO
 				}
-				if err := unix.Renameat(from, old, to, name); err != nil {
+				if err := renameFile(from, old, to, name, noReplace); err != nil {
 					return err
 				}
 				if (old == filepath.Base(p) && mode == "backup-reply-lost") || (old == tempName(j.ID) && mode == "install-reply-lost") {
@@ -257,13 +257,13 @@ func TestSwapClosesMediaHandlesAndUsesKindStaging(t *testing.T) {
 		}
 		return encode(ctx, f, out, probe, kind, profile, progress)
 	}
-	s.rename = func(from int, old string, to int, name string) error {
+	s.rename = func(from int, old string, to int, name string, noReplace bool) error {
 		for _, f := range handles {
 			if _, err := f.Stat(); !errors.Is(err, os.ErrClosed) {
 				t.Fatalf("media handle still open during %s -> %s: %v", old, name, err)
 			}
 		}
-		return unix.Renameat(from, old, to, name)
+		return renameFile(from, old, to, name, noReplace)
 	}
 	s.step(context.Background())
 	if s.Status().Jobs[0].State != "done" {
@@ -312,8 +312,8 @@ func TestFailedResultVerificationRetainsBackup(t *testing.T) {
 	s, p := fixture(t)
 	j := submit(t, s, p)
 	s.Settings(false)
-	s.rename = func(from int, old string, to int, name string) error {
-		if err := unix.Renameat(from, old, to, name); err != nil {
+	s.rename = func(from int, old string, to int, name string, noReplace bool) error {
+		if err := renameFile(from, old, to, name, noReplace); err != nil {
 			return err
 		}
 		if old == tempName(j.ID) {
@@ -343,7 +343,7 @@ func TestRecoveryRestoreFailureKeepsBothFiles(t *testing.T) {
 	j := submit(t, s, p)
 	s.Settings(false)
 	crashJob(t, s, "original-backed-up")
-	recovered, err := newService(s.Dir, s.Root, func(v *Service) { v.rename = func(int, string, int, string) error { return unix.EIO } })
+	recovered, err := newService(s.Dir, s.Root, func(v *Service) { v.rename = func(int, string, int, string, bool) error { return unix.EIO } })
 	if err != nil || !recovered.Status().Paused {
 		t.Fatal(err)
 	}

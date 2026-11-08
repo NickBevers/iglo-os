@@ -125,6 +125,14 @@ Existing Music and Inbox import jobs finish. Library shrink stops and requeues
 an encode when held. A manual worker pause also applies, and an external lease
 never overrides it.
 
+Library shrink keeps a durable intent for each replacement until its verified
+result is installed and its backup is removed. Install and restore never
+overwrite an occupied library name. Pending recoveries block new submissions
+for that file. They retry on startup, after a share outage, or every ten minutes
+while the share is available. A local mount check runs at most twice a minute
+while an intent is pending. Recovery leaves the queue paused and retains
+ambiguous files for inspection.
+
 The manager checks every 15 seconds and sends a new 60-second admission lease
 about every 30 seconds, before the last one runs low. When
 enabled, unknown memory, a gaming hold or an excluded window writes `0`.

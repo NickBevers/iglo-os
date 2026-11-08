@@ -86,8 +86,8 @@ func TestFileIdentityMatchesCIFSRename(t *testing.T) {
 
 // Model the measured NAS behaviour after each successful rename, including
 // restore and replay. Futimes keeps this helper portable on Linux and macOS.
-func shiftRenameMtime(from int, old string, to int, name string) error {
-	if err := unix.Renameat(from, old, to, name); err != nil {
+func shiftRenameMtime(from int, old string, to int, name string, noReplace bool) error {
+	if err := renameFile(from, old, to, name, noReplace); err != nil {
 		return err
 	}
 	fd, err := unix.Openat(to, name, unix.O_RDONLY|unix.O_NOFOLLOW, 0)
