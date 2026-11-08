@@ -677,15 +677,16 @@ func applyMediaServarr(ctx context.Context, app *servarr, sourceName string, tar
 	if err := app.do(ctx, http.MethodGet, "/qualityprofile", nil, &profiles); err != nil {
 		return result, err
 	}
+	var filmPolicy map[string]any
 	if app.name == "radarr" && targetName == dutch4KProfile {
 		source := slices.IndexFunc(profiles, func(p map[string]any) bool { return p["name"] == sourceName })
 		if source < 0 {
 			return result, fmt.Errorf("%s: missing %s profile; run Recyclarr sync first", app.name, sourceName)
 		}
-		// Keep the codec penalties from Recyclarr, including on a Dutch 4K
-		// profile copied before these penalties were corrected. Its other
-		// copied scores stay unchanged, as with the existing Dutch profile.
-		items, _ := profiles[source]["formatItems"].([]any)
+		// Keep the quality policy and codec penalties from Recyclarr, also
+		// on existing Dutch 4K profiles. Other copied scores stay unchanged.
+		filmPolicy = profiles[source]
+		items, _ := filmPolicy["formatItems"].([]any)
 		for _, raw := range items {
 			item, _ := raw.(map[string]any)
 			if item["name"] == "x265 (HD)" || item["name"] == "x265 (no HDR/DV)" {
@@ -732,6 +733,14 @@ func applyMediaServarr(ctx context.Context, app *servarr, sourceName string, tar
 		return result, fmt.Errorf("%s: quality profile has invalid formatItems", app.name)
 	}
 	changed := false
+	if filmPolicy != nil {
+		for _, field := range []string{"items", "cutoff", "upgradeAllowed", "minFormatScore", "cutoffFormatScore", "minUpgradeFormatScore"} {
+			if !sameJSON(profile[field], filmPolicy[field]) {
+				profile[field] = filmPolicy[field]
+				changed = true
+			}
+		}
+	}
 	for i, item := range items {
 		entry, ok := item.(map[string]any)
 		if !ok {

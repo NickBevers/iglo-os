@@ -71,6 +71,10 @@ func TestFilmRecyclarrConfig(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	golden, err := os.ReadFile("testdata/films4k/recyclarr-on.yml")
+	if err != nil || !bytes.Equal(on, golden) {
+		t.Fatalf("rendered config differs from snapshot: %v\n%s", err, on)
+	}
 	var doc map[string]any
 	if err := yaml.Unmarshal(on, &doc); err != nil {
 		t.Fatalf("invalid YAML: %v\n%s", err, on)
@@ -82,14 +86,13 @@ func TestFilmRecyclarrConfig(t *testing.T) {
 	if len(profiles) != 3 || profile["trash_id"] != guide["trash_id"] || profile["name"] != films4KProfile || profile["min_format_score"] != 0 || profile["quality_sort"] != "top" {
 		t.Fatalf("profile: %v", profiles)
 	}
-	if !sameJSON(profile["upgrade"], map[string]any{"allowed": guide["upgradeAllowed"], "until_quality": guide["cutoff"], "until_score": guide["cutoffFormatScore"]}) {
+	if !sameJSON(profile["upgrade"], map[string]any{"allowed": true, "until_quality": "WEB 2160p", "until_score": 0}) {
 		t.Fatalf("upgrade: %v", profile["upgrade"])
 	}
 	want := []any{
 		map[string]any{"name": "Bluray-2160p"},
 		map[string]any{"name": "WEB 2160p", "qualities": []string{"WEBDL-2160p", "WEBRip-2160p"}},
-		map[string]any{"name": "Bluray-1080p"},
-		map[string]any{"name": "WEB 1080p", "qualities": []string{"WEBDL-1080p", "WEBRip-1080p"}},
+		map[string]any{"name": "1080p", "qualities": []string{"Bluray-1080p", "WEBDL-1080p", "WEBRip-1080p"}},
 	}
 	if !sameJSON(profile["qualities"], want) {
 		t.Fatalf("qualities: %v", profile["qualities"])
@@ -216,8 +219,14 @@ func filmFakeConfig(t *testing.T, f *mediaFake) (MediaSettingsConfig, *int) {
 					item["score"] = -10000
 				}
 			}
-			profile["cutoff"] = 19
-			profile["items"] = []any{map[string]any{"name": "Bluray-2160p", "allowed": true}, map[string]any{"name": "Bluray-1080p", "allowed": true}}
+			// The mock group ID is arbitrary, like a group ID assigned by Radarr.
+			profile["cutoff"] = 1001
+			profile["cutoffFormatScore"] = 0
+			profile["items"] = []any{
+				map[string]any{"id": 1002, "name": "1080p", "allowed": true, "items": []any{map[string]any{"name": "Bluray-1080p"}, map[string]any{"name": "WEBDL-1080p"}, map[string]any{"name": "WEBRip-1080p"}}},
+				map[string]any{"id": 1001, "name": "WEB 2160p", "allowed": true, "items": []any{map[string]any{"name": "WEBDL-2160p"}, map[string]any{"name": "WEBRip-2160p"}}},
+				map[string]any{"name": "Bluray-2160p", "allowed": true},
+			}
 			f.resources["radarr/qualityprofile"] = append(f.resources["radarr/qualityprofile"], profile)
 		}
 		return nil
@@ -254,7 +263,7 @@ func TestFilmProfileSwitching(t *testing.T) {
 				}
 				if profile["name"] == dutch4KProfile {
 					dutchID = jsonInt(profile["id"])
-					if profile["language"].(map[string]any)["name"] != "Dutch" || jsonInt(profile["cutoff"]) != 19 {
+					if profile["language"].(map[string]any)["name"] != "Dutch" || jsonInt(profile["cutoff"]) != 1001 || jsonInt(profile["cutoffFormatScore"]) != 0 {
 						t.Fatal("Dutch did not follow UHD")
 					}
 				}
@@ -460,5 +469,74 @@ func TestFilmExistingDutch4KCodecPenalties(t *testing.T) {
 	}
 	if len(f.writes) != writes {
 		t.Fatal("corrected codec penalties are not idempotent")
+	}
+}
+
+func TestFilmExistingDutch4KDownloadPolicy(t *testing.T) {
+	f := newMediaFake()
+	cfg, _ := filmFakeConfig(t, f)
+	settings := DefaultMediaSettings()
+	settings.UHDFilms = true
+	if err := ApplyMediaSettings(t.Context(), settings, cfg); err != nil {
+		t.Fatal(err)
+	}
+	var source, dutch map[string]any
+	for _, p := range f.resources["radarr/qualityprofile"] {
+		if p["name"] == films4KProfile {
+			source = p
+		}
+		if p["name"] == dutch4KProfile {
+			dutch = p
+		}
+	}
+	if source == nil || dutch == nil {
+		t.Fatal("missing 4K profiles")
+	}
+	id := jsonInt(dutch["id"])
+	dutch["cutoff"], dutch["cutoffFormatScore"], dutch["upgradeAllowed"], dutch["minFormatScore"], dutch["minUpgradeFormatScore"] = 19, 10000, false, 100, 50
+	dutch["items"] = []any{map[string]any{"name": "Bluray-1080p"}, map[string]any{"name": "WEB 1080p"}}
+	for _, raw := range dutch["formatItems"].([]any) {
+		item := raw.(map[string]any)
+		if item["name"] == "Good release" {
+			item["score"] = 777
+		}
+	}
+	hdBefore, _ := json.Marshal(f.resources["radarr/qualityprofile"][0])
+	if err := ApplyMediaSettings(t.Context(), settings, cfg); err != nil {
+		t.Fatal(err)
+	}
+	for _, p := range f.resources["radarr/qualityprofile"] {
+		if p["name"] != dutch4KProfile {
+			continue
+		}
+		if jsonInt(p["id"]) != id || p["language"].(map[string]any)["name"] != "Dutch" {
+			t.Fatal("changed Dutch profile identity or audio")
+		}
+		for _, field := range []string{"items", "cutoff", "upgradeAllowed", "minFormatScore", "cutoffFormatScore", "minUpgradeFormatScore"} {
+			if !sameJSON(p[field], source[field]) {
+				t.Fatalf("Dutch policy %s was not updated: %v", field, p[field])
+			}
+		}
+		for _, raw := range p["formatItems"].([]any) {
+			item := raw.(map[string]any)
+			if item["name"] == "Good release" && jsonInt(item["score"]) != 777 {
+				t.Fatal("changed an unrelated Dutch format score")
+			}
+		}
+	}
+	if hdAfter, _ := json.Marshal(f.resources["radarr/qualityprofile"][0]); !bytes.Equal(hdBefore, hdAfter) {
+		t.Fatal("changed existing HD profile")
+	}
+	writes := len(f.writes)
+	if err := ApplyMediaSettings(t.Context(), settings, cfg); err != nil {
+		t.Fatal(err)
+	}
+	if len(f.writes) != writes {
+		t.Fatalf("repeated policy reconciliation wrote: %v", f.writes[writes:])
+	}
+	for _, write := range f.writes {
+		if strings.Contains(write, "mediamanagement") || strings.Contains(write, "radarr/movie/") {
+			t.Fatalf("changed global media management or a film: %s", write)
+		}
 	}
 }

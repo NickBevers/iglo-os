@@ -35,6 +35,19 @@ const films4KEnd = "# Iglo-OS films in 4K end"
 // format and passes at 0. Keep the guide penalties on x265 releases.
 // HDR scores 500 and HDR10+ Boost 100 from the guide. DV Boost is not selected.
 // DV without fallback is explicitly -10000, as in trash-cf-dv-wo-hdr-fallback.
+// Radarr v6.4.4.10685, checked 2026-11-08 from the supplied rescan sources:
+// UpgradeDiskSpecification.cs:44-61 checks CutoffNotMet before IsUpgradable.
+// UpgradableSpecification.cs:37-46 accepts better quality below cutoff and
+// rejects worse quality. Lines 83-113 require a higher CF score, current score
+// below its cutoff, and the minimum increment for a score upgrade. With both
+// min_format_score and until_score at 0, accepted files already meet the score
+// cutoff, including 1080p while its quality cutoff is unmet. WEB 2160p ends
+// quality upgrades, so ordinary downloads are at most 1080p followed by 4K.
+// An absolute cap is impossible here: lines 53-57 accept higher revisions when
+// Radarr prefers propers/repacks. Lines 124-137 and 170-181 reopen the quality
+// cutoff for a higher revision of the same exact quality. Leave that global
+// setting alone. A file rescored below 0 can also regain score upgrades
+// (lines 96-113 and 142-159); the policy assumes its score remains eligible.
 const films4KQualityYAML = `- trash_id: 64fb5f9858489bdac2af690e27c8f42f
   name: "4K when available (Iglo-OS)"
   reset_unmatched_scores:
@@ -42,16 +55,15 @@ const films4KQualityYAML = `- trash_id: 64fb5f9858489bdac2af690e27c8f42f
   min_format_score: 0
   upgrade:
     allowed: true
-    until_quality: Bluray-2160p
-    until_score: 10000
+    until_quality: WEB 2160p
+    until_score: 0
   quality_sort: top
   qualities:
     - name: Bluray-2160p
     - name: WEB 2160p
       qualities: [WEBDL-2160p, WEBRip-2160p]
-    - name: Bluray-1080p
-    - name: WEB 1080p
-      qualities: [WEBDL-1080p, WEBRip-1080p]
+    - name: 1080p
+      qualities: [Bluray-1080p, WEBDL-1080p, WEBRip-1080p]
 `
 
 const films4KFormatsYAML = `custom_formats:

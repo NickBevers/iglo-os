@@ -214,8 +214,10 @@ function MediaSettingsForm({ app, current, onDone }: { app: CatalogApp; current:
                         </label>
                         <p id={`${id}-films-4k-help`} className="text-xs text-muted-foreground">
                             4K first, within the 4K size limit. A larger 4K release is skipped and 1080p is used
-                            instead, with an upgrade once a 4K release fits. Dolby Vision releases without an HDR
-                            fallback are skipped because the Pi 4 cannot play them.
+                            instead, with an upgrade once a 4K release fits. A film is downloaded at most twice: 1080p
+                            first when no 4K fits, then once in 4K. Propers and repacks can add downloads if Radarr
+                            prefers them. Dolby Vision releases without an HDR fallback are skipped because the Pi 4
+                            cannot play them.
                         </p>
                     </div>
                     {(
