@@ -40,12 +40,13 @@ import (
 )
 
 func main() {
-	commands := map[string]func([]string) error{"configure": configure, "vpn": applyVPN, "flaresolverr": setFlareSolverr, "media": mediaSettings}
+	commands := map[string]func([]string) error{"configure": configure, "vpn": applyVPN, "flaresolverr": setFlareSolverr, "media": mediaSettings, "rescan": rescan, "shrink-check": shrinkCheck}
 	if len(os.Args) < 2 || commands[os.Args[1]] == nil {
 		fmt.Fprintln(os.Stderr, "usage: iglo-arr configure [--env FILE] [--data-dir DIR] [--bazarr-config FILE] < passwords")
 		fmt.Fprintln(os.Stderr, "       iglo-arr vpn [--env FILE] [--gluetun-dir DIR] < settings")
 		fmt.Fprintln(os.Stderr, "       iglo-arr flaresolverr [--env FILE] on|off")
 		fmt.Fprintln(os.Stderr, "       iglo-arr media get|set [--env FILE]")
+		fmt.Fprintln(os.Stderr, "       iglo-arr rescan|shrink-check [--env FILE] PATH...")
 		os.Exit(2)
 	}
 

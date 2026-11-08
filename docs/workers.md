@@ -106,10 +106,16 @@ stay.
 
 ## Shared processing admission
 
+The Inbox guest also runs [Library shrink](library-shrink.md). Its separate
+queue starts paused and requires explicit confirmation before replacing library
+files. It uses the same admission lease and interrupts shrink when held. Inbox
+imports keep their existing pause behaviour.
+
 In **Background work**, enable **Control Music and Inbox admission**. The page
 fills in the node of the host. This setting is independent of an Immich key.
 Set 4 GiB headroom and the desired window/timezone. A two-hour gaming hold defers new jobs.
-Existing jobs finish. A manual worker pause also applies, and an external lease
+Existing Music and Inbox import jobs finish. Library shrink stops and requeues
+an encode when held. A manual worker pause also applies, and an external lease
 never overrides it.
 
 The manager checks every 15 seconds and sends a new 60-second admission lease

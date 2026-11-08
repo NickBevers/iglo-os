@@ -2,12 +2,12 @@ package main
 
 import (
 	"context"
-	"fmt"
-	"iglo/internal/inbox"
 	"net/http"
 	"os"
 	"path/filepath"
 	"time"
+
+	"iglo/internal/inbox"
 )
 
 // inboxLease is the Inbox worker's admit-until file.
@@ -47,6 +47,11 @@ func addInboxRoutes(mux *http.ServeMux) error {
 		path := filepath.Join(stage, "output.mkv")
 		return path, os.WriteFile(path, data, 0600)
 	}
+	library, err := addShrinkRoutes(mux, s)
+	if err != nil {
+		return err
+	}
+	go library.Run(context.Background())
 	go s.Run(context.Background())
 	handler := s.Handler()
 	mux.HandleFunc("GET /v1/inbox/{vmid}", func(w http.ResponseWriter, r *http.Request) {
@@ -55,7 +60,7 @@ func addInboxRoutes(mux *http.ServeMux) error {
 		writeJSON(w, v)
 	})
 	mux.HandleFunc("GET /v1/inbox/{vmid}/events", func(w http.ResponseWriter, r *http.Request) {
-		streamChanges(w, r, "inbox", func() string { return fmt.Sprint(s.Status()) })
+		streamInboxChanges(w, r, s, library)
 	})
 	for _, route := range []struct{ pattern, target string }{{"POST /v1/inbox/{vmid}", "/jobs"}, {"PUT /v1/inbox/{vmid}/settings", "/settings"}, {"POST /v1/inbox/{vmid}/scan", "/scan"}, {"POST /v1/inbox/{vmid}/retry/{id}", ""}} {
 		mux.HandleFunc(route.pattern, func(w http.ResponseWriter, r *http.Request) {
