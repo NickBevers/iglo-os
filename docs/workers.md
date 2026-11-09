@@ -1,6 +1,6 @@
-# Music and Inbox workers
+# Music and Video tools
 
-Install Music and Inbox from Apps after connecting their [scoped shares](scoped-storage.md).
+Install Music and Video tools from Apps after connecting their [scoped shares](scoped-storage.md).
 Both are tagged unprivileged LXC guests. The installer retains at least 4 GiB of
 host MemAvailable outside a new guest; keep the complete machine's workload
 budget within its physical RAM.
@@ -48,14 +48,21 @@ does not automatically cover this separate guest.
 Guest backups include the queue, not the NAS music. Only submit media you are
 entitled to download; no account cookies, subscriptions or login bypass are set up.
 
-## Inbox
+## Video tools
 
-Inbox uses a native Go service and Debian FFmpeg, without Docker. One
+The **Inbox** section imports local videos. **Shrink library** replaces chosen
+library files after confirmation. See [Library shrink](library-shrink.md).
+
+Video tools uses a native Go service without Docker. Inbox imports use Debian
+FFmpeg. Library shrink uses Jellyfin FFmpeg 7 with a verified HEVC Main10 QSV
+encoder and a CPU fallback. One
 worker runs at a time, with two CPU cores and a 1536 MiB systemd ceiling in the
 existing 2048 MiB guest budget. These are limits, not measured memory use.
 The loopback API on port 8789 reaches clients only through the manager/agent.
 
-Open **Services → Inbox work**, review the profile and resume the initially
+### Inbox imports
+
+Open **Services → Video tools → Inbox**, review the profile and resume the initially
 paused queue. Sources are read only at `/data/inbox`. Output goes to
 `/data/videos/home-videos`, the `home-videos` folder of the Videos share.
 Jellyfin shows it as the **Home Videos** library. SSD staging and state live in
@@ -64,7 +71,7 @@ Remote SMB writes do not reliably generate local inotify events, so the worker
 lists the share itself. Each listing can wake the NAS disks, so timed scans
 follow admission:
 
-- With **Control Music and Inbox admission** on, a scan runs when the lease
+- With **Control Music and Video tools admission** on, a scan runs when the lease
   first lets work start, then at most every 30 minutes while it holds. A held
   lease means no timed scan, so nothing outside the processing window. Gaming,
   low memory, a backup or an update hold scans like they hold jobs.
@@ -106,11 +113,25 @@ stay.
 
 ## Shared processing admission
 
-In **Background work**, enable **Control Music and Inbox admission**. The page
+The Video tools guest also runs [Library shrink](library-shrink.md). Its separate
+queue starts paused and requires explicit confirmation before replacing library
+files. It uses the same admission lease and interrupts shrink when held. Inbox
+imports keep their existing pause behaviour.
+
+In **Background work**, enable **Control Music and Video tools admission**. The page
 fills in the node of the host. This setting is independent of an Immich key.
 Set 4 GiB headroom and the desired window/timezone. A two-hour gaming hold defers new jobs.
-Existing jobs finish. A manual worker pause also applies, and an external lease
+Existing Music and Inbox import jobs finish. Library shrink stops and requeues
+an encode when held. A manual worker pause also applies, and an external lease
 never overrides it.
+
+Library shrink keeps a durable intent for each replacement until its verified
+result is installed and its backup is removed. Install and restore never
+overwrite an occupied library name. Pending recoveries block new submissions
+for that file. They retry on startup, after a share outage, or every ten minutes
+while the share is available. A local mount check runs at most twice a minute
+while an intent is pending. Recovery leaves the queue paused and retains
+ambiguous files for inspection.
 
 The manager checks every 15 seconds and sends a new 60-second admission lease
 about every 30 seconds, before the last one runs low. When

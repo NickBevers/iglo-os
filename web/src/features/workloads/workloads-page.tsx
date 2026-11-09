@@ -79,7 +79,7 @@ export function WorkloadsPage() {
                 </CardHeader>
                 <CardContent className="flex flex-col gap-3">
                     <p className="text-sm text-muted-foreground">
-                        Music and Inbox: {data.workerReason || 'Native and manual worker controls'}.
+                        Music and Video tools: {data.workerReason || 'Native and manual worker controls'}.
                     </p>
                     {data.workerError && (
                         <p role="alert" className="text-sm text-destructive">
@@ -149,8 +149,8 @@ export function WorkloadsPage() {
                 <CardHeader>
                     <CardTitle>Other workloads</CardTitle>
                     <CardDescription>
-                        Inbox, music imports and backup maintenance are not controlled by this connection. Inbox and
-                        music imports follow the worker admission above. A shared GPU does not have a per-app
+                        Video tools, music imports and backup maintenance are not controlled by this connection. Inbox
+                        and music imports follow the worker admission above. A shared GPU does not have a per-app
                         reservation here.
                     </CardDescription>
                 </CardHeader>
@@ -198,7 +198,7 @@ function SettingsForm({ data }: { data: Workloads }) {
                 </CardHeader>
                 <CardContent className="flex flex-col gap-5">
                     <div className="flex items-center justify-between gap-3">
-                        <Label htmlFor="workers-enabled">Control Music and Inbox admission</Label>
+                        <Label htmlFor="workers-enabled">Control Music and Video tools admission</Label>
                         <Switch
                             id="workers-enabled"
                             checked={settings.workers ?? false}

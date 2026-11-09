@@ -241,9 +241,9 @@ export function ScopedForm({
             )}
             {id === 'inbox' && (
                 <p className="text-sm text-muted-foreground">
-                    Open Inbox work to review the profile and resume the paused queue. Sources stay read only. FFmpeg
-                    stages on SSD and publishes to Videos/home-videos. The playback profile uses VAAPI when verified,
-                    with a CPU fallback.
+                    Open Video tools. In Inbox, review the profile and resume the paused queue. Inbox sources stay read
+                    only. Imports stage on SSD and publish to Videos/home-videos. Shrink library has its own queue and
+                    replaces selected originals only after confirmation.
                 </p>
             )}
             {id === 'gaming' && (

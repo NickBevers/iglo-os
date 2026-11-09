@@ -8,7 +8,7 @@ Games share to Moonlight on a PC or TV box. Image digests were checked on
 The [Wolf Proxmox quickstart](https://games-on-whales.github.io/wolf/stable/user/quickstart.html)
 currently requires a **privileged LXC**, broad device access and a Docker socket.
 Treat the guest and all launched images as trusted host software; this is much
-weaker isolation than the unprivileged Photos/Music/Inbox guests. If that model
+weaker isolation than the unprivileged Photos, Music and Video tools guests. If that model
 is unsuitable, evaluate a separate VM with GPU assignment or separate gaming
 hardware instead. Do not assume the same GPU can be assigned exclusively to a VM
 and simultaneously used by the host's Jellyfin container.

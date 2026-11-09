@@ -2,6 +2,7 @@ package main
 
 import (
 	"encoding/json"
+	"log/slog"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -23,6 +24,10 @@ type fakeLibrary struct {
 // add through jellyfinsetup, like the real installer. They live in memory.
 func newJellyfin() http.Handler {
 	mux := http.NewServeMux()
+	mux.HandleFunc("POST /Library/Refresh", func(w http.ResponseWriter, r *http.Request) {
+		slog.Info("mock Jellyfin library refresh")
+		w.WriteHeader(http.StatusNoContent)
+	})
 	var mu sync.Mutex
 	libraries := []fakeLibrary{
 		{"Movies", "movies", []string{"/data/media/movies"}},

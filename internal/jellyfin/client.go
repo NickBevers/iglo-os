@@ -173,3 +173,10 @@ func (c *Client) Image(ctx context.Context, itemID, imageType string, maxWidth i
 
 	return c.http.Do(request)
 }
+
+// RefreshLibrary uses POST Library/Refresh with the saved admin API key.
+// Jellyfin v12.4 (the installed jellyfin-server 12.4+deb13), checked
+// 2026-11-08: LibraryController.cs:337-340 requires elevation and answers 204.
+func (c *Client) RefreshLibrary(ctx context.Context) error {
+	return c.do(ctx, http.MethodPost, "/Library/Refresh", nil, nil)
+}

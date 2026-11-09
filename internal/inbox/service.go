@@ -24,6 +24,7 @@ import (
 	"time"
 	"unicode"
 
+	"iglo/internal/shrink"
 	"iglo/internal/worker"
 )
 
@@ -68,6 +69,7 @@ type View struct {
 	Sample       bool   `json:"sample,omitempty"`
 }
 type Service struct {
+	LibraryShrink       *shrink.Service
 	Dir, Source, Output string
 	Execute             func(context.Context, string, string, string) (string, error)
 	MountOK             func() bool
@@ -559,6 +561,9 @@ func (s *Service) process(ctx context.Context, j Job) (string, error) {
 }
 func (s *Service) Handler() http.Handler {
 	mux := http.NewServeMux()
+	if s.LibraryShrink != nil {
+		s.LibraryShrink.Register(mux)
+	}
 	write := func(w http.ResponseWriter, code int, v any) {
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(code)
@@ -625,6 +630,12 @@ func (s *Service) Handler() http.Handler {
 		w.WriteHeader(202)
 	})
 	mux.HandleFunc("GET /events", func(w http.ResponseWriter, r *http.Request) {
+		var libraryEvents <-chan string
+		if s.LibraryShrink != nil {
+			c, stop := s.LibraryShrink.Subscribe()
+			defer stop()
+			libraryEvents = c
+		}
 		changed := make(chan struct{}, 1)
 		s.mu.Lock()
 		s.subscribers[changed] = struct{}{}
@@ -641,6 +652,8 @@ func (s *Service) Handler() http.Handler {
 				return
 			case <-ticker.C:
 				fmt.Fprint(w, ": keep-alive\n\n")
+			case name := <-libraryEvents:
+				fmt.Fprintf(w, "event: %s\ndata: \n\n", name)
 			case <-changed:
 				fmt.Fprint(w, "event: jobs\ndata: \n\n")
 			}

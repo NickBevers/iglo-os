@@ -36,7 +36,7 @@ Jellyfin also gets the libraries of the files that other apps of Iglo-OS make:
 | --- | --- | --- | --- |
 | **Music** | Music | `/data/music/audio` | the Music app, in `audio` on the Music share |
 | **Music Videos** | Music Videos | `/data/music/videos` | the Music app, in `videos` on the Music share |
-| **Home Videos** | Home Videos and Photos | `/data/media/home-videos` | Inbox, in `home-videos` on the Videos share |
+| **Home Videos** | Home Videos and Photos | `/data/media/home-videos` | Video tools, in `home-videos` on the Videos share |
 
 The installer makes a folder that is missing when its share has write access, so the library is there before the first file. On a read-only share, a folder that is missing gets no library, and the log says so. The Music libraries need a Music share.
 

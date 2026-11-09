@@ -24,7 +24,7 @@ Open http://localhost:5173 and log in with `admin` / `iglo-dev-password` and the
 - The fake host has disks for the Photos copy off the NAS: `/mnt/backup-disk` is a disk of its own, `/mnt/second` a partition of the system disk and `/mnt/nas` a share of the NAS. Other folders are on the root disk. Their files, like the marker of the backup disk, are in `.dev/photos-backups/host`. Installing Photos seals a hash of its backup password in `.dev/photos-backups`, never the password. After the first backup, a new install must use the same password, or it stops like the real installer. `touch .dev/backup-disk-unplugged` unplugs the disk, and `touch .dev/fail-photos-backup` makes the next Photos backup fail.
 - Everything you change stays in `.dev/`. Delete that folder to start again.
 - A fake Jellyfin on `http://127.0.0.1:18096` has a library, two things playing and recent items. The manager is connected to it on the first start. Images are not faked.
-- Music, Photos, Inbox and Gaming install like the other apps: the real installer of the agent plays a simulated script. After that, the fake host has their container with sample stats, and their cards show **Sample data**.
+- Music, Photos, Video tools and Gaming install like the other apps: the real installer of the agent plays a simulated script. After that, the fake host has their container with sample stats, and their cards show **Sample data**.
 
 ## Against a real Proxmox
 

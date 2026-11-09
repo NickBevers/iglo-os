@@ -15,6 +15,8 @@ const (
 	Workloads = "workloads"
 	Music     = "music"
 	Inbox     = "inbox"
+	Library   = "library"
+	Shrink    = "shrink"
 	Jellyfin  = "jellyfin"
 	Setup     = "setup"
 )
