@@ -19,6 +19,7 @@ func InboxJobs(ctx context.Context, id int) (inbox.View, error) {
 	return view, err
 }
 func RegisterInbox(mux *http.ServeMux) {
+	RegisterShrink(mux)
 	mux.HandleFunc("GET /v1/inbox/{vmid}", func(w http.ResponseWriter, r *http.Request) {
 		id, _ := strconv.Atoi(r.PathValue("vmid"))
 		view, err := InboxJobs(r.Context(), id)
@@ -35,7 +36,7 @@ func RegisterInbox(mux *http.ServeMux) {
 			http.Error(w, "Inbox is unavailable", 502)
 			return
 		}
-		relayGuestStream(w, r, id, []string{"http://127.0.0.1:8789/events"}, "inbox", func(name string) bool { return name == "jobs" })
+		relayGuestStream(w, r, id, []string{"http://127.0.0.1:8789/events"}, "inbox", func(name string) bool { return name == "jobs" || name == "library" || name == "shrink" }, inboxEventTopic)
 	})
 	for _, route := range []struct{ pattern, method, path string }{
 		{"POST /v1/inbox/{vmid}", "POST", "/jobs"},
@@ -124,4 +125,11 @@ func InboxStats(ctx context.Context, id int) (AppStats, error) {
 		}
 	}
 	return AppStats{Figures: []Figure{{Label: "Queued", Value: counts["queued"]}, {Label: "Running", Value: counts["running"]}, {Label: "Completed (recent jobs)", Value: counts["succeeded"]}, {Label: "Failed (recent jobs)", Value: counts["failed"]}}, Activity: activity}, nil
+}
+
+func inboxEventTopic(name string) string {
+	if name == "jobs" {
+		return "inbox"
+	}
+	return name
 }

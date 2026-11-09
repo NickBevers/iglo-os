@@ -11,8 +11,11 @@ require_binding() {
     [[ "$found_role" == "$role" ]] || die "The selected share must have the $role role"
     [[ "$access" == ro || "$read_only" == false ]] || die "The $role share needs write access"
     BINDING_PATH="/mnt/iglo/shares/$id" BINDING_READ_ONLY="$read_only"
-    actual=$(findmnt --mountpoint "$BINDING_PATH" --noheadings --output FSTYPE,SOURCE) || die "The $role share is unavailable"
+    # --raw escapes the spaces of a share like "Videos (Umbrel)" as \x20, and
+    # printf %b turns them back.
+    actual=$(findmnt --mountpoint "$BINDING_PATH" --raw --noheadings --output FSTYPE,SOURCE) || die "The $role share is unavailable"
     read -r fs mounted_source <<< "$actual"
+    mounted_source=$(printf '%b' "$mounted_source")
     [[ "$fs" == cifs && "$mounted_source" == "$source" ]] || die "The $role share has the wrong mounted source"
     BINDING_UNIT="mnt-iglo-shares-$id.mount"
 }
@@ -39,11 +42,34 @@ bind_share() {
 make_share_folders() {
     local folder
     for folder in "$@"; do
-        [[ ! -d "$BINDING_PATH/$folder" ]] || continue
-        [[ "$BINDING_READ_ONLY" == false ]] || die "Make the folder $folder on the share first, or connect the share with write access"
-        log "Making the folder $folder on the share"
-        mkdir -m 0775 "$BINDING_PATH/$folder"
+        if [[ ! -d "$BINDING_PATH/$folder" ]]; then
+            [[ "$BINDING_READ_ONLY" == false ]] || die "Make the folder $folder on the share first, or connect the share with write access"
+            log "Making the folder $folder on the share"
+            mkdir -m 0775 "$BINDING_PATH/$folder"
+        fi
+        keep_library_folder "$BINDING_PATH/$folder"
     done
+}
+
+# LIBRARY_PLACEHOLDER is a hidden file in an empty library folder. Jellyfin
+# skips a library folder that is empty in its scans ("is inaccessible or
+# empty, skipping"), so the folder never gets into its database. When Sonarr
+# or Radarr later report the first import, Jellyfin finds no known folder for
+# the path and adds nothing until the next full scan, up to 12 hours later.
+# Any entry makes the folder count, hidden ones too (Jellyfin v12.4:
+# Folder.IsLibraryFolderAccessible, DirectoryService.IsAccessible, and
+# ManagedFileSystem with AttributesToSkip 0; checked 7 November 2026). Don't
+# name it .ignore: that makes Jellyfin skip the folder.
+LIBRARY_PLACEHOLDER=".iglo-library"
+LIBRARY_PLACEHOLDER_TEXT="Iglo-OS keeps this file so Jellyfin knows this library while it is empty. You can leave it."
+
+# keep_library_folder puts the placeholder in folder $1 when it is empty and
+# the share of the last require_binding has write access. A folder with
+# anything in it needs none.
+keep_library_folder() {
+    [[ "$BINDING_READ_ONLY" == false && -d "$1" ]] || return 0
+    [[ -z "$(ls -A "$1")" ]] || return 0
+    printf '%s\n' "$LIBRARY_PLACEHOLDER_TEXT" >"$1/$LIBRARY_PLACEHOLDER"
 }
 
 # free_mount_index prints the first unused mount point number of a container.

@@ -1,6 +1,6 @@
 # Background work
 
-The Background work page controls optional Immich queues through its queue API and admission leases for the Music/Inbox workers. It keeps the API server and database running while deferring new analysis and video-conversion jobs. Connect an existing compatible Immich server or install [Photos](photos.md) from Apps. The independent Music/Inbox setting needs no Immich key; see [worker setup](workers.md) for its controls.
+The Background work page controls optional Immich queues through its queue API and admission leases for the Music and Video tools workers. It keeps the API server and database running while deferring new analysis and video-conversion jobs. Connect an existing compatible Immich server or install [Photos](photos.md) from Apps. The independent Music and Video tools setting needs no Immich key; see [worker setup](workers.md) for its controls.
 
 A Photos that Iglo-OS installs connects by itself, from the Apps page as well as from the guided setup. Iglo-OS makes the first Immich admin, then a key with only `queue.read` and `queue.update`, and saves it with the node of the host. It only does this while Background work has no key, owns no paused queues and has no other server. A connection you made is never replaced. See [the first admin and Background work](photos.md#the-first-admin-and-background-work).
 
@@ -29,7 +29,7 @@ Every 15 seconds while work is admitted, once a minute while nothing may run, an
 
 This limits **queues accepting work**, not individual worker processes. Set each queue's worker concurrency in Immich itself. Already-running tasks may continue consuming CPU, RAM or GPU until they finish. The host reading is an admission signal, not a RAM reservation or an out-of-memory guarantee.
 
-Music and Inbox admission goes to every running Music and Inbox container of the host. Iglo-OS runs on one host, so it doesn't pick containers by node.
+Music and Video tools admission goes to every running Music and Video tools container of the host. Iglo-OS runs on one host, so it doesn't pick containers by node.
 
 The daily window uses its explicit IANA timezone, supports crossing midnight and follows local daylight-saving changes. Its start is inclusive and its end exclusive. Turn the window off for all-day processing.
 
@@ -49,7 +49,7 @@ The encrypted manager data backup includes this file. The `iglo.yaml` [settings 
 | --- | --- | --- |
 | Immich analysis and video conversion | Selected queue admission, low concurrency, processing windows; test Intel OpenVINO/Quick Sync where supported | Queue admission implemented here. With a host GPU, machine learning uses OpenVINO; Quick Sync for video is one switch in Immich. |
 | Jellyfin playback | Prefer direct play; Intel Quick Sync for required transcodes | Existing Jellyfin integration; this controller does not change playback settings. |
-| Inbox | One native FFmpeg worker, manual pause and a short admission lease | Review the profile and resume in Inbox work. |
+| Video tools | One native FFmpeg worker, manual pause and a short admission lease | Review the profile and resume in Video tools → Inbox. |
 | Emulation and streaming | Test native graphics backend, resolution and hardware stream encoding; defer background work | Timed protection from Play, and a hold while Wolf reports a Moonlight session; no GPU reservation. |
 | Music imports | One native worker, local staging, short admission lease and manual pause | Music installer and Music work page; independent worker control follows gaming/window/headroom policy. |
 | Backups | Separate ordinary backups from expensive verification/pruning and conversion windows | Existing backup scheduler; this controller does not pause backups. |

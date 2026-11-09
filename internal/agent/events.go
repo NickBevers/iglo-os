@@ -97,7 +97,7 @@ func RegisterEvents(mux *http.ServeMux, installer *AppInstaller) {
 
 // relayGuestStream runs a streaming curl in a container, and passes each
 // event that pick names on as topic. It never passes the data of an event.
-func relayGuestStream(w http.ResponseWriter, r *http.Request, vmid int, curl []string, topic string, pick func(name string) bool) {
+func relayGuestStream(w http.ResponseWriter, r *http.Request, vmid int, curl []string, topic string, pick func(name string) bool, rename ...func(string) string) {
 	ctx, cancel := context.WithTimeout(r.Context(), guestStreamLimit)
 	defer cancel()
 	args := append([]string{"exec", strconv.Itoa(vmid), "--", "curl", "--silent", "--no-buffer", "--max-time", strconv.Itoa(int(guestStreamLimit.Seconds()))}, curl...)
@@ -118,7 +118,7 @@ func relayGuestStream(w http.ResponseWriter, r *http.Request, vmid int, curl []s
 	if !send("") {
 		return
 	}
-	events := make(chan struct{}, 1)
+	events := make(chan string, 32)
 	go func() {
 		defer close(events)
 		lines := bufio.NewScanner(output)
@@ -130,7 +130,12 @@ func relayGuestStream(w http.ResponseWriter, r *http.Request, vmid int, curl []s
 				continue
 			}
 			select {
-			case events <- struct{}{}:
+			case events <- func() string {
+				if len(rename) > 0 {
+					return rename[0](strings.TrimSpace(name))
+				}
+				return topic
+			}():
 			default:
 			}
 		}
@@ -145,8 +150,8 @@ func relayGuestStream(w http.ResponseWriter, r *http.Request, vmid int, curl []s
 			if !send("") {
 				return
 			}
-		case _, open := <-events:
-			if !open || !send(topic) {
+		case name, open := <-events:
+			if !open || !send(name) {
 				return
 			}
 		}

@@ -4,11 +4,13 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"io"
 	"net/http"
 
 	"iglo/internal/agent"
 	"iglo/internal/apps"
 	"iglo/internal/immich"
+	"iglo/internal/stacks/arr"
 )
 
 func (s *server) appsStatus(w http.ResponseWriter, r *http.Request) {
@@ -124,14 +126,48 @@ func (s *server) appsChangeFlareSolverr(w http.ResponseWriter, r *http.Request) 
 	s.writeAppsResult(w, s.Apps.ChangeFlareSolverr(r.Context(), s.Background, r.PathValue("id"), *request.Enabled), http.StatusAccepted)
 }
 
+func (s *server) appsMediaSettings(w http.ResponseWriter, r *http.Request) {
+	settings, err := s.Apps.MediaSettings(r.Context(), r.PathValue("id"))
+	if err != nil {
+		s.writeAppsResult(w, err, 0)
+		return
+	}
+	writeJSON(w, http.StatusOK, struct {
+		Settings arr.MediaSettings `json:"settings"`
+	}{Settings: settings})
+}
+
+func (s *server) appsChangeMediaSettings(w http.ResponseWriter, r *http.Request) {
+	var request struct {
+		Settings *arr.MediaSettings `json:"settings"`
+	}
+	decoder := json.NewDecoder(http.MaxBytesReader(w, r.Body, 64*1024))
+	decoder.DisallowUnknownFields()
+	if err := decoder.Decode(&request); err != nil || request.Settings == nil {
+		writeError(w, http.StatusBadRequest, "invalid request body")
+		return
+	}
+	if err := decoder.Decode(new(any)); err != io.EOF {
+		writeError(w, http.StatusBadRequest, "invalid request body")
+		return
+	}
+	if err := request.Settings.Validate(); err != nil {
+		writeError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	s.writeAppsResult(w, s.Apps.ChangeMediaSettings(r.Context(), s.Background, r.PathValue("id"), *request.Settings), http.StatusAccepted)
+}
+
 func (s *server) writeAppsResult(w http.ResponseWriter, err error, success int) {
 	switch {
+	case errors.Is(err, apps.ErrMediaSettingsUnavailable):
+		writeError(w, http.StatusServiceUnavailable, err.Error())
 	case errors.Is(err, agent.ErrInvalidAnswers):
 		writeError(w, http.StatusBadRequest, err.Error())
 	case errors.Is(err, apps.ErrUnknownApp):
 		writeError(w, http.StatusNotFound, err.Error())
 	case errors.Is(err, apps.ErrInstalled), errors.Is(err, apps.ErrBusy), errors.Is(err, apps.ErrNotInstalled), errors.Is(err, apps.ErrPlanned),
-		errors.Is(err, apps.ErrNotRunning):
+		errors.Is(err, apps.ErrNotRunning), errors.Is(err, apps.ErrMediaSettingsNeedsUpdate), errors.Is(err, apps.ErrMediaSettingsUnreadable):
 		writeError(w, http.StatusConflict, err.Error())
 	case err != nil:
 		s.Logger.Error("app operation", "error", err)

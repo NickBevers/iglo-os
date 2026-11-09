@@ -33,7 +33,7 @@ export function ScopedForm({
                   backupBinding: '',
                   cores: id === 'photos' || id === 'gaming' ? 4 : 2,
                   memoryMiB: id === 'photos' ? 8192 : id === 'music' ? 1024 : id === 'gaming' ? 6144 : 2048,
-                  diskGB: id === 'gaming' ? 96 : 64,
+                  diskGB: id === 'photos' || id === 'gaming' ? 64 : id === 'inbox' ? 48 : 32,
                   privileged: false,
               },
     )
@@ -241,9 +241,9 @@ export function ScopedForm({
             )}
             {id === 'inbox' && (
                 <p className="text-sm text-muted-foreground">
-                    Open Inbox work to review the profile and resume the paused queue. Sources stay read only. FFmpeg
-                    stages on SSD and publishes to Videos/home-videos. The playback profile uses VAAPI when verified,
-                    with a CPU fallback.
+                    Open Video tools. In Inbox, review the profile and resume the paused queue. Inbox sources stay read
+                    only. Imports stage on SSD and publish to Videos/home-videos. Shrink library has its own queue and
+                    replaces selected originals only after confirmation.
                 </p>
             )}
             {id === 'gaming' && (

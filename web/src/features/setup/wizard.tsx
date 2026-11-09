@@ -223,6 +223,7 @@ function NASPage({ setup, draft, setDraft, roles }: PageProps & { roles: string[
                 <CardDescription>
                     Each app gets only its own folders. On an Umbrel, open Settings &gt; File sharing, choose Specific
                     folders and add each folder below. They all use the one SMB login, umbrel, shown on that page.
+                    Umbrel names each share after its folder, like Videos (Umbrel).
                 </CardDescription>
             </CardHeader>
             <CardContent className="flex flex-col gap-5">
@@ -578,7 +579,7 @@ function ReviewPage({ setup, draft, roles }: { setup: Setup; draft: Draft; roles
                         `, which holds ${formatBytes(space.totalBytes)} with ${formatBytes(space.freeBytes)} free`}
                     .
                     {draft.apps.includes('media') &&
-                        ` The media stack takes ${formatBytes(200 * 2 ** 30)} of it for downloads.`}
+                        ` The media stack takes ${formatBytes(120 * 2 ** 30)} of it for downloads.`}
                 </Row>
                 {space && diskBytes > space.totalBytes && (
                     <p className="text-destructive">

@@ -88,6 +88,27 @@ install_agent() {
     sed "s/@SOCKET_GID@/$HOST_SOCKET_GID/" "$BUNDLE_DIR/iglo-agent.service" >/etc/systemd/system/iglo-agent.service
     systemctl daemon-reload
     systemctl enable --now iglo-agent
+    ensure_tpm_libraries || log "Could not install the TPM libraries, secrets are sealed with the host key only"
+}
+
+# The TPM2 libraries that systemd-creds loads, under their Debian 13 package
+# names. Proxmox VE 9.2 ships without them, so systemd-analyze has-tpm2 says
+# "partial" with -libraries (checked 7 November 2026, systemd 257.13).
+TPM_LIBRARIES=(libtss2-esys-3.0.2-0t64 libtss2-rc0t64 libtss2-mu-4.0.1-0t64)
+
+# ensure_tpm_libraries installs the TPM2 libraries when the host has a TPM2
+# chip and its driver, but not the libraries. Without them, systemd-creds
+# seals with the host key only (--with-key=auto), and a secret sealed that way
+# stays so after the libraries arrive. A host without a TPM2 needs nothing.
+ensure_tpm_libraries() {
+    local state
+    state="$(systemd-analyze has-tpm2 2>/dev/null || true)"
+    grep -qx '+firmware' <<<"$state" && grep -qx '+driver' <<<"$state" || return 0
+    grep -qx -- '-libraries' <<<"$state" || return 0
+    log "Installing the TPM2 libraries, for sealing secrets with the TPM"
+    apt-get update -q || return 1
+    DEBIAN_FRONTEND=noninteractive apt-get install -y -q "${TPM_LIBRARIES[@]}" || return 1
+    systemd-analyze has-tpm2 >/dev/null 2>&1
 }
 
 # setup_zram turns on compressed swap in RAM with zram-tools: up to a quarter
@@ -440,6 +461,8 @@ upgrade() {
     ensure_tailscale || log "Could not install Tailscale, continuing without it"
     # Older installs have no app names yet. Without them, only seerr.iglo.local and the like don't work.
     ensure_app_names || log "Could not announce the app names, continuing without them"
+    # Proxmox VE 9.2 ships without them. Without them, new secrets are sealed with the host key only.
+    ensure_tpm_libraries || log "Could not install the TPM libraries, secrets are sealed with the host key only"
 
     log "Installing the new version"
     UPGRADE_STEP="replaced"
@@ -718,7 +741,8 @@ main() {
     cat <<EOF
 
   Open:      https://$CT_HOSTNAME.local  (or https://$ct_ip)
-  Trust it:  download http://$CT_HOSTNAME.local/ca.crt and install it as a trusted root on each device.
+  Trust it:  download http://$ct_ip/ca.crt and install it as a trusted root on each device.
+             Use the IP: a browser that opened an earlier Iglo-OS keeps HTTPS for $CT_HOSTNAME.local.
   Tip:       give container $CT_ID a fixed IP (DHCP reservation) in your router.
 EOF
     zfs_arc_note

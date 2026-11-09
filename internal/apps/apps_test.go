@@ -11,6 +11,7 @@ import (
 
 	"iglo/internal/agent"
 	"iglo/internal/proxmox"
+	"iglo/internal/stacks/arr"
 )
 
 type fakeAgent struct {
@@ -24,8 +25,31 @@ type fakeAgent struct {
 	stats     int
 	// flareSolverr is the switch of the fake media stack, and
 	// flareSolverrReads counts how often it was read.
-	flareSolverr      bool
-	flareSolverrReads int
+	flareSolverr         bool
+	flareSolverrReads    int
+	mediaSettings        arr.MediaSettings
+	mediaSettingsErr     error
+	mediaSettingsReads   []int
+	mediaSettingsChanges []int
+}
+
+func (f *fakeAgent) MediaSettings(_ context.Context, vmid int) (arr.MediaSettings, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.mediaSettingsReads = append(f.mediaSettingsReads, vmid)
+	return f.mediaSettings, f.mediaSettingsErr
+}
+
+func (f *fakeAgent) ChangeMediaSettings(_ context.Context, vmid int, settings arr.MediaSettings) error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.mediaSettingsChanges = append(f.mediaSettingsChanges, vmid)
+	if f.mediaSettingsErr != nil {
+		return f.mediaSettingsErr
+	}
+	f.mediaSettings = settings
+	f.status = agent.AppInstallStatus{App: "media", Action: agent.ActionMediaSettings, State: agent.UpgradeRunning}
+	return nil
 }
 
 func (f *fakeAgent) FlareSolverr(_ context.Context, vmid int) (agent.FlareSolverrView, error) {
@@ -701,9 +725,18 @@ func TestChangeFlareSolverr(t *testing.T) {
 	case <-time.After(2 * time.Second):
 		t.Fatal("no message")
 	}
-	// The finished operation forgot the old answer.
-	if on, reads := flareSolverr(); on == nil || *on || reads != 2 {
-		t.Fatalf("after the change: flareSolverr = %v, reads = %d", on, reads)
+	// The finished operation forgot the old answer. The notice comes from the
+	// monitor before it lets go of the operation, so give the view a moment.
+	deadline := time.Now().Add(2 * time.Second)
+	for {
+		on, reads := flareSolverr()
+		if on != nil && !*on && reads == 2 {
+			break
+		}
+		if time.Now().After(deadline) {
+			t.Fatalf("after the change: flareSolverr = %v, reads = %d", on, reads)
+		}
+		time.Sleep(10 * time.Millisecond)
 	}
 }
 

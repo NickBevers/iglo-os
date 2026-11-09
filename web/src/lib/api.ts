@@ -554,7 +554,7 @@ export type DockerLogs = {
 
 export type AppOperation = {
     app?: string
-    action?: 'install' | 'update' | 'remove' | 'vpn' | 'flaresolverr' | 'backup' | 'verify'
+    action?: 'install' | 'update' | 'remove' | 'vpn' | 'flaresolverr' | 'media-settings' | 'backup' | 'verify'
     state: 'idle' | 'running' | 'succeeded' | 'failed'
     message?: string
     startedAt?: string
@@ -562,6 +562,60 @@ export type AppOperation = {
     vmid?: number
     ip?: string
     log?: string
+}
+
+export type KindSettings = { subtitles: string[]; audio: 'original' | 'dutch' }
+
+export type MediaSettings = {
+    uhdFilms: boolean
+    anime: KindSettings
+    dutch: KindSettings
+    series: KindSettings
+    films: KindSettings
+    sizes: { series: number; films: number; films4k: number }
+}
+
+const subtitleLanguages = [
+    { code: 'en', name: 'English' },
+    { code: 'nl', name: 'Dutch' },
+    { code: 'fr', name: 'French' },
+    { code: 'de', name: 'German' },
+    { code: 'es', name: 'Spanish' },
+    { code: 'it', name: 'Italian' },
+    { code: 'pt', name: 'Portuguese' },
+    { code: 'ja', name: 'Japanese' },
+    { code: 'ko', name: 'Korean' },
+    { code: 'zh', name: 'Chinese' },
+]
+
+export function subtitleLanguageButtons(selected: string[]): { code: string; name: string }[] {
+    const names = new Intl.DisplayNames(['en'], { type: 'language' })
+    const bazarrNames: Record<string, string> = {
+        pb: 'Portuguese (Brazil)',
+        zt: 'Chinese (Traditional)',
+        ea: 'Spanish (Latin America)',
+    }
+    const buttons = [...subtitleLanguages]
+    for (const code of selected) {
+        if (buttons.some((button) => button.code === code)) continue
+        let name = bazarrNames[code]
+        if (!name) {
+            try {
+                name = names.of(code) ?? code
+            } catch {
+                name = code
+            }
+        }
+        buttons.push({ code, name })
+    }
+    return buttons
+}
+
+export function toggleSubtitleLanguage(current: string[], language: string | null, allowEmpty = true): string[] {
+    if (!allowEmpty && (language === null || (current.length === 1 && current.includes(language)))) return current
+    if (language === null) return []
+    if (current.includes(language)) return current.filter((code) => code !== language)
+    return current.length < 10 ? [...current, language] : current
 }
 
 export type JellyfinAnswers = {
@@ -806,7 +860,49 @@ async function request<T>(method: string, path: string, body?: unknown, contentT
     return (await response.json().catch(() => ({}))) as T
 }
 
+export type ShrinkProfile = 'standard' | 'high'
+export type LibraryFile = {
+    path: string
+    bytes: number
+    modified: string
+    duration: number
+    codec: string
+    height: number
+    bitDepth: number
+    hdr: boolean
+    audio: { index: number; codec: string; language: string; channels: number }[]
+    estimates: Record<ShrinkProfile, number>
+    status: 'ready' | 'small' | 'skipped' | 'done'
+    reason?: string
+}
+export type LibraryFolder = { path: string; name: string; folders: LibraryFolder[] | null; files: LibraryFile[] | null }
+export type ShrinkLibrary = { kinds: LibraryFolder[] | null; scanning: boolean; scannedAt?: string; error?: string }
+export type ShrinkJob = {
+    id: string
+    path: string
+    profile: ShrinkProfile
+    state: 'queued' | 'running' | 'done' | 'failed' | 'not-smaller' | 'changed' | 'cancelled'
+    progress: number
+    sourceBytes: number
+    resultBytes: number
+    savedBytes: number
+    sourceModified: string
+    error?: string
+    finishedAt?: string
+    rescanned: boolean
+}
+export type ShrinkQueue = { paused: boolean; admitted: boolean; jobs: ShrinkJob[] }
+export type ShrinkRefusal = { path: string; paths: string[]; title: string; state: 'refused'; reason?: string }
+export type ShrinkSubmission = { jobs: ShrinkJob[]; refused: ShrinkRefusal[] }
+
 export const api = {
+    library: () => request<ShrinkLibrary>('GET', '/inbox/library'),
+    scanLibrary: () => request<void>('POST', '/inbox/library/scan'),
+    shrinkJobs: () => request<ShrinkQueue>('GET', '/inbox/shrink'),
+    submitShrink: (input: { paths: string[]; profile: ShrinkProfile; confirm: 'replace-originals' }) =>
+        request<ShrinkSubmission>('POST', '/inbox/shrink', input),
+    shrinkSettings: (paused: boolean) => request<void>('PUT', '/inbox/shrink/settings', { paused }),
+    cancelShrink: (id: string) => request<void>('POST', `/inbox/shrink/cancel/${encodeURIComponent(id)}`),
     inboxJobs: () => request<InboxQueue>('GET', '/inbox'),
     submitInbox: (input: { path: string; profile: InboxProfile }) => request<InboxJob>('POST', '/inbox', input),
     inboxSettings: (input: { paused: boolean; profile: InboxProfile }) =>
@@ -906,6 +1002,9 @@ export const api = {
     vpnSettings: (id: string) => request<VpnView>('GET', `/apps/${id}/vpn`),
     changeVpn: (id: string, settings: VpnSettings) => request<void>('PUT', `/apps/${id}/vpn`, settings),
     changeFlareSolverr: (id: string, enabled: boolean) => request<void>('PUT', `/apps/${id}/flaresolverr`, { enabled }),
+    mediaSettings: (id: string) => request<{ settings: MediaSettings }>('GET', `/apps/${id}/media-settings`),
+    changeMediaSettings: (id: string, settings: MediaSettings) =>
+        request<void>('PUT', `/apps/${id}/media-settings`, { settings }),
     settingsExportUrl: '/api/settings/export',
     downloadDataBackup,
     restoreDataBackup,

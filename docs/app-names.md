@@ -29,3 +29,15 @@ Video through this name goes through the manager container. For heavy 4K streams
 ## Away from home
 
 `.local` names only work on your LAN. Over Tailscale, use Tailscale Services for the same apps: see [tailscale.md](tailscale.md#apps-on-your-tailnet-tailscale-services).
+
+## Names in Iglo-OS
+
+**Video tools** is the display name of the app with ID `inbox`. Apps, the
+install dialog, navigation and the page use this name. It has an **Inbox**
+section for importing local videos and a **Shrink library** section for
+replacing selected library files with smaller versions.
+
+The ID, `/inbox` page, `/api/inbox` routes, container tags, stored data and Inbox
+share keep their names. Existing installations need no migration. Inbox imports
+keep their existing behaviour and controls. See [Library shrink](library-shrink.md)
+for the confirmation and media refresh flow.

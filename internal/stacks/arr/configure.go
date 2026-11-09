@@ -83,6 +83,9 @@ type Config struct {
 
 	// QBittorrentTempPassword returns the one-time password qBittorrent logs on first start.
 	QBittorrentTempPassword func(context.Context) (string, error)
+	// ForwardedPort returns the port that the VPN forwarded, or 0 when there
+	// is none yet. Optional.
+	ForwardedPort func(context.Context) (int, error)
 	// SyncProfiles runs Recyclarr once, so its quality profiles exist before
 	// Seerr picks them. Optional: without it, Recyclarr makes them within a day.
 	SyncProfiles func(context.Context) error
@@ -234,6 +237,32 @@ func configureQBittorrent(ctx context.Context, cfg Config, qbit *qbittorrent) er
 		}
 	}
 
+	return giveForwardedPort(ctx, cfg, qbit)
+}
+
+// vpnInterface is Gluetun's tunnel, its default VPN_INTERFACE in v3.41.3.
+const vpnInterface = "tun0"
+
+// giveForwardedPort gives qBittorrent the port that the VPN forwarded, as
+// Gluetun's port-forward hook does. That hook runs once, when the port is
+// new, and can run before the bypass of the local login above. qBittorrent
+// then answers 403 and keeps its default port, which no peer can reach. Seen
+// on the first real host on 7 November 2026. Without a port yet, the hook
+// sends it later, now that it may.
+func giveForwardedPort(ctx context.Context, cfg Config, qbit *qbittorrent) error {
+	if cfg.ForwardedPort == nil {
+		return nil
+	}
+	port, err := cfg.ForwardedPort(ctx)
+	if err != nil || port < 1 || port > 65535 {
+		return nil
+	}
+	if err := qbit.setPreferences(ctx, map[string]any{
+		"listen_port": port, "current_network_interface": vpnInterface, "random_port": false, "upnp": false,
+	}); err != nil {
+		return err
+	}
+	cfg.Logf("Gave qBittorrent the forwarded port %d", port)
 	return nil
 }
 
@@ -371,9 +400,22 @@ var animeIndexers = []struct{ definition, name string }{
 	{"animetosho-xyz", "Anime Tosho"},
 }
 
+// animeSeasonFields let Sonarr find season packs on the anime trackers. A
+// season search sends the title with season=1, which both definitions turn
+// into "S01"; batches are named "Season 1" or "S1", or have no season at all,
+// so the search found nothing. strip_s01 searches the bare title for season
+// 1, and sonarr_compatibility writes the season into the release titles, so
+// Sonarr sees a season pack. Both default to false in the definitions
+// (Prowlarr/Indexers definitions/v11 nyaasi.yml and animetosho-xyz.yml,
+// checked 7 November 2026). On the first real host, a season 1 search for
+// Sword Art Online then went from 0 results to 44 on Nyaa and 94 on Anime
+// Tosho, and Sonarr took a season pack.
+var animeSeasonFields = map[string]any{"sonarr_compatibility": true, "strip_s01": true}
+
 // addAnimeIndexers adds the anime trackers to Prowlarr, which syncs them to
 // Sonarr and Radarr. A tracker that fails only gets a warning: the stack
-// works without it, and you can add it in Prowlarr later.
+// works without it, and you can add it in Prowlarr later. A tracker that is
+// there already gets the season fields too.
 func addAnimeIndexers(ctx context.Context, cfg Config, prowlarr *servarr) {
 	for _, indexer := range animeIndexers {
 		err := prowlarr.ensure(ctx, provider{
@@ -382,6 +424,7 @@ func addAnimeIndexers(ctx context.Context, cfg Config, prowlarr *servarr) {
 			definition:     indexer.definition,
 			name:           indexer.name,
 			forceSave:      true,
+			fields:         animeSeasonFields,
 			// 1 is the Standard sync profile of Prowlarr.
 			settings: map[string]any{"enable": true, "appProfileId": 1},
 		})

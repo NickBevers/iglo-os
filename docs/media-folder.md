@@ -7,7 +7,7 @@ Jellyfin and the media stack keep your movies and series on a **Videos** share o
 2. Give the NAS a fixed IP in your router (a DHCP reservation).
 3. In Iglo-OS, open **Server > Storage** and connect the share with the role **Videos**. Use the IP address of the NAS: the Proxmox host can't look up names like `umbrel.local`. Give it write access, because the media stack writes movies and series to it.
 
-The install forms of Jellyfin and the media stack list the Videos shares. When one app already uses a share, the other app's form chooses that one, so both see the same media. Inbox also writes its converted home videos to a Videos share.
+The install forms of Jellyfin and the media stack list the Videos shares. When one app already uses a share, the other app's form chooses that one, so both see the same media. Video tools imports Inbox videos to a Videos share.
 
 ## Folders
 

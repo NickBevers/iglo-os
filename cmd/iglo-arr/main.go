@@ -3,6 +3,7 @@
 //	iglo-arr configure --env /opt/arr/.env < passwords
 //	iglo-arr vpn --env /opt/arr/.env < settings
 //	iglo-arr flaresolverr --env /opt/arr/.env on|off
+//	iglo-arr media get|set --env /opt/arr/.env
 //
 // For configure, the first line on stdin is the password for the apps.
 // Optional next lines are the password of the Jellyfin admin, for the setup
@@ -22,12 +23,15 @@ package main
 import (
 	"bufio"
 	"context"
+	"encoding/json"
 	"errors"
 	"flag"
 	"fmt"
 	"os"
 	"os/exec"
 	"os/signal"
+	"path/filepath"
+	"strconv"
 	"strings"
 	"syscall"
 	"time"
@@ -36,11 +40,13 @@ import (
 )
 
 func main() {
-	commands := map[string]func([]string) error{"configure": configure, "vpn": applyVPN, "flaresolverr": setFlareSolverr}
+	commands := map[string]func([]string) error{"configure": configure, "vpn": applyVPN, "flaresolverr": setFlareSolverr, "media": mediaSettings, "rescan": rescan, "shrink-check": shrinkCheck}
 	if len(os.Args) < 2 || commands[os.Args[1]] == nil {
 		fmt.Fprintln(os.Stderr, "usage: iglo-arr configure [--env FILE] [--data-dir DIR] [--bazarr-config FILE] < passwords")
 		fmt.Fprintln(os.Stderr, "       iglo-arr vpn [--env FILE] [--gluetun-dir DIR] < settings")
 		fmt.Fprintln(os.Stderr, "       iglo-arr flaresolverr [--env FILE] on|off")
+		fmt.Fprintln(os.Stderr, "       iglo-arr media get|set [--env FILE]")
+		fmt.Fprintln(os.Stderr, "       iglo-arr rescan|shrink-check [--env FILE] PATH...")
 		os.Exit(2)
 	}
 
@@ -111,6 +117,52 @@ func setFlareSolverr(args []string) error {
 	})
 }
 
+// mediaSettings uses the stack folder of --env for state and app configs.
+// Get reads Bazarr when no choices have been saved. Its stdout stays JSON.
+func mediaSettings(args []string) error {
+	if len(args) == 0 || (args[0] != "get" && args[0] != "set" && args[0] != "render") {
+		return errors.New("usage: iglo-arr media get|set|render [--env FILE]")
+	}
+	action := args[0]
+	flags := flag.NewFlagSet("media "+action, flag.ContinueOnError)
+	envPath := flags.String("env", "/opt/arr/.env", "stack .env file")
+	if err := flags.Parse(args[1:]); err != nil {
+		return err
+	}
+	if flags.NArg() != 0 {
+		return errors.New("unexpected media command arguments")
+	}
+	settingsPath, bazarrConfig, seerrConfig := arr.MediaSettingsPaths(*envPath)
+	if action == "render" {
+		root := filepath.Dir(settingsPath)
+		return arr.RenderMediaSizes(filepath.Join(root, "recyclarr.template.yml"), filepath.Join(root, "config", "recyclarr", "recyclarr.yml"), settingsPath)
+	}
+	if action == "get" {
+		settings, err := arr.GetMediaSettings(settingsPath, arr.MediaSettingsConfig{EnvPath: *envPath, BazarrConfigPath: bazarrConfig})
+		if err != nil {
+			return err
+		}
+		return json.NewEncoder(os.Stdout).Encode(settings)
+	}
+	settings, err := arr.DecodeMediaSettings(os.Stdin)
+	if err != nil {
+		return err
+	}
+	env, err := readEnv(*envPath, "SONARR_API_KEY", "RADARR_API_KEY")
+	if err != nil {
+		return err
+	}
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer stop()
+	return arr.ApplyMediaSettings(ctx, settings, arr.MediaSettingsConfig{
+		Endpoints:    arr.DefaultEndpoints,
+		SonarrAPIKey: env["SONARR_API_KEY"], RadarrAPIKey: env["RADARR_API_KEY"],
+		SettingsPath: settingsPath, BazarrConfigPath: bazarrConfig, SeerrConfigPath: seerrConfig,
+		SyncRecyclarr: syncProfiles,
+		Logf:          func(format string, args ...any) { fmt.Printf("==> "+format+"\n", args...) },
+	})
+}
+
 func configure(args []string) error {
 	flags := flag.NewFlagSet("configure", flag.ExitOnError)
 	envPath := flags.String("env", "/opt/arr/.env", "stack .env file")
@@ -165,7 +217,8 @@ func configure(args []string) error {
 		QBittorrentTempPassword: func(ctx context.Context) (string, error) {
 			return qbittorrentTempPassword(ctx)
 		},
-		SyncProfiles: syncProfiles,
+		ForwardedPort: forwardedPort,
+		SyncProfiles:  syncProfiles,
 		Logf: func(format string, args ...any) {
 			fmt.Printf("==> "+format+"\n", args...)
 		},
@@ -180,7 +233,7 @@ func configure(args []string) error {
 }
 
 // readEnv parses the simple KEY=VALUE lines Docker Compose reads too.
-func readEnv(path string) (map[string]string, error) {
+func readEnv(path string, required ...string) (map[string]string, error) {
 	data, err := os.ReadFile(path)
 	if err != nil {
 		return nil, err
@@ -197,7 +250,10 @@ func readEnv(path string) (map[string]string, error) {
 		}
 	}
 
-	for _, key := range []string{"ARR_USERNAME", "RADARR_API_KEY", "SONARR_API_KEY", "PROWLARR_API_KEY", "SUBTITLE_LANGUAGES"} {
+	if len(required) == 0 {
+		required = []string{"ARR_USERNAME", "RADARR_API_KEY", "SONARR_API_KEY", "PROWLARR_API_KEY", "SUBTITLE_LANGUAGES"}
+	}
+	for _, key := range required {
 		if env[key] == "" {
 			return nil, fmt.Errorf("%s is missing in %s", key, path)
 		}
@@ -216,7 +272,26 @@ func syncProfiles(ctx context.Context) error {
 	if err != nil {
 		return fmt.Errorf("recyclarr sync: %w: %s", err, lastLines(string(output), 5))
 	}
+	return validateRecyclarrSyncOutput(string(output))
+}
 
+// Recyclarr v8.8.0 QualitySizeApiPersistencePhase, checked 2026-11-08,
+// logs one of these size results even when no values changed. ConfigPipeline
+// is absent from the source cache, so parse failures use a broad word match.
+func validateRecyclarrSyncOutput(output string) error {
+	succeeded := false
+	for line := range strings.Lines(strings.ToLower(output)) {
+		if strings.Contains(line, "config") && (strings.Contains(line, "fail") || strings.Contains(line, "error") || strings.Contains(line, "invalid")) {
+			return errors.New("recyclarr sync: configuration parsing failed; read the Recyclarr log")
+		}
+		if strings.Contains(line, "all sizes for quality definition ") && strings.Contains(line, "already up to date") ||
+			strings.Contains(line, " sizes were synced for quality definition ") {
+			succeeded = true
+		}
+	}
+	if !succeeded {
+		return errors.New("recyclarr sync: no instance reported a successful quality size sync; read the Recyclarr log")
+	}
 	return nil
 }
 
@@ -228,6 +303,16 @@ func lastLines(output string, n int) string {
 }
 
 // qbittorrentTempPassword reads the one-time password qBittorrent logs on first start.
+// forwardedPort reads the port that Gluetun wrote when the VPN forwarded one
+// (v3.41.3: /tmp/gluetun/forwarded_port), or 0 when it has none yet.
+func forwardedPort(ctx context.Context) (int, error) {
+	output, err := exec.CommandContext(ctx, "docker", "exec", "gluetun", "cat", "/tmp/gluetun/forwarded_port").Output()
+	if err != nil {
+		return 0, nil
+	}
+	return strconv.Atoi(strings.TrimSpace(string(output)))
+}
+
 func qbittorrentTempPassword(ctx context.Context) (string, error) {
 	output, err := exec.CommandContext(ctx, "docker", "logs", "qbittorrent").CombinedOutput()
 	if err != nil {

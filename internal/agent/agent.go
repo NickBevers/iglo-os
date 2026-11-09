@@ -21,6 +21,7 @@ import (
 	"github.com/coder/websocket"
 
 	"iglo/internal/release"
+	"iglo/internal/stacks/arr"
 )
 
 type Health struct {
@@ -313,6 +314,16 @@ func (c *Client) FlareSolverr(ctx context.Context, vmid int) (FlareSolverrView, 
 
 func (c *Client) ChangeFlareSolverr(ctx context.Context, vmid int, enabled bool) error {
 	return c.do(ctx, http.MethodPut, "/v1/apps/media/flaresolverr", FlareSolverrRequest{VMID: vmid, Enabled: enabled}, nil)
+}
+
+func (c *Client) MediaSettings(ctx context.Context, vmid int) (arr.MediaSettings, error) {
+	var settings arr.MediaSettings
+	err := c.do(ctx, http.MethodGet, "/v1/apps/media/settings?vmid="+strconv.Itoa(vmid), nil, &settings)
+	return settings, err
+}
+
+func (c *Client) ChangeMediaSettings(ctx context.Context, vmid int, settings arr.MediaSettings) error {
+	return c.do(ctx, http.MethodPut, "/v1/apps/media/settings", MediaSettingsRequest{VMID: vmid, Settings: settings}, nil)
 }
 
 // SavedAppAnswers returns the answers of the last failed install without secrets, or nil.

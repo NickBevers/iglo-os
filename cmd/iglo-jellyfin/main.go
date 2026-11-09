@@ -4,12 +4,13 @@
 //
 //	iglo-jellyfin setup --url http://192.168.1.20:8096 --admin dries \
 //	    --movies /data/media/movies --series /data/media/series [library flags] \
-//	    [--gpu [--vainfo FILE] [--huc]] < password
+//	    [--gpu [--vainfo FILE] [--huc]] [--key-file FILE] < password
 //	iglo-jellyfin libraries --url http://192.168.1.20:8096 [library flags] < api-key
 //
 // The library flags are --music, --music-videos and --home-videos, each with
-// the folder as Jellyfin sees it. The last line that setup prints is the API
-// key for Iglo-OS:
+// the folder as Jellyfin sees it. With --key-file, setup writes the API key
+// for Iglo-OS to that file, readable by root only, so it stays out of the
+// install log. Without it, the last line that setup prints is the key:
 //
 //	IGLO jellyfin-key <key>
 package main
@@ -111,6 +112,7 @@ func setup(args []string) error {
 	gpu := flags.Bool("gpu", false, "turn on VA-API hardware transcoding")
 	vainfo := flags.String("vainfo", "", "file with the output of vainfo, for the codecs that the GPU decodes")
 	huc := flags.Bool("huc", false, "the host loaded the HuC firmware, for the Intel low-power encoders")
+	keyFile := flags.String("key-file", "", "file to write the API key for Iglo-OS to, instead of printing it")
 	flags.Parse(args)
 
 	if *url == "" || *admin == "" || *movies == "" || *series == "" {
@@ -153,6 +155,9 @@ func setup(args []string) error {
 		return err
 	}
 
+	if *keyFile != "" {
+		return os.WriteFile(*keyFile, []byte(key+"\n"), 0o600)
+	}
 	fmt.Println("IGLO jellyfin-key " + key)
 
 	return nil

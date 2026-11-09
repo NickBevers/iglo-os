@@ -58,7 +58,7 @@ starts a Perl program that loads the Proxmox modules, which costs real CPU on
 the host. Several loops called it every 10 to 15 seconds:
 
 - the gaming check, about 12 calls a minute, exactly while you play;
-- the worker leases for Music and Inbox, about 16 a minute while they work;
+- the worker leases for Music and Video tools, about 16 a minute while they work;
 - the Music page, about 24 a minute while it is open.
 
 **What we did.**
@@ -260,11 +260,15 @@ Jellyfin used it, for two codecs. Each change below works without a GPU too.
 - **Immich** gets the render node and the OpenVINO image, so face detection and
   smart search run on the GPU. Video conversion uses Quick Sync after one
   switch in Immich.
-- **Inbox** gets the render node. FFmpeg probes H.264 VAAPI and falls back to CPU.
+- **Video tools** gets the render node. Inbox imports probe H.264 VAAPI with
+  Debian FFmpeg. Library shrink uses Jellyfin FFmpeg 7 and runs one short HEVC
+  Main10 QSV encode on startup, with the bundled driver and oneVPL runtime.
+  A missing render node or failed probe selects libx265 on the CPU.
 - **Optional, not assumed.** The GPU settings sit in a separate compose file
   that loads only when the host has a render node.
 
-None of this is measured on the target hardware yet.
+Library shrink profile comparisons were measured on the target UHD 770.
+Broader hardware and power savings have not been measured.
 
 ## Power at idle
 
@@ -384,7 +388,7 @@ per 200 ms, so a continuous burst cannot postpone a refresh indefinitely.
 The notification worker now arms a timer only for the earliest pending retry.
 New alerts wake it immediately. An empty queue causes zero periodic wakeups.
 
-## Inbox cost
+## Video tools cost
 
 Checked on 28 October 2026. One long-lived guest SSE stream serves all tabs.
 The manager checks the shared Proxmox resources twice per minute for the guest.
@@ -393,11 +397,31 @@ fallback request per minute; disconnected pages make two idle requests or
 twelve while work waits/runs. Each request uses one `pct exec curl`. Mutations
 refresh immediately. Streams relay names only.
 
-Guest scans are bounded to 5000 entries. Each scan checks its two mounts once
+Inbox scans are bounded to 5000 entries. Each scan checks its two mounts once
 (two `findmnt`), not per file, then lists the Inbox share over SMB. A 10-second
 admission tick returns before mount checks when no work waits. Queue state is
 written only on change. Original-codec jobs avoid full software decoding.
-Inbox runs without Docker. Hardware savings have not been measured.
+Video tools runs without Docker. Hardware savings have not been measured.
+
+Library shrink costs, checked 2026-11-08. Its startup QSV probe is a local
+0.2-second test clip, with a 30-second timeout; it does not call the host agent.
+The worker probes library files serially at nice 15 and idle I/O priority,
+caching by path, size and mtime. Completed jobs rescan only their title.
+Unchanged scans do not rewrite the probe cache.
+While a replacement intent needs recovery, a local `findmnt` runs at most twice
+a minute. Recovery retries after the mount returns or every ten minutes on an
+available share. This loop makes no host agent call and does not scan or probe
+the library. A completed recovery refreshes only its title once. With no pending
+intent, the retry loop does no mount check.
+
+Shrink progress emits at most once every 30 seconds, plus state changes.
+Manager status reads use one shared 30-second snapshot across all tabs and the
+rescan watcher. Steady progress therefore costs at most two `pct exec` status
+reads a minute in total, without a per-tab multiplier. State changes and user
+actions can add immediate reads. A one-minute fallback remains while work is
+active or unacknowledged and stops when idle. Worker failures back off to one
+attempt per 30 minutes. Rescans run on final jobs rather than progress updates;
+Jellyfin refresh waits for the queue to drain and runs once per completed batch.
 
 Timed scans per day, counted from the code on 29 October 2026. On-demand scans
 come on top in both cases.
@@ -466,7 +490,7 @@ These are counts, not measurements on the Mini PC.
   every 5 seconds for a guest list; the status bar already refreshes it every
   15 seconds. Tailscale polls once a minute outside a login, because each
   check starts two `tailscale` commands. Music polls once a minute while the
-  live stream is up, like Inbox.
+  live stream is up, like Video tools.
 - **API answers.** JSON over 1 KiB is gzipped at the fastest level when the
   browser accepts it, with reused writers. On the dev mock `/api/apps` went
   from 4,201 to 1,591 bytes. During an install it carries up to 64 KiB of log

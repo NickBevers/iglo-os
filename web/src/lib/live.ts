@@ -21,6 +21,8 @@ const topicKeys: Record<string, string[]> = {
     workloads: ['workloads'],
     music: ['music-jobs'],
     inbox: ['inbox-jobs'],
+    library: ['shrink-library'],
+    shrink: ['shrink-jobs'],
     jellyfin: ['jellyfin'],
     setup: ['setup'],
 }

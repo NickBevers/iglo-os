@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
-import { ArrowUpCircleIcon, CloudIcon, Loader2Icon, ShieldIcon, Trash2Icon } from 'lucide-react'
+import { ArrowUpCircleIcon, CloudIcon, LanguagesIcon, Loader2Icon, ShieldIcon, Trash2Icon } from 'lucide-react'
 import { toast } from 'sonner'
 
 import {
@@ -19,13 +19,14 @@ import { Label } from '@/components/ui/label'
 import { api, type CatalogApp } from '@/lib/api'
 import { appsQuery } from '@/lib/queries'
 import { FlareSolverrDialog } from './flaresolverr-dialog'
+import { MediaSettingsDialog } from './media-settings-dialog'
 import { VpnDialog } from './vpn-dialog'
 
 const updateText: Record<string, string> = {
     headscale:
         'The controller and relay pause briefly. Iglo keeps a checked local database backup and preserves device identities, certificates and policy. Unsupported version changes are refused. An interrupted upgrade can lose registrations made after its backup.',
     music: 'Iglo-OS updates the worker and its pinned download tools. An active job can be interrupted and will need resubmission; queued jobs and published NAS files stay.',
-    inbox: 'Iglo-OS updates the worker and FFmpeg. An active job can be interrupted and will need a retry; queued jobs and published NAS files stay.',
+    inbox: 'Iglo-OS updates Video tools and FFmpeg. An Inbox import can be interrupted and need a retry. Interrupted shrink jobs are queued again. Settings, queues and NAS files stay.',
     photos: 'Iglo-OS backs up the database and the originals with restic first, like the nightly backup, then installs the Immich version bundled with this Iglo-OS release. Photos restarts, so it is offline for a few minutes.',
     media: 'Iglo-OS makes a snapshot, updates the packages, copies the stack of this Iglo-OS release, and downloads the new images. The apps restart, so they are offline for a few minutes. Your settings in the apps stay. Recyclarr then names new files the way Jellyfin reads them, and adds the anime profile to Radarr; files that are there keep their names.',
     jellyfin:
@@ -43,13 +44,13 @@ const removeText: Record<string, string> = {
         'Its settings, users and watch history go with it, and the Jellyfin page disconnects. Your movies and series stay on the Videos share.',
 }
 
-// AppActions are the buttons of an app that Iglo-OS installed: VPN and FlareSolverr (media stack only),
-// Update and Remove.
+// AppActions shows settings, Update and Remove for an installed app.
 export function AppActions({ app }: { app: CatalogApp }) {
     const queryClient = useQueryClient()
     const [confirm, setConfirm] = useState<'update' | 'remove' | null>(null)
     const [vpnOpen, setVpnOpen] = useState(false)
     const [flareSolverrOpen, setFlareSolverrOpen] = useState(false)
+    const [mediaSettingsOpen, setMediaSettingsOpen] = useState(false)
     const [hostname, setHostname] = useState('')
 
     const refresh = () => queryClient.invalidateQueries({ queryKey: appsQuery.queryKey })
@@ -107,6 +108,16 @@ export function AppActions({ app }: { app: CatalogApp }) {
                     FlareSolverr
                 </Button>
             )}
+            {app.id === 'media' && app.installed && (
+                <Button
+                    variant="outline"
+                    disabled={busy || app.status !== 'running'}
+                    onClick={() => setMediaSettingsOpen(true)}
+                >
+                    <LanguagesIcon />
+                    Languages
+                </Button>
+            )}
             <Button
                 variant={app.updateAvailable ? 'default' : 'outline'}
                 disabled={busy || app.status !== 'running'}
@@ -122,6 +133,7 @@ export function AppActions({ app }: { app: CatalogApp }) {
 
             <VpnDialog app={app} open={vpnOpen} onOpenChange={setVpnOpen} />
             <FlareSolverrDialog app={app} open={flareSolverrOpen} onOpenChange={setFlareSolverrOpen} />
+            <MediaSettingsDialog app={app} open={mediaSettingsOpen} onOpenChange={setMediaSettingsOpen} />
 
             <AlertDialog open={confirm === 'update'} onOpenChange={(open) => !open && setConfirm(null)}>
                 <AlertDialogContent>

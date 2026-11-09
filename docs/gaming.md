@@ -8,7 +8,7 @@ Games share to Moonlight on a PC or TV box. Image digests were checked on
 The [Wolf Proxmox quickstart](https://games-on-whales.github.io/wolf/stable/user/quickstart.html)
 currently requires a **privileged LXC**, broad device access and a Docker socket.
 Treat the guest and all launched images as trusted host software; this is much
-weaker isolation than the unprivileged Photos/Music/Inbox guests. If that model
+weaker isolation than the unprivileged Photos, Music and Video tools guests. If that model
 is unsuitable, evaluate a separate VM with GPU assignment or separate gaming
 hardware instead. Do not assume the same GPU can be assigned exclusively to a VM
 and simultaneously used by the host's Jellyfin container.
@@ -33,8 +33,9 @@ step and stops if one is missing.
 
 Choose **Install** on the Gaming card. The form asks for the Games share, the
 local container storage, CPU, RAM and disk. It starts at four cores,
-**6144 MiB** RAM and a 96 GB disk, and needs at least 4096 MiB, two cores and
-64 GB. The host also needs another 4096 MiB of available RAM. Nothing installs
+**6144 MiB** RAM and a 64 GB disk, and needs at least 4096 MiB, two cores and
+64 GB. The disk holds the images, saves, states and caches, about 20 GB at
+most; the games stay on the Games share. The host also needs another 4096 MiB of available RAM. Nothing installs
 until you confirm the privileged container in the form; the host agent refuses
 the answers without that confirmation.
 
@@ -105,6 +106,10 @@ Save in the game first: ending a session stops its emulator.
 3. Start at **1080p, 60 FPS, SDR, H.264**, with hardware decoding enabled and a
    wired connection. Press **Play** on the Gaming page and verify that new
    background work stops. Once the stream runs, the page shows it as playing.
+   On a **Raspberry Pi 4** client, choose **HEVC** instead. With Moonlight
+   6.2.0 on LibreELEC 12.2.1, H.264 took 54 to 58 ms to decode a frame and HEVC
+   about 4.6 ms (measured on 1 November 2026 against Sunshine, not Wolf). The
+   config advertises HEVC with `support_hevc = true`.
 4. Launch **Retro games**. In ES-DE choose `/ROMs` as the ROM root. If it asks to
    create folders, create them on the NAS beforehand; do not grant write access
    just to satisfy onboarding. Disable ROM-directory media/gamelist writes.

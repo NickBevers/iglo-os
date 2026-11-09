@@ -1,4 +1,4 @@
-import { useState, type SubmitEvent } from 'react'
+import { lazy, Suspense, useState, type SubmitEvent } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
@@ -7,6 +7,8 @@ import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card'
 import { api, type InboxProfile } from '@/lib/api'
 import { isLive } from '@/lib/live'
 import { Field } from './form-parts'
+
+const ShrinkLibrary = lazy(() => import('./shrink-library'))
 
 export function InboxPage() {
     const query = useQuery({
@@ -38,14 +40,15 @@ export function InboxPage() {
     return (
         <div className="flex flex-col gap-6">
             <header>
-                <h1 className="page-title">Inbox work</h1>
+                <h1 className="page-title">Video tools</h1>
+                <h2 className="mt-6 text-xl font-semibold">Inbox</h2>
                 <p className="text-sm text-muted-foreground">
                     One local video at a time. Originals stay read only. Completed files go to Videos/home-videos.
                 </p>
             </header>
             {query.isPending && <p>Loading the worker…</p>}
             {query.error && (
-                <p role="alert">{query.error.message}. Install Inbox from Apps and start its container first.</p>
+                <p role="alert">{query.error.message}. Install Video tools from Apps and start its container first.</p>
             )}
             {view?.sample && (
                 <p className="text-sm text-muted-foreground">Development simulation. No real video conversion.</p>
@@ -165,6 +168,9 @@ export function InboxPage() {
                     ))}
                 </>
             )}
+            <Suspense fallback={<p>Loading Shrink library…</p>}>
+                <ShrinkLibrary />
+            </Suspense>
         </div>
     )
 }

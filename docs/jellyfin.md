@@ -36,9 +36,11 @@ Jellyfin also gets the libraries of the files that other apps of Iglo-OS make:
 | --- | --- | --- | --- |
 | **Music** | Music | `/data/music/audio` | the Music app, in `audio` on the Music share |
 | **Music Videos** | Music Videos | `/data/music/videos` | the Music app, in `videos` on the Music share |
-| **Home Videos** | Home Videos and Photos | `/data/media/home-videos` | Inbox, in `home-videos` on the Videos share |
+| **Home Videos** | Home Videos and Photos | `/data/media/home-videos` | Video tools, in `home-videos` on the Videos share |
 
 The installer makes a folder that is missing when its share has write access, so the library is there before the first file. On a read-only share, a folder that is missing gets no library, and the log says so. The Music libraries need a Music share.
+
+An empty library folder gets a hidden file, `.iglo-library`. Jellyfin skips an empty library folder in its scans, so it never learns the folder. When Sonarr or Radarr then report the first import, Jellyfin adds nothing until its next full scan, up to 12 hours later. Any file makes the folder count, a hidden one too. The media stack's **Update** adds the file to its empty folders on a stack from before. Leave the file: once a folder has media, it doesn't matter anymore. Checked against Jellyfin v12.4 (`Folder.cs`, `DirectoryService.cs`, `ManagedFileSystem.cs`) on 7 November 2026.
 
 A library is only added when no library has its folder or its name yet. Your own libraries and their settings stay as they are. Jellyfin v12.4 would add a second library of the same name as "Music2" (`LibraryManager.AddVirtualFolder`), so the name counts too. Checked against Jellyfin v12.4 (`LibraryStructureController.cs`, `CollectionTypeOptions.cs`) on 29 October 2026. Jellyfin comes from its repository, so the installed version may be newer.
 

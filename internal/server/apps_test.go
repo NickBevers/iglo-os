@@ -10,14 +10,21 @@ import (
 	"iglo/internal/agent"
 	"iglo/internal/apps"
 	"iglo/internal/immich"
+	"iglo/internal/stacks/arr"
 )
 
 // fakeApps records the installs that the Apps page starts.
 type fakeApps struct {
 	Apps
-	app     string
-	request agent.InstallRequest
-	then    apps.AfterInstall
+	app                     string
+	request                 agent.InstallRequest
+	then                    apps.AfterInstall
+	mediaSettings           arr.MediaSettings
+	mediaSettingsErr        error
+	mediaSettingsReads      int
+	mediaSettingsChanges    int
+	mediaSettingsContext    context.Context
+	mediaSettingsBackground context.Context
 }
 
 func (f *fakeApps) Install(_ context.Context, _ context.Context, id string, request agent.InstallRequest) error {

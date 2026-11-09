@@ -29,7 +29,13 @@ func (s *server) setupRoute(w http.ResponseWriter, r *http.Request) {
 	var err error
 	switch r.Method + " " + r.PathValue("action") {
 	case "GET ":
-		writeJSON(w, http.StatusOK, s.Setup.View(r.Context()))
+		view := s.Setup.View(r.Context())
+		for i := range view.Steps {
+			if view.Steps[i].App == "inbox" {
+				view.Steps[i].Title = "Install Video tools"
+			}
+		}
+		writeJSON(w, http.StatusOK, view)
 		return
 	case "POST ":
 		var plan setup.Plan

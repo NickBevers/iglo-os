@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 )
@@ -69,6 +70,52 @@ func TestBindingsRejectUnsafeInput(t *testing.T) {
 		if b.Validate() == nil {
 			t.Fatalf("accepted %+v", b)
 		}
+	}
+	for _, share := range []string{" Photos", "Photos ", "Photos%i", "Photos/x", `Photos\x`, `"Photos"`, "Nick's Umbrel", "Photos\nWhat=/"} {
+		b := good
+		b.Share = share
+		if b.Validate() == nil {
+			t.Errorf("accepted share %q", share)
+		}
+	}
+}
+
+// umbrelOS names its shares like "Videos (Umbrel)".
+func TestBindingAcceptsUmbrelShareNames(t *testing.T) {
+	for _, share := range []string{"Videos (Umbrel)", "Anime Movies (Umbrel)", "Photos", "media_2.0-x"} {
+		b := BindingInput{ID: "videos", Role: "videos", Server: "192.168.0.101", Share: share, Username: "umbrel", Password: "pass"}
+		if err := b.Validate(); err != nil {
+			t.Errorf("refused share %q: %v", share, err)
+		}
+	}
+
+	s := testBindings(t)
+	s.Simulation = false
+	var args []string
+	s.output = func(_ context.Context, name string, a ...string) ([]byte, error) {
+		if name == "findmnt" {
+			args = a
+			return []byte(`cifs //192.168.0.101/Videos\x20(Umbrel)` + "\n"), nil
+		}
+		return nil, nil
+	}
+	in := BindingInput{ID: "videos", Role: "videos", Server: "192.168.0.101", Share: "Videos (Umbrel)", Username: "umbrel", Password: "pass"}
+	if err := s.Create(context.Background(), in); err != nil {
+		t.Fatal(err)
+	}
+	if !slices.Contains(args, "--raw") {
+		t.Errorf("findmnt without --raw: %v", args)
+	}
+	unit, err := os.ReadFile(filepath.Join(s.Units, "mnt-iglo-shares-videos.mount"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(unit), "\nWhat=//192.168.0.101/Videos (Umbrel)\n") {
+		t.Errorf("unit has no What= for the share:\n%s", unit)
+	}
+	list, err := s.List(context.Background())
+	if err != nil || len(list) != 1 || list[0].Source != "//192.168.0.101/Videos (Umbrel)" {
+		t.Fatalf("list = %+v, %v", list, err)
 	}
 }
 func TestBindingFailedMountCleansOnlyOwnFiles(t *testing.T) {

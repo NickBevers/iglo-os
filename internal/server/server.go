@@ -21,6 +21,7 @@ import (
 	"iglo/internal/proxmox"
 	"iglo/internal/selfupdate"
 	"iglo/internal/settingsfile"
+	"iglo/internal/stacks/arr"
 	"iglo/internal/tailscale"
 	"iglo/internal/updates"
 	"iglo/internal/workloads"
@@ -117,6 +118,8 @@ type Apps interface {
 	VPN(ctx context.Context, id string) (agent.VPNView, error)
 	ChangeVPN(ctx context.Context, background context.Context, id string, settings agent.VPNSettings) error
 	ChangeFlareSolverr(ctx context.Context, background context.Context, id string, enabled bool) error
+	MediaSettings(ctx context.Context, id string) (arr.MediaSettings, error)
+	ChangeMediaSettings(ctx context.Context, background context.Context, id string, settings arr.MediaSettings) error
 }
 
 type SettingsFile interface {
@@ -179,6 +182,13 @@ type server struct {
 
 func New(options Options) http.Handler {
 	s := &server{Options: options}
+	if a, ok := options.Apps.(interface {
+		SetLibraryRefresh(func(context.Context) error)
+	}); ok {
+		if j, ok := options.Jellyfin.(interface{ RefreshLibrary(context.Context) error }); ok {
+			a.SetLibraryRefresh(j.RefreshLibrary)
+		}
+	}
 	mux := http.NewServeMux()
 
 	mux.HandleFunc("POST /api/auth/login", s.login)
@@ -242,6 +252,9 @@ func New(options Options) http.Handler {
 	for _, route := range []string{"GET /api/inbox", "POST /api/inbox", "PUT /api/inbox/settings", "POST /api/inbox/scan", "POST /api/inbox/retry/{id}"} {
 		mux.Handle(route, s.requireSession(http.HandlerFunc(s.inboxWork)))
 	}
+	for _, route := range []string{"GET /api/inbox/library", "POST /api/inbox/library/scan", "GET /api/inbox/shrink", "POST /api/inbox/shrink", "PUT /api/inbox/shrink/settings", "POST /api/inbox/shrink/cancel/{id}"} {
+		mux.Handle(route, s.requireSession(http.HandlerFunc(s.shrinkWork)))
+	}
 	mux.Handle("GET /api/music/jobs", s.requireSession(http.HandlerFunc(s.musicJobs)))
 	mux.Handle("POST /api/music/jobs", s.requireSession(http.HandlerFunc(s.musicJobs)))
 	mux.Handle("PUT /api/music/pause", s.requireSession(http.HandlerFunc(s.musicJobs)))
@@ -260,6 +273,8 @@ func New(options Options) http.Handler {
 	mux.Handle("GET /api/apps/{id}/vpn", s.requireSession(http.HandlerFunc(s.appsVPN)))
 	mux.Handle("PUT /api/apps/{id}/vpn", s.requireSession(http.HandlerFunc(s.appsChangeVPN)))
 	mux.Handle("PUT /api/apps/{id}/flaresolverr", s.requireSession(http.HandlerFunc(s.appsChangeFlareSolverr)))
+	mux.Handle("GET /api/apps/{id}/media-settings", s.requireSession(http.HandlerFunc(s.appsMediaSettings)))
+	mux.Handle("PUT /api/apps/{id}/media-settings", s.requireSession(http.HandlerFunc(s.appsChangeMediaSettings)))
 	mux.Handle("GET /api/settings/export", s.requireSession(http.HandlerFunc(s.settingsExport)))
 	mux.Handle("POST /api/settings/import", s.requireSession(http.HandlerFunc(s.settingsImport)))
 	mux.Handle("POST /api/data-backup/download", s.requireSession(http.HandlerFunc(s.dataBackupDownload)))
