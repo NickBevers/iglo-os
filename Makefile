@@ -4,7 +4,7 @@ LDFLAGS := -s -w -X main.version=$(VERSION)
 GO_PKGS := ./cmd/... ./internal/... ./dev/... ./web
 BUNDLE := dist/iglo-$(VERSION)-linux-amd64
 
-.PHONY: web build bundle test dev dev-code dev-api dev-web shellcheck deploy
+.PHONY: web build bundle test dev dev-code dev-api dev-web shellcheck deploy demo
 
 web:
 	cd web && npm ci && npm run build
@@ -48,6 +48,16 @@ bundle: build
 # make deploy HOST=root@pve. See docs/development.md.
 deploy:
 	deploy/deploy.sh "$(HOST)"
+
+# demo builds the fake-data demo on this machine and uploads only the result,
+# so Vercel never builds anything. Run it from a clean main, from the repo root.
+# See docs/development.md.
+demo:
+	@test "$$(git rev-parse --abbrev-ref HEAD)" = main || { echo "Deploy the demo from main." >&2; exit 1; }
+	@test -z "$$(git status --porcelain)" || { echo "Commit or stash your changes first." >&2; exit 1; }
+	vercel pull --yes --environment=production
+	vercel build --prod
+	vercel deploy --prebuilt --prod
 
 # Every shell script, also the ones without .sh, checked with the sourced
 # files they name. Pinned, so CI and a laptop find the same things.

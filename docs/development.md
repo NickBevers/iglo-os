@@ -26,6 +26,25 @@ Open http://localhost:5173 and log in with `admin` / `iglo-dev-password` and the
 - A fake Jellyfin on `http://127.0.0.1:18096` has a library, two things playing and recent items. The manager is connected to it on the first start. Images are not faked.
 - Music, Photos, Video tools and Gaming install like the other apps: the real installer of the agent plays a simulated script. After that, the fake host has their container with sample stats, and their cards show **Sample data**.
 
+## A demo with fake data
+
+`npm run build:demo` in `web/` builds the web app as a static site into `web/dist-demo`. It needs no manager: `web/src/demo` answers the API in the browser with answers recorded from the dev mock. Anything that would change something fails with a message, and the live stream stays closed. A normal build leaves all of it out.
+
+The demo runs on Vercel at https://iglo-os-demo.vercel.app, from `web/vercel.json`. Vercel never builds it: the project is not connected to GitHub, and its root directory is `web`. Deploy from a clean `main`, from the repo root:
+
+```sh
+vercel link --yes --project iglo-os-demo --scope nickbevers   # once
+make demo
+```
+
+`make demo` builds on this machine with `vercel build` and uploads only the result with `vercel deploy --prebuilt --prod`. `web/package.json` asks for Node 22 or newer, so the local build and Vercel agree on the version. The link writes `.vercel/` and `.env.local`, which git ignores.
+
+To record new answers, run the manager on the mock as above, then:
+
+```sh
+python3 -I dev/demo/record.py "$(go run ./dev/mock code | tr -dc '0-9' | tail -c 6)"
+```
+
 ## Against a real Proxmox
 
 The API only reads from Proxmox, except for the actions you click. Use a token with the role from [architecture.md](architecture.md).
