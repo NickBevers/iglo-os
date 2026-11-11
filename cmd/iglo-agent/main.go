@@ -73,6 +73,9 @@ func run(socketPath, adminPath string, socketGID int, logger *slog.Logger) error
 	agent.NewBindings().Register(mux)
 	agent.RegisterWorkers(mux)
 	agent.RegisterGaming(mux)
+	gpu := agent.NewGPU()
+	gpu.Logger = logger
+	agent.RegisterGPU(mux, gpu)
 	mux.HandleFunc("GET /v1/health", health)
 	mux.HandleFunc("GET /v1/memory", func(w http.ResponseWriter, r *http.Request) {
 		memory, err := agent.ReadHostMemory()
@@ -215,6 +218,7 @@ func run(socketPath, adminPath string, socketGID int, logger *slog.Logger) error
 
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
+	go gpu.Run(ctx)
 
 	go func() {
 		<-ctx.Done()

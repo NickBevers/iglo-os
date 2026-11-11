@@ -13,6 +13,8 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"iglo/internal/agent"
 )
 
 type backup struct {
@@ -289,11 +291,37 @@ func (p *fakeProxmox) node(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+// fakeGPUHistory makes GPU load on the times of fakeUsage: a little 3D for
+// the desktop, and video work in the evening waves. `.dev/no-gpu` hides it,
+// like a host without a GPU.
+func fakeGPUHistory(timeframe string) agent.GPUHistory {
+	if _, err := os.Stat(statePath("no-gpu")); err == nil {
+		return agent.GPUHistory{Points: []agent.GPUPoint{}}
+	}
+	setup, ok := usageSteps[timeframe]
+	if !ok {
+		return agent.GPUHistory{Points: []agent.GPUPoint{}}
+	}
+	start := time.Now().Unix()/setup.step*setup.step - setup.step*setup.count
+	points := make([]agent.GPUPoint, 0, setup.count)
+	for i := range setup.count {
+		wave := 0.5 + 0.5*math.Sin(float64(i)*10*math.Pi/float64(setup.count))
+		points = append(points, agent.GPUPoint{
+			Time:   start + i*setup.step,
+			Render: 0.02 + 0.15*wave*wave*wave + 0.02*rand.Float64(),
+			Video:  0.6 * math.Max(0, wave-0.6) / 0.4 * (0.7 + 0.3*rand.Float64()),
+		})
+	}
+	return agent.GPUHistory{Available: true, Points: points}
+}
+
+var usageSteps = map[string]struct{ step, count int64 }{
+	"hour": {60, 60}, "day": {60, 1440}, "week": {1800, 336}, "month": {1800, 1440}, "year": {21600, 1440},
+}
+
 // fakeUsage makes smooth, slightly noisy RRD rows like Proxmox VE 9 returns them.
 func fakeUsage(parts []string, timeframe string) []map[string]any {
-	setup, ok := map[string]struct{ step, count int64 }{
-		"hour": {60, 60}, "day": {60, 1440}, "week": {1800, 336}, "month": {1800, 1440}, "year": {21600, 1440},
-	}[timeframe]
+	setup, ok := usageSteps[timeframe]
 	step, count := setup.step, setup.count
 	if !ok {
 		return []map[string]any{}
