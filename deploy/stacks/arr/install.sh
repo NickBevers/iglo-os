@@ -206,6 +206,10 @@ create_container() {
     CT_ID="${CT_ID:-$(pvesh get /cluster/nextid)}"
     log "Creating container $CT_ID ($CT_HOSTNAME)"
 
+    # Torrents fill and empty the downloads disk all the time. With discard,
+    # ext4 hands deleted blocks back to a thin pool at once; without it the
+    # pool keeps them until someone runs pct fstrim. pve-container 6.1.18
+    # allows discard in mountoptions (PVE/LXC/Config.pm, checked 2026-11-11).
     pct create "$CT_ID" "$TEMPLATE_STORAGE:vztmpl/$TEMPLATE" \
         --hostname "$CT_HOSTNAME" \
         --unprivileged 1 \
@@ -215,7 +219,7 @@ create_container() {
         --net0 "name=eth0,bridge=$BRIDGE,ip=dhcp" \
         --onboot 1 \
         --dev0 /dev/net/tun \
-        --mp1 "$STORAGE:$DOWNLOADS_SIZE,mp=/data/downloads,backup=0" \
+        --mp1 "$STORAGE:$DOWNLOADS_SIZE,mp=/data/downloads,backup=0,mountoptions=discard" \
         --tags "iglo;media" \
         --description "$(app_description "Iglo-OS media stack")"
 
