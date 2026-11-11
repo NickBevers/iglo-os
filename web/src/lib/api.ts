@@ -76,6 +76,10 @@ export type UsagePoint = {
     maxMem: number | null
     netIn: number | null
     netOut: number | null
+    // The busy share of the host's GPU, from the agent: the 3D engine and the busiest video engine.
+    // Null for guests, and on a host without a GPU.
+    gpuRender: number | null
+    gpuVideo: number | null
 }
 
 export type UsageTarget = { node: string; type?: Guest['type']; vmid?: number }

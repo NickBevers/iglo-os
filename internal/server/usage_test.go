@@ -4,18 +4,19 @@ import (
 	"math"
 	"testing"
 
+	"iglo/internal/agent"
 	"iglo/internal/proxmox"
 )
 
 func TestDownsampleAveragesAndSkipsMissingValues(t *testing.T) {
 	value := func(v float64) *float64 { return &v }
-	points := []proxmox.UsagePoint{
+	points := withGPU([]proxmox.UsagePoint{
 		{Time: 0, CPU: value(0.2)},
 		{Time: 60, CPU: value(0.4)},
 		{Time: 120, CPU: value(0.6)},
 		{Time: 180},
 		{Time: 240},
-	}
+	}, agent.GPUHistory{})
 
 	result := downsample(points, 3)
 
@@ -33,5 +34,26 @@ func TestDownsampleAveragesAndSkipsMissingValues(t *testing.T) {
 	}
 	if got := downsample(points, 10); len(got) != len(points) {
 		t.Errorf("short series should not change, got %d points", len(got))
+	}
+}
+
+func TestWithGPUMatchesPointsByTime(t *testing.T) {
+	value := func(v float64) *float64 { return &v }
+	points := []proxmox.UsagePoint{{Time: 0, CPU: value(0.1)}, {Time: 60, CPU: value(0.2)}, {Time: 120}}
+	gpu := agent.GPUHistory{Available: true, Points: []agent.GPUPoint{
+		{Time: 60, Render: 0.3, Video: 0.7},
+		{Time: 90, Render: 1, Video: 1},
+	}}
+
+	result := withGPU(points, gpu)
+
+	if result[0].GPURender != nil || result[2].GPUVideo != nil {
+		t.Errorf("points without a GPU sample should stay empty: %+v %+v", result[0], result[2])
+	}
+	if result[1].GPURender == nil || *result[1].GPURender != 0.3 || *result[1].GPUVideo != 0.7 {
+		t.Errorf("unexpected GPU load on the matching point: %+v", result[1])
+	}
+	if *result[1].CPU != 0.2 {
+		t.Errorf("the Proxmox values should stay: %+v", result[1])
 	}
 }

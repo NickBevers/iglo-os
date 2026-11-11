@@ -45,6 +45,7 @@ export function UsageCharts({ target }: { target: UsageTarget }) {
 
     const maxMem = points?.findLast((point) => point.maxMem !== null)?.maxMem ?? undefined
     const hasData = points?.some((point) => point.cpu !== null)
+    const hasGPU = points?.some((point) => point.gpuRender !== null)
     const syncId = `usage-${target.node}-${target.vmid ?? 'node'}`
 
     return (
@@ -72,7 +73,7 @@ export function UsageCharts({ target }: { target: UsageTarget }) {
             ) : !hasData ? (
                 <p className="text-sm text-muted-foreground">No data for this timeframe.</p>
             ) : (
-                <div className="grid gap-6 @3xl:grid-cols-3">
+                <div className={`grid gap-6 ${hasGPU ? '@3xl:grid-cols-2 @7xl:grid-cols-4' : '@3xl:grid-cols-3'}`}>
                     <UsageChart
                         title="CPU"
                         points={points}
@@ -101,6 +102,20 @@ export function UsageCharts({ target }: { target: UsageTarget }) {
                         syncId={syncId}
                         format={bytesPerSecond}
                     />
+                    {hasGPU && (
+                        <UsageChart
+                            title="GPU"
+                            points={points}
+                            series={[
+                                { key: 'gpuRender', label: '3D', color: 'var(--chart-1)' },
+                                { key: 'gpuVideo', label: 'Video', color: 'var(--chart-2)' },
+                            ]}
+                            timeframe={timeframe}
+                            syncId={syncId}
+                            format={percent}
+                            max={1}
+                        />
+                    )}
                 </div>
             )}
         </div>

@@ -55,6 +55,9 @@ function usage(path: string, timeframe: string) {
             maxMem,
             netIn: 2e5 + 3e5 * random(),
             netOut: 1e5 + 1.5e5 * random(),
+            // Only the host has a GPU chart.
+            gpuRender: guest ? null : 0.03 + 0.1 * Math.max(0, wave) + 0.02 * random(),
+            gpuVideo: guest ? null : 0.4 * Math.max(0, wave - 0.3) * random(),
         }
     })
     return { points }

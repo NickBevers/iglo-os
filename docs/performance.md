@@ -266,6 +266,13 @@ Jellyfin used it, for two codecs. Each change below works without a GPU too.
   A missing render node or failed probe selects libx265 on the CPU.
 - **Optional, not assumed.** The GPU settings sit in a separate compose file
   that loads only when the host has a render node.
+- **Load on the overview.** Proxmox records no GPU, so the agent reads the
+  i915 busy counters of the 3D and video engines through perf, once a minute.
+  That is a few reads of open counters, with no program to start. It keeps
+  minute, 30 minute and 6 hour averages, the steps of the Proxmox RRD, and the
+  manager puts them on the CPU points of the same time. Only the longer two
+  survive a restart: `/var/lib/iglo-agent/gpu-history.json`, written when a 30
+  minute interval closes. A host without i915 counters has no GPU chart.
 
 Library shrink profile comparisons were measured on the target UHD 770.
 Broader hardware and power savings have not been measured.
