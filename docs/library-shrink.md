@@ -171,8 +171,12 @@ Recovery leaves the queue paused. A path with a pending intent cannot be
 submitted again. Fix storage before retrying; do not remove
 those copies blindly. Restarting Video tools also retries recovery.
 
-`not-smaller` and `changed` leave the source untouched. Progress stays in memory
-and emits at most once every 30 seconds while encoding. State changes emit at
+`not-smaller` and `changed` leave the source untouched. Progress comes from
+FFmpeg's output time. FFmpeg 7.1 reports that time as unknown while any output
+stream has written nothing, and font attachments never write a packet. Progress
+then counts the video frames written against the duration times the average
+frame rate (Jellyfin FFmpeg v7.1.4-3, checked 2026-11-11). Progress stays in
+memory and emits at most once every 30 seconds while encoding. State changes emit at
 once. Jobs, probe cache and settings persist only when they change. History has
 at most 100 jobs. Unacknowledged done jobs and pending recoveries cannot be
 evicted, so a full history can hold new submissions until media rescans finish.
