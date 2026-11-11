@@ -16,8 +16,11 @@ import { workloadsQuery } from '@/lib/queries'
 import {
     folderStats,
     gb,
+    jobName,
+    jobStatus,
     kindNames,
     maxShrinkFiles,
+    orderJobs,
     selectionState,
     shrinkInterval,
     submissionPaths,
@@ -329,40 +332,45 @@ export default function ShrinkLibrarySection() {
                         {queue.data.jobs.length === 0 && (
                             <p className="text-sm text-muted-foreground">No shrink jobs yet.</p>
                         )}
-                        {[...queue.data.jobs].reverse().map((job) => (
-                            <div key={job.id} className="flex flex-col gap-2 border-t pt-3 text-sm">
-                                <p className="break-all">
-                                    {job.path} · {job.state}
-                                </p>
-                                {job.state === 'running' && (
-                                    <progress
-                                        aria-label={`Shrink progress for ${job.path}`}
-                                        value={job.progress}
-                                        max={1}
-                                        className="h-2 w-full accent-primary"
-                                    />
-                                )}
-                                {job.state === 'done' && <p>Saved {gb(job.savedBytes)}</p>}
-                                {job.error && <p className="break-words">{job.error}</p>}
-                                {job.state === 'not-smaller' && !job.error && (
-                                    <p>The result was not small enough. The original stays.</p>
-                                )}
-                                {job.state === 'changed' && !job.error && (
-                                    <p>The source changed during conversion. The original stays.</p>
-                                )}
-                                {['queued', 'running'].includes(job.state) && (
-                                    <Button
-                                        variant="outline"
-                                        className="self-start"
-                                        aria-label={`Cancel shrink for ${job.path}`}
-                                        disabled={change.isPending}
-                                        onClick={() => change.mutate(() => api.cancelShrink(job.id))}
-                                    >
-                                        Cancel
-                                    </Button>
-                                )}
-                            </div>
-                        ))}
+                        {queue.data.jobs.length > 0 && (
+                            <ul className="flex flex-col text-sm">
+                                {orderJobs(queue.data.jobs).map((job) => (
+                                    <li key={job.id} className="flex flex-col gap-1.5 border-t py-2">
+                                        <div className="flex items-center gap-3">
+                                            <span className="min-w-0 flex-1 truncate" title={job.path}>
+                                                {jobName(job.path)}
+                                            </span>
+                                            <span
+                                                className={`shrink-0 tabular-nums ${job.state === 'running' || job.state === 'done' ? 'font-medium' : 'text-muted-foreground'}`}
+                                            >
+                                                {jobStatus(job)}
+                                            </span>
+                                            {['queued', 'running'].includes(job.state) && (
+                                                <Button
+                                                    variant="outline"
+                                                    size="xs"
+                                                    className="shrink-0"
+                                                    aria-label={`Cancel shrink for ${job.path}`}
+                                                    disabled={change.isPending}
+                                                    onClick={() => change.mutate(() => api.cancelShrink(job.id))}
+                                                >
+                                                    Cancel
+                                                </Button>
+                                            )}
+                                        </div>
+                                        {job.state === 'running' && (
+                                            <progress
+                                                aria-label={`Shrink progress for ${job.path}`}
+                                                value={job.progress}
+                                                max={1}
+                                                className="h-2 w-full accent-primary"
+                                            />
+                                        )}
+                                        {job.error && <p className="break-words text-muted-foreground">{job.error}</p>}
+                                    </li>
+                                ))}
+                            </ul>
+                        )}
                     </CardContent>
                 </Card>
             )}
