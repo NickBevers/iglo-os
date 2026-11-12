@@ -210,7 +210,21 @@ func configureQBittorrent(ctx context.Context, cfg Config, qbit *qbittorrent) er
 		}
 	}
 
-	err := qbit.setPreferences(ctx, map[string]any{
+	if err := qbit.setPreferences(ctx, qbittorrentPreferences(cfg)); err != nil {
+		return err
+	}
+
+	for _, category := range []string{"radarr", "tv-sonarr"} {
+		if err := qbit.ensureCategory(ctx, category); err != nil {
+			return err
+		}
+	}
+
+	return giveForwardedPort(ctx, cfg, qbit)
+}
+
+func qbittorrentPreferences(cfg Config) map[string]any {
+	return map[string]any{
 		"web_ui_username":   cfg.Username,
 		"web_ui_password":   cfg.Password,
 		"save_path":         "/data/downloads/torrents",
@@ -224,20 +238,15 @@ func configureQBittorrent(ctx context.Context, cfg Config, qbit *qbittorrent) er
 		"max_seeding_time_enabled": true,
 		"max_seeding_time":         seedMinutes,
 		"max_ratio_act":            qbittorrentStopTorrent,
+		// With queueing on, a finished torrent past the third seed waits as
+		// "Queued". It never seeds, so it never reaches the limits above, and its
+		// file stays on the downloads disk. qBittorrent 5.3.0 starts with queueing
+		// off (sessionimpl.cpp, checked 12 November 2026), but a box ticked by hand
+		// turns it on. Turn it off on every run.
+		"queueing_enabled": false,
 		// No log file, so torrent names don't stay behind on disk.
 		"file_log_enabled": false,
-	})
-	if err != nil {
-		return err
 	}
-
-	for _, category := range []string{"radarr", "tv-sonarr"} {
-		if err := qbit.ensureCategory(ctx, category); err != nil {
-			return err
-		}
-	}
-
-	return giveForwardedPort(ctx, cfg, qbit)
 }
 
 // vpnInterface is Gluetun's tunnel, its default VPN_INTERFACE in v3.41.3.
