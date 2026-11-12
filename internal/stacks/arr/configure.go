@@ -33,6 +33,8 @@ const (
 	seedMinutes = 7 * 24 * 60
 	// In the qBittorrent API, share limit action 0 stops the torrent.
 	qbittorrentStopTorrent = 0
+	maxDownloads           = 3
+	qbittorrentNoLimit     = -1
 )
 
 type Config struct {
@@ -210,7 +212,21 @@ func configureQBittorrent(ctx context.Context, cfg Config, qbit *qbittorrent) er
 		}
 	}
 
-	err := qbit.setPreferences(ctx, map[string]any{
+	if err := qbit.setPreferences(ctx, qbittorrentPreferences(cfg)); err != nil {
+		return err
+	}
+
+	for _, category := range []string{"radarr", "tv-sonarr"} {
+		if err := qbit.ensureCategory(ctx, category); err != nil {
+			return err
+		}
+	}
+
+	return giveForwardedPort(ctx, cfg, qbit)
+}
+
+func qbittorrentPreferences(cfg Config) map[string]any {
+	return map[string]any{
 		"web_ui_username":   cfg.Username,
 		"web_ui_password":   cfg.Password,
 		"save_path":         "/data/downloads/torrents",
@@ -224,20 +240,18 @@ func configureQBittorrent(ctx context.Context, cfg Config, qbit *qbittorrent) er
 		"max_seeding_time_enabled": true,
 		"max_seeding_time":         seedMinutes,
 		"max_ratio_act":            qbittorrentStopTorrent,
+		// At most 3 downloads at once, and no limit on seeds. A queued seed never
+		// seeds, so it never reaches the limits above, and its file stays on the
+		// downloads disk. The total limit counts seeds too, so it has none either.
+		// In qBittorrent 5.3.0, -1 is no limit: it sends the same to libtorrent
+		// when queueing is off (sessionimpl.cpp, checked 12 November 2026).
+		"queueing_enabled":     true,
+		"max_active_downloads": maxDownloads,
+		"max_active_uploads":   qbittorrentNoLimit,
+		"max_active_torrents":  qbittorrentNoLimit,
 		// No log file, so torrent names don't stay behind on disk.
 		"file_log_enabled": false,
-	})
-	if err != nil {
-		return err
 	}
-
-	for _, category := range []string{"radarr", "tv-sonarr"} {
-		if err := qbit.ensureCategory(ctx, category); err != nil {
-			return err
-		}
-	}
-
-	return giveForwardedPort(ctx, cfg, qbit)
 }
 
 // vpnInterface is Gluetun's tunnel, its default VPN_INTERFACE in v3.41.3.
