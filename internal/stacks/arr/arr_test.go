@@ -241,12 +241,13 @@ func TestEnsurePicksAnIndexerByDefinition(t *testing.T) {
 	}
 }
 
-// A queued torrent never seeds, so it never reaches the seed limits and its
-// file is never deleted. The setup keeps queueing off.
-func TestQBittorrentPreferencesTurnQueueingOff(t *testing.T) {
+// A queued seed never seeds, so it never reaches the seed limits and its file
+// is never deleted. Downloads queue, seeds don't.
+func TestQBittorrentPreferencesQueueOnlyDownloads(t *testing.T) {
 	preferences := qbittorrentPreferences(Config{})
-	if preferences["queueing_enabled"] != false {
-		t.Fatalf("queueing_enabled = %v", preferences["queueing_enabled"])
+	if preferences["queueing_enabled"] != true || preferences["max_active_downloads"] != 3 ||
+		preferences["max_active_uploads"] != -1 || preferences["max_active_torrents"] != -1 {
+		t.Fatalf("queue preferences: %v", preferences)
 	}
 	if preferences["max_ratio_enabled"] != true || preferences["max_seeding_time_enabled"] != true {
 		t.Fatalf("seed limits off: %v", preferences)

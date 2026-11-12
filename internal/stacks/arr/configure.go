@@ -33,6 +33,8 @@ const (
 	seedMinutes = 7 * 24 * 60
 	// In the qBittorrent API, share limit action 0 stops the torrent.
 	qbittorrentStopTorrent = 0
+	maxDownloads           = 3
+	qbittorrentNoLimit     = -1
 )
 
 type Config struct {
@@ -238,12 +240,15 @@ func qbittorrentPreferences(cfg Config) map[string]any {
 		"max_seeding_time_enabled": true,
 		"max_seeding_time":         seedMinutes,
 		"max_ratio_act":            qbittorrentStopTorrent,
-		// With queueing on, a finished torrent past the third seed waits as
-		// "Queued". It never seeds, so it never reaches the limits above, and its
-		// file stays on the downloads disk. qBittorrent 5.3.0 starts with queueing
-		// off (sessionimpl.cpp, checked 12 November 2026), but a box ticked by hand
-		// turns it on. Turn it off on every run.
-		"queueing_enabled": false,
+		// At most 3 downloads at once, and no limit on seeds. A queued seed never
+		// seeds, so it never reaches the limits above, and its file stays on the
+		// downloads disk. The total limit counts seeds too, so it has none either.
+		// In qBittorrent 5.3.0, -1 is no limit: it sends the same to libtorrent
+		// when queueing is off (sessionimpl.cpp, checked 12 November 2026).
+		"queueing_enabled":     true,
+		"max_active_downloads": maxDownloads,
+		"max_active_uploads":   qbittorrentNoLimit,
+		"max_active_torrents":  qbittorrentNoLimit,
 		// No log file, so torrent names don't stay behind on disk.
 		"file_log_enabled": false,
 	}
