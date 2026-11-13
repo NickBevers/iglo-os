@@ -172,6 +172,7 @@ func Configure(ctx context.Context, cfg Config) error {
 
 	cfg.Logf("Configuring anime")
 	tags := configureAnime(ctx, cfg, sonarr, radarr)
+	keepAnimeOnAnimeTrackers(ctx, cfg, prowlarr, sonarr, radarr, tags)
 
 	// Recyclarr fetches the TRaSH Guides from GitHub, so a failure only warns.
 	if cfg.SyncProfiles != nil {
