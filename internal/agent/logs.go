@@ -167,7 +167,7 @@ func parseJournal(output []byte) []LogEntry {
 			Time:    time.UnixMicro(micros).UTC(),
 			Level:   level,
 			Source:  firstNonEmpty(line.Identifier, strings.TrimSuffix(line.Unit, ".service"), line.Command, "journal"),
-			Message: truncate(journalMessage(line.Message)),
+			Message: truncate(redactSecrets(journalMessage(line.Message))),
 		})
 	}
 
@@ -307,7 +307,7 @@ func parseDockerLogs(source string, output []byte) []LogEntry {
 			Time:    timestamp.UTC(),
 			Level:   guessLevel(message),
 			Source:  source,
-			Message: truncate(message),
+			Message: truncate(redactSecrets(message)),
 		})
 	}
 
