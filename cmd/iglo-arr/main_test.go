@@ -103,7 +103,8 @@ func TestMediaRenderWithoutRunningApps(t *testing.T) {
 		t.Fatal(err)
 	}
 	got, err := os.ReadFile(filepath.Join(root, "config", "recyclarr", "recyclarr.yml"))
-	if err != nil || !bytes.Equal(got, template) {
+	// Without a size limit, only the fixed Bluray-1080p minimum is added.
+	if err != nil || !bytes.HasPrefix(got, template) || !bytes.Contains(got, []byte(`name: "Bluray-1080p"`)) || !bytes.Contains(got, []byte("min: 15")) || bytes.Contains(got, []byte("max:")) {
 		t.Fatalf("rendered %s, %v", got, err)
 	}
 }

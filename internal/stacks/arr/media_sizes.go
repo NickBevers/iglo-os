@@ -44,8 +44,29 @@ func (s SizeLimits) forQuality(service, name string) int {
 	return s.Series
 }
 
+// qualityMinimums lowers a guide minimum, in MB per minute, by service and
+// guide type. It never raises one. The series guide wants 50.4 for
+// Bluray-1080p, which fits live action. Good anime encodes are often 20 to 45,
+// and anime shares these sizes, so Sonarr only took remuxes of 80 GB and more.
+// 15 is the series floor for WEB-1080p and still keeps samples out. TRaSH's
+// own anime sizes use 5. Checked against the TRaSH Guides sizes on 2026-11-13.
+var qualityMinimums = map[string]map[string]float64{
+	"sonarr/series": {"Bluray-1080p": 15},
+}
+
+// managesSizes says whether the Recyclarr config of a service needs overrides.
+func managesSizes(service string, sizes SizeLimits) bool {
+	for key := range qualityMinimums {
+		if strings.HasPrefix(key, service+"/") {
+			return true
+		}
+	}
+	return service == "sonarr" && sizes.Series != 0 || service == "radarr" && (sizes.Films != 0 || sizes.Films4K != 0)
+}
+
 func qualitySizeOverrides(service, kind string, sizes SizeLimits, roots ...string) (string, error) {
-	if service == "sonarr" && sizes.Series == 0 || service == "radarr" && sizes.Films == 0 && sizes.Films4K == 0 {
+	floors := qualityMinimums[service+"/"+kind]
+	if service == "sonarr" && sizes.Series == 0 && len(floors) == 0 || service == "radarr" && sizes.Films == 0 && sizes.Films4K == 0 && len(floors) == 0 {
 		return "", nil
 	}
 	qualities, err := readQualitySizeGuide(service, kind, roots...)
@@ -55,16 +76,25 @@ func qualitySizeOverrides(service, kind string, sizes SizeLimits, roots ...strin
 	var result strings.Builder
 	for _, quality := range qualities {
 		limit := sizes.forQuality(service, quality.Name)
-		if limit == 0 || quality.Max <= float64(limit) {
+		capped := limit != 0 && quality.Max > float64(limit)
+		minimum := quality.Min
+		if floor, ok := floors[quality.Name]; ok {
+			minimum = min(minimum, floor)
+		}
+		if !capped && minimum == quality.Min {
 			continue
 		}
 		if result.Len() == 0 {
 			result.WriteString("qualities:\n")
 		}
-		fmt.Fprintf(&result, "  - name: %s\n    max: %d\n    preferred: %s\n", strconv.Quote(quality.Name), limit,
-			strconv.FormatFloat(min(quality.Preferred, float64(limit)), 'f', -1, 64))
-		// Explicit min prevents a later guide increase from invalidating max.
-		fmt.Fprintf(&result, "    min: %s\n", strconv.FormatFloat(min(quality.Min, float64(limit)/2), 'f', -1, 64))
+		fmt.Fprintf(&result, "  - name: %s\n", strconv.Quote(quality.Name))
+		if capped {
+			fmt.Fprintf(&result, "    max: %d\n    preferred: %s\n", limit,
+				strconv.FormatFloat(min(quality.Preferred, float64(limit)), 'f', -1, 64))
+			// Explicit min prevents a later guide increase from invalidating max.
+			minimum = min(minimum, float64(limit)/2)
+		}
+		fmt.Fprintf(&result, "    min: %s\n", strconv.FormatFloat(minimum, 'f', -1, 64))
 	}
 	return result.String(), nil
 }
@@ -115,7 +145,7 @@ func mediaSizesYAML(data []byte, sizes SizeLimits, roots ...string) ([]byte, err
 	}
 	var inserts []insertion
 	for _, service := range []string{"sonarr", "radarr"} {
-		if service == "sonarr" && sizes.Series == 0 || service == "radarr" && sizes.Films == 0 && sizes.Films4K == 0 {
+		if !managesSizes(service, sizes) {
 			continue
 		}
 		instances := yamlMappingValue(document.Content[0], service)

@@ -20,6 +20,11 @@ func mediaSizesTestConfig(t *testing.T) string {
 	if err != nil {
 		t.Fatal(err)
 	}
+	// The host always has the rendered config, with the fixed minimums.
+	data, err = mediaSizesYAML(data, SizeLimits{})
+	if err != nil {
+		t.Fatal(err)
+	}
 	path := filepath.Join(t.TempDir(), "recyclarr.yml")
 	if err := os.WriteFile(path, data, 0o644); err != nil {
 		t.Fatal(err)
@@ -106,19 +111,33 @@ func TestQualitySizeOverrides(t *testing.T) {
 				if err := yaml.Unmarshal([]byte(text), &result); err != nil {
 					t.Fatal(err)
 				}
+				floors := qualityMinimums[guideName.service+"/"+guideName.kind]
 				i := 0
 				for _, quality := range guide.Qualities {
-					if limit == 0 || quality.Max <= float64(limit) {
+					minimum := quality.Min
+					if floor, ok := floors[quality.Name]; ok {
+						minimum = min(minimum, floor)
+					}
+					capped := limit != 0 && quality.Max > float64(limit)
+					if !capped && minimum == quality.Min {
 						continue
 					}
 					if i >= len(result.Qualities) {
 						t.Fatalf("missing %s", quality.Name)
 					}
 					got := result.Qualities[i]
+					if !capped {
+						// Only the minimum is lowered. Max and preferred stay the guide's.
+						if got.Name != quality.Name || got.Max != 0 || got.Preferred != 0 || got.Min == nil || *got.Min != minimum || minimum > quality.Min {
+							t.Fatalf("lowered minimum %+v for %+v", got, quality)
+						}
+						i++
+						continue
+					}
 					if got.Name != quality.Name || got.Max != float64(limit) || got.Preferred != min(quality.Preferred, float64(limit)) {
 						t.Fatalf("override %+v for %+v", got, quality)
 					}
-					minimum := min(quality.Min, float64(limit)/2)
+					minimum = min(minimum, float64(limit)/2)
 					if got.Min == nil || *got.Min != minimum {
 						t.Fatalf("%s minimum: got %v, want %.1f", quality.Name, got.Min, minimum)
 					}
@@ -157,8 +176,8 @@ func TestMediaSizesYAMLRoundTrip(t *testing.T) {
 		if err != nil || !bytes.Equal(restored, base) {
 			t.Fatalf("lost original bytes: %v\n%s", err, restored)
 		}
-		if sizes == (SizeLimits{}) && strings.Contains(string(got), "qualities:") {
-			t.Fatal("no limit wrote qualities")
+		if sizes == (SizeLimits{}) && strings.Contains(string(got), "max:") {
+			t.Fatal("no limit wrote a maximum")
 		}
 	}
 }
@@ -407,5 +426,51 @@ func TestMediaSizesRefusesUnverifiedAppDefaults(t *testing.T) {
 	}
 	if _, err := os.Stat(cfg.SettingsPath); !os.IsNotExist(err) {
 		t.Fatal("unverified defaults saved settings")
+	}
+}
+
+func TestSeriesBlurayMinimumIsLowered(t *testing.T) {
+	template, err := os.ReadFile("../../../deploy/stacks/arr/recyclarr.yml")
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, sizes := range []SizeLimits{{}, {Series: 41}, {Series: 20}, {Films: 66}} {
+		t.Run(fmt.Sprint(sizes), func(t *testing.T) {
+			got, err := mediaSizesYAML(template, sizes)
+			if err != nil {
+				t.Fatal(err)
+			}
+			var config struct {
+				Sonarr map[string]struct {
+					QualityDefinition struct {
+						Qualities []struct {
+							Name string
+							Min  float64
+							Max  float64
+						}
+					} `yaml:"quality_definition"`
+				}
+			}
+			if err := yaml.Unmarshal(got, &config); err != nil {
+				t.Fatal(err)
+			}
+			// Half the limit wins when it is lower, so a maximum stays valid.
+			want := 15.0
+			if sizes.Series != 0 {
+				want = min(want, float64(sizes.Series)/2)
+			}
+			found := false
+			for _, quality := range config.Sonarr["series"].QualityDefinition.Qualities {
+				if quality.Name == "Bluray-1080p" {
+					found = true
+					if quality.Min != want {
+						t.Fatalf("Bluray-1080p min %v, want %v", quality.Min, want)
+					}
+				}
+			}
+			if !found {
+				t.Fatalf("no Bluray-1080p override:\n%s", got)
+			}
+		})
 	}
 }
