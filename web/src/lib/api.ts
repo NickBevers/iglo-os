@@ -878,6 +878,7 @@ export type LibraryFile = {
     estimates: Record<ShrinkProfile, number>
     status: 'ready' | 'small' | 'skipped' | 'done'
     reason?: string
+    autoTried?: boolean
 }
 export type LibraryFolder = { path: string; name: string; folders: LibraryFolder[] | null; files: LibraryFile[] | null }
 export type ShrinkLibrary = { kinds: LibraryFolder[] | null; scanning: boolean; scannedAt?: string; error?: string }
@@ -895,7 +896,7 @@ export type ShrinkJob = {
     finishedAt?: string
     rescanned: boolean
 }
-export type ShrinkQueue = { paused: boolean; admitted: boolean; jobs: ShrinkJob[] }
+export type ShrinkQueue = { paused: boolean; autoAnime?: '' | ShrinkProfile; admitted: boolean; jobs: ShrinkJob[] }
 export type ShrinkRefusal = { path: string; paths: string[]; title: string; state: 'refused'; reason?: string }
 export type ShrinkSubmission = { jobs: ShrinkJob[]; refused: ShrinkRefusal[] }
 
@@ -906,6 +907,7 @@ export const api = {
     submitShrink: (input: { paths: string[]; profile: ShrinkProfile; confirm: 'replace-originals' }) =>
         request<ShrinkSubmission>('POST', '/inbox/shrink', input),
     shrinkSettings: (paused: boolean) => request<void>('PUT', '/inbox/shrink/settings', { paused }),
+    autoShrink: (autoAnime: '' | ShrinkProfile) => request<void>('PUT', '/inbox/shrink/settings', { autoAnime }),
     cancelShrink: (id: string) => request<void>('POST', `/inbox/shrink/cancel/${encodeURIComponent(id)}`),
     inboxJobs: () => request<InboxQueue>('GET', '/inbox'),
     submitInbox: (input: { path: string; profile: InboxProfile }) => request<InboxJob>('POST', '/inbox', input),

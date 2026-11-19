@@ -33,14 +33,26 @@ type shrinkFake struct {
 	reads                           int
 	stream                          chan string
 	opened                          chan struct{}
+	lib                             shrink.Library
+	scans                           int
 }
 
 func (f *shrinkFake) Library(context.Context, int) (shrink.Library, error) {
-	return shrink.Library{}, nil
+	f.lock.Lock()
+	defer f.lock.Unlock()
+	return f.lib, nil
 }
-func (f *shrinkFake) ScanLibrary(context.Context, int) error          { return nil }
-func (f *shrinkFake) ShrinkSettings(context.Context, int, bool) error { return nil }
-func (f *shrinkFake) CancelShrink(context.Context, int, string) error { return nil }
+
+// ScanLibrary finishes at once, like a scan that found nothing to probe.
+func (f *shrinkFake) ScanLibrary(context.Context, int) error {
+	f.lock.Lock()
+	defer f.lock.Unlock()
+	f.scans++
+	f.lib.ScannedAt = time.Unix(int64(f.scans), 0)
+	return nil
+}
+func (f *shrinkFake) ShrinkSettings(context.Context, int, shrink.Settings) error { return nil }
+func (f *shrinkFake) CancelShrink(context.Context, int, string) error            { return nil }
 func (f *shrinkFake) ShrinkJobs(ctx context.Context, _ int) (shrink.View, error) {
 	f.lock.Lock()
 	f.reads++

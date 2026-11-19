@@ -17,7 +17,7 @@ type shrinkAgent interface {
 	ScanLibrary(context.Context, int) error
 	ShrinkJobs(context.Context, int) (shrink.View, error)
 	SubmitShrink(context.Context, int, shrink.Input) ([]shrink.Job, error)
-	ShrinkSettings(context.Context, int, bool) error
+	ShrinkSettings(context.Context, int, shrink.Settings) error
 	CancelShrink(context.Context, int, string) error
 	ShrinkRescanned(context.Context, int, string) error
 	ShrinkCheck(context.Context, agent.MediaLibraryRequest) ([]arr.ShrinkCheckResult, error)
@@ -141,7 +141,7 @@ func (s *Service) SubmitShrink(ctx context.Context, in shrink.Input) (ShrinkSubm
 
 func (s *Service) ShrinkCommand(ctx context.Context, command string, settings shrink.Settings) error {
 	if command == "settings" {
-		if settings.Paused == nil {
+		if !shrink.ValidSettings(settings) {
 			return shrink.ErrInvalid
 		}
 	} else if command != "scan" {
@@ -159,13 +159,16 @@ func (s *Service) ShrinkCommand(ctx context.Context, command string, settings sh
 	case "scan":
 		err = a.ScanLibrary(ctx, id)
 	case "settings":
-		err = a.ShrinkSettings(ctx, id, *settings.Paused)
+		err = a.ShrinkSettings(ctx, id, settings)
 	default:
 		err = a.CancelShrink(ctx, id, strings.TrimPrefix(command, "cancel/"))
 	}
 	if err == nil {
 		if command != "scan" {
 			s.wakeShrink()
+		}
+		if settings.AutoAnime != nil {
+			s.wakeAutoShrink()
 		}
 		if command == "scan" {
 			s.Changed(events.Library)

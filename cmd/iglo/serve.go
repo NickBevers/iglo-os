@@ -220,6 +220,7 @@ func serve() error {
 	go appsService.WatchGaming(ctx, workloadService.HoldWhilePlaying)
 	go appsService.WatchMusic(ctx)
 	go appsService.WatchInbox(ctx)
+	go appsService.WatchAutoShrink(ctx)
 	go jellyfinService.Watch(ctx, func() { hub.Publish(events.Jellyfin) })
 	go followAgent(ctx, agentClient, hub, appsService)
 	setupService := setup.New(setup.Options{

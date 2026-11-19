@@ -36,11 +36,11 @@ func (s *Service) Register(mux *http.ServeMux) {
 	})
 	mux.HandleFunc("PUT /shrink/settings", func(w http.ResponseWriter, r *http.Request) {
 		var in Settings
-		if json.NewDecoder(http.MaxBytesReader(w, r.Body, 512)).Decode(&in) != nil || in.Paused == nil {
-			http.Error(w, "give paused", 400)
+		if json.NewDecoder(http.MaxBytesReader(w, r.Body, 512)).Decode(&in) != nil || !ValidSettings(in) {
+			http.Error(w, "give paused or autoAnime", 400)
 			return
 		}
-		if err := s.Settings(*in.Paused); err != nil {
+		if err := s.ChangeSettings(in); err != nil {
 			http.Error(w, err.Error(), 500)
 			return
 		}

@@ -326,6 +326,33 @@ export default function ShrinkLibrarySection() {
                         >
                             {queue.data.paused ? 'Resume shrink queue' : 'Pause shrink queue'}
                         </Button>
+                        {/* An older worker has no autoAnime and would refuse the setting. */}
+                        {queue.data.autoAnime !== undefined && (
+                            <div className="flex flex-col gap-1">
+                                <div className="flex flex-wrap items-center gap-3">
+                                    <label htmlFor="shrink-auto">Shrink new anime automatically</label>
+                                    <select
+                                        id="shrink-auto"
+                                        aria-describedby="shrink-auto-help"
+                                        value={queue.data.autoAnime ?? ''}
+                                        disabled={change.isPending}
+                                        onChange={(e) =>
+                                            change.mutate(() => api.autoShrink(e.target.value as '' | ShrinkProfile))
+                                        }
+                                        className="rounded-md border bg-background p-2 text-sm"
+                                    >
+                                        <option value="">Off</option>
+                                        <option value="standard">Standard</option>
+                                        <option value="high">High</option>
+                                    </select>
+                                </div>
+                                <p id="shrink-auto-help" className="text-sm text-muted-foreground">
+                                    Every 30 minutes while no shrink job is waiting, ready anime files that would save
+                                    at least 60 percent join the queue. The originals are replaced. A file is only
+                                    queued once, unless it changes.
+                                </p>
+                            </div>
+                        )}
                         {queue.data.jobs.length === 0 && (
                             <p className="text-sm text-muted-foreground">No shrink jobs yet.</p>
                         )}
