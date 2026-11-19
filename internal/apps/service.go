@@ -131,7 +131,7 @@ var Catalog = []App{{
 }, {
 	ID:          "photos",
 	Name:        "Photos",
-	Description: "Immich: the phones back up their photos to the NAS, with faces and search.",
+	Description: "Immich: the phones back up their photos to the NAS.",
 	Tag:         "photos",
 	Stack:       true,
 	Links:       []Link{{Name: "Immich", Description: "Photos", Port: 2283}},

@@ -9,10 +9,10 @@ install_stack() {
     pct exec "$CT_ID" -- bash -euc '
         cd /opt/photos
         apt-get install -y -q curl
-        install -d -m 0700 /var/lib/immich/{postgres,thumbs,encoded-video,model-cache}
+        install -d -m 0700 /var/lib/immich/{postgres,thumbs,encoded-video}
         umask 077
         printf "IMMICH_VERSION=v3.3.5\nUPLOAD_LOCATION=/data/photos\nDB_DATA_LOCATION=/var/lib/immich/postgres\nDB_USERNAME=postgres\nDB_DATABASE_NAME=immich\nDB_PASSWORD=%s\n" "$(openssl rand -hex 32)" > .env
-        # With the GPU of the host, Immich uses it for video and machine learning.
+        # With the GPU of the host, Immich uses it for video.
         if [[ -c /dev/dri/renderD128 ]]; then
             echo "COMPOSE_FILE=compose.yaml:compose.override.yaml:compose.gpu.yaml" >> .env
         fi
@@ -30,6 +30,13 @@ update_stack() {
         docker compose pull
         docker compose up -d --wait --wait-timeout 600
         curl --fail --silent http://127.0.0.1:2283/api/server/ping >/dev/null
+        # Machine learning was removed. A stack from before keeps its
+        # container, images and models until this cleans them up.
+        docker rm -f immich_machine_learning >/dev/null 2>&1 || true
+        images=$(docker images -q ghcr.io/immich-app/immich-machine-learning | sort -u)
+        if [[ -n "$images" ]]; then docker image rm $images >/dev/null || true; fi
+        docker volume rm immich_model-cache >/dev/null 2>&1 || true
+        rm -rf /var/lib/immich/model-cache
     '
 }
 scoped_main

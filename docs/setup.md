@@ -61,6 +61,6 @@ storage: local-lvm
 ```
 
 New Photos libraries get bounded heavy-job concurrency and convert video only
-when required. Face grouping is off unless you opt into the separately
-restricted model weights on the Accounts page. Existing initialized Immich
+when required. Photos runs without machine learning, so there is no face
+grouping or smart search. Existing initialized Immich
 libraries keep their settings. See [Photos](photos.md#guided-setup-defaults-and-model-licences).

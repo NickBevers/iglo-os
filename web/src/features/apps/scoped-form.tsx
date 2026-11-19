@@ -213,20 +213,6 @@ export function ScopedForm({
                                     onChange={(e) => setAdmin({ ...admin, password: e.target.value })}
                                 />
                             </Field>
-                            <label className="flex items-start gap-3 text-sm sm:col-span-3">
-                                <Checkbox
-                                    className="mt-0.5"
-                                    checked={admin.faceModels}
-                                    onCheckedChange={(checked) => setAdmin({ ...admin, faceModels: checked === true })}
-                                />
-                                <span>
-                                    <span className="font-medium">Enable face grouping</span>
-                                    <span className="mt-1 block text-muted-foreground">
-                                        Immich's default face model has non-commercial research terms for its weights.
-                                        Leave this off for FOSS defaults.
-                                    </span>
-                                </span>
-                            </label>
                         </div>
                     )}
                     <p className="text-sm text-muted-foreground">
