@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"math"
 	"os"
 	"os/exec"
@@ -30,6 +31,8 @@ type Stream struct {
 	Transfer    string            `json:"color_transfer"`
 	Channels    int               `json:"channels"`
 	BitRate     string            `json:"bit_rate"`
+	AvgRate     string            `json:"avg_frame_rate"`
+	BaseRate    string            `json:"r_frame_rate"`
 	Tags        map[string]string `json:"tags"`
 	Disposition map[string]int    `json:"disposition"`
 	SideData    []struct {
@@ -78,6 +81,71 @@ func (p Probe) VideoDuration() float64 {
 	}
 	return 0
 }
+
+// FrameRate is the primary video's average frame rate, or its base rate when
+// FFprobe has no average. It is 0 when neither is known.
+func (p Probe) FrameRate() float64 {
+	v, err := p.Video()
+	if err != nil {
+		return 0
+	}
+	for _, rate := range []string{v.AvgRate, v.BaseRate} {
+		num, den, ok := strings.Cut(rate, "/")
+		if !ok {
+			continue
+		}
+		n, e1 := strconv.ParseFloat(num, 64)
+		d, e2 := strconv.ParseFloat(den, 64)
+		if e1 == nil && e2 == nil && n > 0 && d > 0 {
+			return n / d
+		}
+	}
+	return 0
+}
+
+// readProgress turns FFmpeg's -progress blocks into a fraction of the source.
+// FFmpeg 7.1 reports out_time_us as the lowest DTS over all output streams and
+// prints N/A while any stream has written nothing (fftools/ffmpeg_sched.c,
+// trailing_dts, Jellyfin FFmpeg v7.1.4-3, checked 2026-11-11). Matroska
+// attachments never write a packet, so with fonts mapped out_time_us stays N/A
+// for the whole encode. The frame line counts packets of the first video
+// output, which is the primary video here, so it is the fallback.
+func readProgress(r io.Reader, p Probe, progress func(float64)) error {
+	duration := p.Duration()
+	frames := duration * p.FrameRate()
+	report := func(v float64) {
+		if !math.IsNaN(v) && !math.IsInf(v, 0) {
+			progress(math.Max(0, math.Min(0.99, v)))
+		}
+	}
+	var frame float64
+	timed := false
+	scan := bufio.NewScanner(r)
+	for scan.Scan() {
+		key, value, ok := strings.Cut(scan.Text(), "=")
+		if !ok {
+			continue
+		}
+		switch key {
+		case "frame":
+			frame, _ = strconv.ParseFloat(value, 64)
+		case "out_time_us":
+			v, err := strconv.ParseFloat(value, 64)
+			timed = err == nil
+			if timed && duration > 0 {
+				report(v / 1e6 / duration)
+			}
+		case "progress":
+			// One block ends here. Use frames only when it had no time.
+			if !timed && frames > 0 {
+				report(frame / frames)
+			}
+			timed = false
+		}
+	}
+	return scan.Err()
+}
+
 func validDuration(d float64) bool { return d > 0 && !math.IsNaN(d) && !math.IsInf(d, 0) }
 func (p Probe) UnsupportedReason() string {
 	videos := 0
@@ -456,15 +524,7 @@ func (e *Encoder) Encode(ctx context.Context, f *os.File, out string, p Probe, k
 	if err = cmd.Start(); err != nil {
 		return err
 	}
-	scan := bufio.NewScanner(pipe)
-	for scan.Scan() {
-		key, value, ok := strings.Cut(scan.Text(), "=")
-		if ok && key == "out_time_us" {
-			v, _ := strconv.ParseFloat(value, 64)
-			progress(math.Max(0, math.Min(0.99, v/1e6/p.Duration())))
-		}
-	}
-	scanErr := scan.Err()
+	scanErr := readProgress(pipe, p, progress)
 	err = cmd.Wait()
 	if err != nil {
 		return fmt.Errorf("ffmpeg failed: %w", err)

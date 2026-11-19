@@ -1,6 +1,7 @@
 package shrink
 
 import (
+	"math"
 	"strings"
 	"testing"
 )
@@ -106,4 +107,45 @@ func TestEstimatesAndVerification(t *testing.T) {
 	if CheckSize(1000, 900) == nil || CheckSize(1000, 899) != nil {
 		t.Fatal("90 percent gate")
 	}
+}
+
+// progressBlock is one -progress block as Jellyfin FFmpeg 7.1.4 prints it.
+func progressBlock(frame, outTime string) string {
+	return "frame=" + frame + "\nfps=23.98\nstream_0_0_q=-0.0\nbitrate=N/A\ntotal_size=7340032\nout_time_us=" + outTime +
+		"\nout_time_ms=" + outTime + "\nout_time=N/A\ndup_frames=0\ndrop_frames=0\nspeed=N/A\nprogress=continue\n"
+}
+
+func TestReadProgress(t *testing.T) {
+	p := sourceProbe()
+	p.Streams[0].AvgRate = "24000/1001"
+	read := func(p Probe, stream string) []float64 {
+		t.Helper()
+		got := []float64{}
+		if err := readProgress(strings.NewReader(stream), p, func(v float64) { got = append(got, v) }); err != nil {
+			t.Fatal(err)
+		}
+		return got
+	}
+	near := func(got []float64, want ...float64) {
+		t.Helper()
+		if len(got) != len(want) {
+			t.Fatalf("got %v, want %v", got, want)
+		}
+		for i := range want {
+			if math.Abs(got[i]-want[i]) > 0.001 {
+				t.Fatalf("got %v, want %v", got, want)
+			}
+		}
+	}
+	// With fonts mapped, out_time_us stays N/A, so frames give the fraction.
+	// 1440 seconds at 23.976 fps is 34525 frames.
+	near(read(p, progressBlock("8631", "N/A")+progressBlock("17263", "N/A")), 0.25, 0.5)
+	// A real output time wins over frames.
+	near(read(p, progressBlock("1", "720000000")), 0.5)
+	// The base rate is the fallback, and the end stays below done.
+	p.Streams[0].AvgRate, p.Streams[0].BaseRate = "0/0", "24/1"
+	near(read(p, progressBlock("999999", "N/A")), 0.99)
+	// Without a frame rate there is nothing to report.
+	p.Streams[0].BaseRate = ""
+	near(read(p, progressBlock("100", "N/A")))
 }

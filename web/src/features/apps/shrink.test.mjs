@@ -9,8 +9,11 @@ import { connectLive } from '../../lib/live.ts'
 import {
     folderStats,
     gb,
+    jobName,
+    jobStatus,
     kindNames,
     maxShrinkFiles,
+    orderJobs,
     selectionState,
     shrinkInterval,
     submissionPaths,
@@ -132,8 +135,11 @@ const services = {
     DialogTitle: 'h3',
     folderStats,
     gb,
+    jobName,
+    jobStatus,
     kindNames,
     maxShrinkFiles,
+    orderJobs,
     selectionState,
     shrinkInterval,
     submissionPaths,
@@ -470,5 +476,51 @@ test('waiting has useful help without workloads data and hides inactive windows'
         queuePaused = true
         queueAdmitted = true
         workloadsData = undefined
+    }
+})
+
+test('jobs show the running one first, then the queue in order, then the newest finished', () => {
+    const job = (id, state, finishedAt) => ({ id, path: `anime/Title/Season 01/${id}.mkv`, state, finishedAt })
+    const ordered = orderJobs([
+        job('e01', 'done', '2026-11-11T17:10:00Z'),
+        job('e02', 'done', '2026-11-11T17:20:00Z'),
+        job('e03', 'running'),
+        job('e04', 'queued'),
+        job('e05', 'queued'),
+        job('e06', 'failed', '2026-11-11T17:05:00Z'),
+    ])
+    assert.deepEqual(
+        ordered.map((j) => j.id),
+        ['e03', 'e04', 'e05', 'e02', 'e01', 'e06'],
+    )
+})
+
+test('a job row keeps its name, status and cancel on one line', () => {
+    state = []
+    queuePaused = false
+    jobs = [
+        {
+            id: 'done',
+            path: 'anime/Title/Season 01/one.mkv',
+            state: 'done',
+            savedBytes: 2.5e9,
+            finishedAt: '2026-11-11T17:10:00Z',
+        },
+        { id: 'run', path: 'anime/Title/Season 01/two.mkv', state: 'running', progress: 0.427 },
+    ]
+    try {
+        const html = render()
+        assert.match(
+            html,
+            /<span class="min-w-0 flex-1 truncate" title="anime\/Title\/Season 01\/two.mkv">two.mkv<\/span>/,
+        )
+        assert.match(html, />42%<\/span>/)
+        assert.match(html, />Done, saved 2.5 GB<\/span>/)
+        assert.ok(html.indexOf('two.mkv') < html.indexOf('one.mkv'))
+        assert.equal(jobStatus({ state: 'not-smaller' }), 'Not smaller, original kept')
+        assert.equal(jobName('movies/Film (2020)/Film.mkv'), 'Film.mkv')
+    } finally {
+        queuePaused = true
+        jobs = []
     }
 })
