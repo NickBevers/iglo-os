@@ -32,8 +32,8 @@ func RegisterShrink(mux *http.ServeMux) {
 				}
 			case "/shrink/settings":
 				var body shrink.Settings
-				if json.NewDecoder(http.MaxBytesReader(w, r.Body, 512)).Decode(&body) != nil || body.Paused == nil {
-					http.Error(w, "give paused", 400)
+				if json.NewDecoder(http.MaxBytesReader(w, r.Body, 512)).Decode(&body) != nil || !shrink.ValidSettings(body) {
+					http.Error(w, "give paused or autoAnime", 400)
 					return
 				}
 				in = body
@@ -87,8 +87,8 @@ func (c *Client) SubmitShrink(ctx context.Context, id int, in shrink.Input) ([]s
 func (c *Client) ScanLibrary(ctx context.Context, id int) error {
 	return c.do(ctx, "POST", "/v1/inbox/"+strconv.Itoa(id)+"/library/scan", nil, nil)
 }
-func (c *Client) ShrinkSettings(ctx context.Context, id int, paused bool) error {
-	return c.do(ctx, "PUT", "/v1/inbox/"+strconv.Itoa(id)+"/shrink/settings", shrink.Settings{Paused: &paused}, nil)
+func (c *Client) ShrinkSettings(ctx context.Context, id int, in shrink.Settings) error {
+	return c.do(ctx, "PUT", "/v1/inbox/"+strconv.Itoa(id)+"/shrink/settings", in, nil)
 }
 func (c *Client) CancelShrink(ctx context.Context, id int, job string) error {
 	return c.do(ctx, "POST", "/v1/inbox/"+strconv.Itoa(id)+"/shrink/cancel/"+job, nil, nil)

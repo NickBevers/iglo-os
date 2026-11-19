@@ -85,6 +85,10 @@ func (s *Service) WatchInbox(ctx context.Context) {
 				return
 			case events.Library:
 				s.Changed(events.Library)
+				select {
+				case s.autoLibrary <- struct{}{}:
+				default:
+				}
 				return
 			case events.Shrink:
 				// Publish after a changed snapshot is ready for all tabs to share.

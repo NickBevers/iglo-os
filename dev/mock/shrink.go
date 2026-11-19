@@ -66,6 +66,8 @@ func addShrinkRoutes(mux *http.ServeMux, in *inbox.Service) (*shrink.Service, er
 		}
 	}
 	samples["anime/Size scored title/Season 01/episode.mkv"] = 400000000
+	// Large enough for the automatic pass, which needs a 60 percent saving.
+	samples["anime/Big show (2026)/Season 01/episode.mkv"] = 2000000000
 	for name, size := range samples {
 		sample := filepath.Join(root, filepath.FromSlash(name))
 		if err = os.MkdirAll(filepath.Dir(sample), 0700); err != nil {

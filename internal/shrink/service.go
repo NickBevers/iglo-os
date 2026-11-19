@@ -40,6 +40,11 @@ type state struct {
 	Cache   map[string]cached       `json:"cache"`
 	Swaps   map[string]swapIntent   `json:"swaps,omitempty"`
 	Sources map[string]fileIdentity `json:"sources,omitempty"`
+	// AutoAnime is the profile of the manager's automatic pass, or "" for off.
+	AutoAnime string `json:"autoAnime,omitempty"`
+	// AutoTried holds the files the automatic pass queued, by path. An entry
+	// only counts while the file keeps that identity.
+	AutoTried map[string]fileIdentity `json:"autoTried,omitempty"`
 }
 type Service struct {
 	Dir, Root, AdmissionDir string
@@ -121,6 +126,12 @@ func newService(dir, root string, configure func(*Service)) (*Service, error) {
 	if s.state.Sources == nil {
 		s.state.Sources = map[string]fileIdentity{}
 	}
+	if s.state.AutoTried == nil {
+		s.state.AutoTried = map[string]fileIdentity{}
+	}
+	if s.state.AutoAnime != "" && s.state.AutoAnime != "standard" && s.state.AutoAnime != "high" {
+		return nil, errors.New("invalid automatic shrink profile")
+	}
 	for _, j := range s.state.Jobs {
 		if ValidatePath(j.Path) != nil || (j.Profile != "standard" && j.Profile != "high") || !validID(j.ID) {
 			return nil, ErrInvalid
@@ -175,7 +186,7 @@ func (s *Service) saveDurable() error {
 func (s *Service) Status() View {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	return View{Paused: s.state.Paused, Admitted: worker.Admitted(s.AdmissionDir), Jobs: slices.Clone(s.state.Jobs)}
+	return View{Paused: s.state.Paused, AutoAnime: s.state.AutoAnime, Admitted: worker.Admitted(s.AdmissionDir), Jobs: slices.Clone(s.state.Jobs)}
 }
 func (s *Service) Library() Library {
 	s.mu.Lock()
@@ -183,7 +194,25 @@ func (s *Service) Library() Library {
 	b, _ := json.Marshal(s.library)
 	var v Library
 	json.Unmarshal(b, &v)
+	for i := range v.Kinds {
+		s.markAutoTried(&v.Kinds[i])
+	}
 	return v
+}
+
+// markAutoTried runs on each read, because the automatic pass queues files
+// between scans. The caller holds s.mu.
+func (s *Service) markAutoTried(f *Folder) {
+	for i := range f.Files {
+		file := &f.Files[i]
+		if id, ok := s.state.AutoTried[file.Path]; ok && id.Bytes == file.Bytes {
+			delta := file.Modified.Sub(id.Modified)
+			file.AutoTried = delta >= -identityTimeWindow && delta <= identityTimeWindow
+		}
+	}
+	for i := range f.Folders {
+		s.markAutoTried(&f.Folders[i])
+	}
 }
 func signal(c chan struct{}) {
 	select {
@@ -586,11 +615,26 @@ func (s *Service) Submit(in Input) ([]Job, error) {
 	}
 	old := s.state.Jobs
 	oldSources := s.state.Sources
+	oldTried := s.state.AutoTried
 	s.state.Jobs = jobs
 	s.state.Sources = sources
+	if in.Auto {
+		// Forget files that left the library, so the record stays small.
+		tried := map[string]fileIdentity{}
+		for p, id := range s.state.AutoTried {
+			if _, ok := s.files[p]; ok {
+				tried[p] = id
+			}
+		}
+		for _, j := range added {
+			tried[j.Path] = sources[j.ID]
+		}
+		s.state.AutoTried = tried
+	}
 	if err := s.save(); err != nil {
 		s.state.Jobs = old
 		s.state.Sources = oldSources
+		s.state.AutoTried = oldTried
 		return nil, err
 	}
 	s.emit("shrink")
@@ -607,19 +651,33 @@ func (s *Service) checkPendingPathsLocked(paths []string) error {
 	return nil
 }
 
-func (s *Service) Settings(paused bool) error {
+// Settings pauses or resumes the queue.
+func (s *Service) Settings(paused bool) error { return s.ChangeSettings(Settings{Paused: &paused}) }
+
+// ChangeSettings changes the fields that in gives and keeps the others.
+func (s *Service) ChangeSettings(in Settings) error {
+	if !ValidSettings(in) {
+		return ErrInvalid
+	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	if s.state.Paused == paused {
+	paused, auto := s.state.Paused, s.state.AutoAnime
+	if in.Paused != nil {
+		paused = *in.Paused
+	}
+	if in.AutoAnime != nil {
+		auto = *in.AutoAnime
+	}
+	if s.state.Paused == paused && s.state.AutoAnime == auto {
 		return nil
 	}
-	old := s.state.Paused
-	s.state.Paused = paused
+	oldPaused, oldAuto := s.state.Paused, s.state.AutoAnime
+	s.state.Paused, s.state.AutoAnime = paused, auto
 	if err := s.save(); err != nil {
-		s.state.Paused = old
+		s.state.Paused, s.state.AutoAnime = oldPaused, oldAuto
 		return err
 	}
-	if paused && s.cancel != nil {
+	if paused && !oldPaused && s.cancel != nil {
 		s.cancel()
 	}
 	s.emit("shrink")

@@ -70,8 +70,8 @@ func (a *shrinkManagerAgent) SubmitShrink(ctx context.Context, id int, in shrink
 	err := a.call(ctx, "POST", fmt.Sprintf("/v1/inbox/%d/shrink", id), in, &v)
 	return v, err
 }
-func (a *shrinkManagerAgent) ShrinkSettings(ctx context.Context, id int, paused bool) error {
-	return a.call(ctx, "PUT", fmt.Sprintf("/v1/inbox/%d/shrink/settings", id), shrink.Settings{Paused: &paused}, nil)
+func (a *shrinkManagerAgent) ShrinkSettings(ctx context.Context, id int, in shrink.Settings) error {
+	return a.call(ctx, "PUT", fmt.Sprintf("/v1/inbox/%d/shrink/settings", id), in, nil)
 }
 func (a *shrinkManagerAgent) CancelShrink(ctx context.Context, id int, job string) error {
 	return a.call(ctx, "POST", fmt.Sprintf("/v1/inbox/%d/shrink/cancel/%s", id, job), nil, nil)

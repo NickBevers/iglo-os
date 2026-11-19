@@ -52,6 +52,35 @@ keep **Control Music and Video tools admission** enabled, and edit the daily
 window's start, end and timezone. Resume releases a manual pause; it does not
 override background work admission.
 
+## Shrink new anime automatically
+
+Under **Shrink jobs**, **Shrink new anime automatically** picks a profile for
+new anime, or Off. It starts Off, so an existing install keeps its old
+behaviour. The worker keeps the setting in its queue file, next to `paused`.
+
+While it is on, the manager runs a pass every 30 minutes and right after the
+setting changes. A pass is skipped while any shrink job is queued or running,
+because the worker only scans between jobs. A pass asks the worker to scan,
+waits for that scan, and then takes `ready` files under `anime` whose estimate
+is at most 40 percent of the file. In other words, the file has to save at least 60 percent. Files that save
+less stay for a manual choice. A pass queues at most 20 files. It submits them
+like the dialog does, so the Sonarr check runs first and refused titles never
+reach the worker. A paused queue with waiting jobs holds new passes too.
+
+The pass marks its submissions with `"auto": true`. The worker remembers those
+files by size and modification time, and shows them as `autoTried` in the
+library. A file is only queued automatically once. A failed, cancelled or
+not-smaller job is not retried until the file itself changes, for example
+through a Sonarr upgrade. The manager remembers refused titles in memory with
+the same rule, so a restart checks them once more.
+
+A newly imported file stays `skipped` for 30 minutes after its last change, so
+it joins a pass after that. A pass with nothing new costs about five `pct exec`
+calls on the host and one scan of the share. The scan sends two `library`
+events, so open Video tools tabs read the library again. With candidates, the
+Sonarr check and the submission add two more calls. While the setting is off,
+or while jobs wait, a pass costs nothing beyond the shared queue read.
+
 ## Media apps after shrinking
 
 Before adding jobs, the manager asks Sonarr and Radarr whether the selected
@@ -233,13 +262,13 @@ rescan request and the Jellyfin refresh succeed.
 
 Types are in **`iglo/internal/shrink`**:
 
-- `Input { paths: string[], profile: "standard" | "high", confirm: "replace-originals" }`.
-- `Settings { paused: *bool }`. Omission is invalid.
+- `Input { paths: string[], profile: "standard" | "high", confirm: "replace-originals", auto?: bool }`.
+- `Settings { paused?: *bool, autoAnime?: *("" | "standard" | "high") }`. At least one field is required; a missing field keeps its value.
 - `Library { kinds: Folder[], scanning, scannedAt, error? }`.
 - `Folder { path, name, folders: Folder[], files: File[] }`.
-- `File { path, bytes, modified, duration, codec, height, bitDepth, hdr, audio: Audio[], estimates: Estimates, status, reason? }`.
+- `File { path, bytes, modified, duration, codec, height, bitDepth, hdr, audio: Audio[], estimates: Estimates, status, reason?, autoTried? }`.
 - `Audio { index, codec, language, channels }`; `Estimates { standard, high }` in bytes.
-- `View { paused, jobs: Job[] }`.
+- `View { paused, autoAnime, admitted, jobs: Job[] }`.
 - `Job { id, path, profile, state, progress, sourceBytes, resultBytes, savedBytes, sourceModified, error?, finishedAt?, rescanned }`.
 
 Job states: `queued`, `running`, `done`, `failed`, `not-smaller`, `changed`,

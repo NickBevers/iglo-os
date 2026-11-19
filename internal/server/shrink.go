@@ -69,8 +69,8 @@ func (s *server) shrinkWork(w http.ResponseWriter, r *http.Request) {
 		result(a.ShrinkCommand(r.Context(), "scan", shrink.Settings{}), 202)
 	case "/api/inbox/shrink/settings":
 		var in shrink.Settings
-		if !shrinkBody(w, r, 512, &in) || in.Paused == nil {
-			writeError(w, 400, "give paused")
+		if !shrinkBody(w, r, 512, &in) || !shrink.ValidSettings(in) {
+			writeError(w, 400, "give paused, or autoAnime as \"\", \"standard\" or \"high\"")
 			return
 		}
 		result(a.ShrinkCommand(r.Context(), "settings", in), 204)

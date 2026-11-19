@@ -22,10 +22,27 @@ type Input struct {
 	Paths   []string `json:"paths"`
 	Profile string   `json:"profile"`
 	Confirm string   `json:"confirm"`
+	// Auto marks a submission from the manager's automatic pass. The worker
+	// remembers those files, so a failed or not-smaller result is not queued
+	// again until the file itself changes.
+	Auto bool `json:"auto,omitempty"`
 }
+
+// Settings changes one or both fields. AutoAnime is the profile for new
+// anime files, or "" for off.
 type Settings struct {
-	Paused *bool `json:"paused"`
+	Paused    *bool   `json:"paused,omitempty"`
+	AutoAnime *string `json:"autoAnime,omitempty"`
 }
+
+// ValidSettings needs at least one field and a known AutoAnime profile.
+func ValidSettings(in Settings) bool {
+	if in.Paused == nil && in.AutoAnime == nil {
+		return false
+	}
+	return in.AutoAnime == nil || *in.AutoAnime == "" || *in.AutoAnime == "standard" || *in.AutoAnime == "high"
+}
+
 type Audio struct {
 	Index    int    `json:"index"`
 	Codec    string `json:"codec"`
@@ -49,6 +66,8 @@ type File struct {
 	Estimates Estimates `json:"estimates"`
 	Status    string    `json:"status"`
 	Reason    string    `json:"reason,omitempty"`
+	// AutoTried is set when the automatic pass already queued this exact file.
+	AutoTried bool `json:"autoTried,omitempty"`
 }
 type Folder struct {
 	Path    string   `json:"path"`
@@ -77,9 +96,10 @@ type Job struct {
 	Rescanned   bool      `json:"rescanned"`
 }
 type View struct {
-	Paused   bool  `json:"paused"`
-	Admitted bool  `json:"admitted"`
-	Jobs     []Job `json:"jobs"`
+	Paused    bool   `json:"paused"`
+	AutoAnime string `json:"autoAnime"`
+	Admitted  bool   `json:"admitted"`
+	Jobs      []Job  `json:"jobs"`
 }
 
 func ValidatePath(p string) error {
