@@ -47,7 +47,7 @@ The encrypted manager data backup includes this file. The `iglo.yaml` [settings 
 
 | Workload | Method | Current Iglo control |
 | --- | --- | --- |
-| Immich analysis and video conversion | Selected queue admission, low concurrency, processing windows; test Intel OpenVINO/Quick Sync where supported | Queue admission implemented here. With a host GPU, machine learning uses OpenVINO; Quick Sync for video is one switch in Immich. |
+| Immich video conversion | Selected queue admission, low concurrency, processing windows; Quick Sync where supported | Queue admission implemented here. Quick Sync for video is one switch in Immich. Machine learning is off, so its queues stay empty. |
 | Jellyfin playback | Prefer direct play; Intel Quick Sync for required transcodes | Existing Jellyfin integration; this controller does not change playback settings. |
 | Video tools | One native FFmpeg worker, manual pause and a short admission lease | Review the profile and resume in Video tools → Inbox. |
 | Emulation and streaming | Test native graphics backend, resolution and hardware stream encoding; defer background work | Timed protection from Play, and a hold while Wolf reports a Moonlight session; no GPU reservation. |

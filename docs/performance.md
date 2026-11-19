@@ -250,16 +250,15 @@ second catches "struggling". On another node it falls back to Proxmox.
 
 ## The GPU takes over
 
-The UHD 770 decodes and encodes video and runs machine learning. Before, only
+The UHD 770 decodes and encodes video. Before, only
 Jellyfin used it, for two codecs. Each change below works without a GPU too.
 
 - **Jellyfin** turns on every codec that `vainfo` reports, instead of only
   H.264 and HEVC. On a UHD 770 that adds AV1, VP9 and 10-bit HEVC, plus HDR
   tone mapping on the GPU. Reading `vainfo` instead of assuming keeps it right
   on older GPUs.
-- **Immich** gets the render node and the OpenVINO image, so face detection and
-  smart search run on the GPU. Video conversion uses Quick Sync after one
-  switch in Immich.
+- **Immich** gets the render node. Video conversion uses Quick Sync after one
+  switch in Immich. Immich runs without machine learning.
 - **Video tools** gets the render node. Inbox imports probe H.264 VAAPI with
   Debian FFmpeg. Library shrink uses Jellyfin FFmpeg 7 and runs one short HEVC
   Main10 QSV encode on startup, with the bundled driver and oneVPL runtime.
@@ -342,8 +341,7 @@ Not measured yet on the target hardware.
   a cache per caller.
 - **Push when you can, poll as the fallback.** Never only push.
 - **Send names, not data.** It keeps the stream simple and keeps secrets out.
-- **Use the hardware that is there.** The GPU was idle while the CPU did video
-  and machine learning.
+- **Use the hardware that is there.** The GPU was idle while the CPU did video.
 - **Decide on what the kernel sees.** `MemAvailable` and pressure say more than
   "used".
 - **Check upstream at the version you run.** Several APIs worked differently

@@ -4,7 +4,8 @@ The Apps page installs a Debian 13 unprivileged LXC, tagged `iglo;photos`,
 with Docker and the **official Immich v3.3.5** stack. `compose.yaml` is the
 unchanged release asset from
 <https://github.com/immich-app/immich/releases/tag/v3.3.5>.
-`compose.override.yaml` adds CPU/memory ceilings and SSD locations.
+`compose.override.yaml` adds CPU/memory ceilings and SSD locations, and turns
+machine learning off. See [No machine learning](#no-machine-learning).
 Updates use the version bundled with Iglo-OS, not an unreviewed `latest` tag.
 
 Connect two writable [scoped SMB bindings](scoped-storage.md): `photos` and
@@ -19,7 +20,7 @@ This is admission checking, not a reservation against other future workloads.
 | `/data/photos` | NAS originals, profile photos, Immich folder markers | No |
 | `/data/backups` | The Backups share, read only. restic on the host writes `immich-restic` there | No |
 | `/var/lib/immich/postgres` | Live PostgreSQL database on SSD | Yes, but live snapshots alone are not app-consistent |
-| `/var/lib/immich/{thumbs,encoded-video,model-cache}` | Rebuildable derivatives and models on SSD | Yes |
+| `/var/lib/immich/{thumbs,encoded-video}` | Rebuildable derivatives on SSD | Yes |
 | `/opt/photos/.env` | Generated database password, version and paths | Yes; treat guest backups as secrets |
 
 ### The first admin and Background work
@@ -63,13 +64,30 @@ The dev mock plays these calls; a real Immich still has to confirm them on the
 hardware.
 
 When the host has a GPU (`/dev/dri/renderD128`), the installer passes its
-render node to the container and loads `compose.gpu.yaml`. Machine learning
-then uses the OpenVINO image of Immich, which runs face detection and smart
-search on an Intel GPU by itself. Video conversion needs one switch in Immich:
+render node to the server container and loads `compose.gpu.yaml`. Video
+conversion needs one switch in Immich:
 **Administration > Settings > Video transcoding > Hardware acceleration >
-Quick Sync**. Without a GPU, Immich runs on the CPU as before. The machine
-learning container gets 2560 MiB, because OpenVINO needs room while it compiles
-its models. None of this is measured on the target hardware yet.
+Quick Sync**. Without a GPU, Immich converts video on the CPU.
+
+## No machine learning
+
+Photos runs without Immich's machine learning since 19 November 2026. There is
+no face grouping, smart search or duplicate detection. Search by file name,
+date, place and camera still works, because it uses metadata.
+
+`compose.yaml` stays the unchanged upstream file. The override gives
+`immich-machine-learning` a `machine-learning` profile that nothing turns on,
+so the service never starts, and sets `IMMICH_MACHINE_LEARNING_ENABLED=false`
+on the server. In Immich v3.3.5 the default of `machineLearning.enabled` reads
+that variable, and saved settings only hold values that differ from the
+defaults (`server/src/dtos/config.dto.ts` and `server/src/utils/config.ts`,
+checked 19 November 2026). So a library that never turned machine learning off
+by hand follows the variable.
+
+An update of an older stack removes the machine learning container, its images,
+the `immich_model-cache` volume and `/var/lib/immich/model-cache`. Faces and
+smart search data already in the database stay there, but nothing updates them.
+The face, smart search and duplicate queues in Background work stay empty.
 Use one admitted heavy queue, 4 GiB headroom and the overnight window initially.
 Active jobs finish after a pause; limit native worker concurrency too.
 
@@ -315,23 +333,11 @@ sets video conversion to `required` with two CPU threads, and leaves other
 configuration intact. The long-lived key still has only `queue.read` and
 `queue.update`. Existing initialized libraries are never reconfigured.
 
-Face grouping is off by default for new guided setups and Apps page installs.
-Its `buffalo_l` weights come from InsightFace, whose model terms restrict use to
-non-commercial research. This is separate from Immich's application licence.
-The setup and the Apps page install form have an explicit opt-in for those
-weights. The setup saves it in the secret-free plan.
-This does not change the model terms or establish unrestricted use. Manual
-admin creation inside Immich retains upstream defaults: disable facial
-recognition there if you want the same policy. Existing people and photos
-are never deleted by this setup change.
-
-The ML compose override uses one worker, two request threads and bounded CPU
-inference pools. Immich still unloads non-preloaded models after its normal
-idle timeout. These are conservative concurrency limits, not measured RAM
-savings or a promise of faster backlog processing.
+Face grouping stays off in the admin configuration that the setup writes. With
+machine learning off it could not run anyway. The setup and the Apps page no
+longer offer it. A saved plan with `allowRestrictedFaceModels` still loads, and
+the field changes nothing.
 
 Sources: [configuration controller](https://github.com/immich-app/immich/blob/v3.3.5/server/src/controllers/config-admin.controller.ts),
 [configuration schema](https://github.com/immich-app/immich/blob/v3.3.5/server/src/dtos/config.dto.ts),
-[ML settings](https://github.com/immich-app/immich/blob/v3.3.5/machine-learning/immich_ml/config.py),
-[model card](https://huggingface.co/immich-app/buffalo_l),
-[InsightFace model terms](https://github.com/deepinsight/insightface#license).
+[configuration defaults](https://github.com/immich-app/immich/blob/v3.3.5/server/src/utils/config.ts).
