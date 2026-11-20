@@ -24,33 +24,35 @@ apt_update() {
     apt-get -y -q -o Dpkg::Options::=--force-confdef -o Dpkg::Options::=--force-confold dist-upgrade
 }
 
-# Prints "project|file1,file2" for each running Compose project.
+# Prints "project|working_dir" for each running Compose project.
 compose_projects() {
-    docker ps --format '{{.Label "com.docker.compose.project"}}|{{.Label "com.docker.compose.project.config_files"}}' |
-        grep -v '^|' | sort -u || true
+    docker ps --format '{{.Label "com.docker.compose.project"}}|{{.Label "com.docker.compose.project.working_dir"}}' |
+        grep -v '^|' | grep -v '|$' | sort -u || true
 }
 
+# compose runs Docker Compose inside the project's own folder, like the
+# installers do. It then reads COMPOSE_FILE and COMPOSE_PROFILES from .env,
+# and relative COMPOSE_FILE paths resolve there; --project-directory alone
+# does not do that for them. The config_files label is not used: an older
+# version of this script passed those files in reverse order and wrote that
+# order back into the label, so the GPU file of Photos lost to compose.yaml
+# every other week.
 compose() {
     project="$1"
-    files="$2"
+    dir="$2"
     shift 2
 
-    set -- -p "$project" "$@"
-    for file in $(echo "$files" | tr ',' ' '); do
-        set -- -f "$file" "$@"
-    done
-
-    docker compose "$@"
+    (cd "$dir" && docker compose -p "$project" "$@")
 }
 
 # The loops read from a here-document, not a pipe, so a failing command stops
 # the whole script instead of only a subshell.
 docker_check() {
     projects="$(compose_projects)"
-    while IFS='|' read -r project files; do
+    while IFS='|' read -r project dir; do
         [ -n "$project" ] || continue
-        compose "$project" "$files" pull -q --ignore-buildable
-        for container in $(compose "$project" "$files" ps -q); do
+        compose "$project" "$dir" pull -q --ignore-buildable
+        for container in $(compose "$project" "$dir" ps -q); do
             image="$(docker inspect -f '{{.Config.Image}}' "$container")"
             running="$(docker inspect -f '{{.Image}}' "$container")"
             latest="$(docker image inspect -f '{{.Id}}' "$image")"
@@ -66,10 +68,10 @@ EOF
 
 docker_update() {
     projects="$(compose_projects)"
-    while IFS='|' read -r project files; do
+    while IFS='|' read -r project dir; do
         [ -n "$project" ] || continue
-        compose "$project" "$files" pull -q --ignore-buildable
-        compose "$project" "$files" up -d
+        compose "$project" "$dir" pull -q --ignore-buildable
+        compose "$project" "$dir" up -d
     done <<EOF
 $projects
 EOF
