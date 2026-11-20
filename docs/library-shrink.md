@@ -142,7 +142,12 @@ scaled by actual pixel count, plus kept audio. Unknown lossy audio bitrates use
 the corresponding Opus rate as an estimate. Estimates are not output limits.
 
 With a verified QSV encoder, video uses HEVC Main10, veryslow, global quality
-21 for standard or 17 for high. Without `/dev/dri/renderD128`, or if the startup
+21 for standard or 17 for high. An 8-bit source first goes through
+`vpp_qsv=format=p010` on the GPU: QSV decodes it to 8-bit surfaces, and
+`hevc_qsv` refuses Main10 for those with "Current profile is unsupported" and
+exit status 218 (Jellyfin FFmpeg 7.1.4-3, checked 2026-11-20). The startup probe
+feeds P010 frames, so it cannot catch this. A failed job shows the first error
+line FFmpeg wrote. Without `/dev/dri/renderD128`, or if the startup
 QSV probe fails, video uses libx265 slow, 10-bit, CRF 19 or 17,
 `aq-mode=3:no-sao=1`, with two encoder pool threads. These settings were measured
 on the owner's i7-12700T and UHD 770, checked 2026-11-08. Debian's FFmpeg and QSV

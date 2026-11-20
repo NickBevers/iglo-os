@@ -293,6 +293,13 @@ func Arguments(p Probe, kind, profile, input, output string, gpu bool) []string 
 		if profile == "high" {
 			q = "17"
 		}
+		if video.Depth() < 10 {
+			// QSV decodes an 8-bit source to 8-bit surfaces, and hevc_qsv
+			// refuses Main10 for those: "Current profile is unsupported",
+			// exit status 218. Convert to P010 on the GPU first. Jellyfin
+			// FFmpeg 7.1.4-3 on the UHD 770, checked 2026-11-20.
+			a = append(a, "-filter:v:0", "vpp_qsv=format=p010")
+		}
 		a = append(a, "-c:v:0", "hevc_qsv", "-profile:v:0", "main10", "-preset:v:0", "veryslow", "-global_quality:v:0", q)
 	} else {
 		q := "19"
@@ -520,14 +527,36 @@ func (e *Encoder) Encode(ctx context.Context, f *os.File, out string, p Probe, k
 	if err != nil {
 		return err
 	}
-	cmd.Stderr = &limitedBuffer{limit: 32768}
+	stderr := &limitedBuffer{limit: 32768}
+	cmd.Stderr = stderr
 	if err = cmd.Start(); err != nil {
 		return err
 	}
 	scanErr := readProgress(pipe, p, progress)
 	err = cmd.Wait()
 	if err != nil {
+		if reason := firstError(stderr.String()); reason != "" {
+			return fmt.Errorf("ffmpeg failed: %w: %s", err, reason)
+		}
 		return fmt.Errorf("ffmpeg failed: %w", err)
 	}
 	return scanErr
+}
+
+// firstError is the first line FFmpeg wrote with -v error. It names the cause;
+// later lines only report the failure spreading. libva writes its own info
+// lines to the same stream, so those are skipped. Paths in it are library
+// paths that the job already shows.
+func firstError(stderr string) string {
+	for _, line := range strings.Split(stderr, "\n") {
+		line = strings.TrimSpace(line)
+		if line == "" || strings.HasPrefix(line, "libva info:") {
+			continue
+		}
+		if len(line) > 300 {
+			line = line[:300]
+		}
+		return line
+	}
+	return ""
 }
