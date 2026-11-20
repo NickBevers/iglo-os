@@ -149,3 +149,30 @@ func TestReadProgress(t *testing.T) {
 	p.Streams[0].BaseRate = ""
 	near(read(p, progressBlock("100", "N/A")))
 }
+
+// An 8-bit source reaches hevc_qsv as 8-bit surfaces, which Main10 refuses.
+func TestArgumentsConvertEightBitForQSV(t *testing.T) {
+	eight := sourceProbe()
+	ten := sourceProbe()
+	ten.Streams[0].Pixel = "yuv420p10le"
+	const convert = "-filter:v:0 vpp_qsv=format=p010 -c:v:0 hevc_qsv"
+	if a := strings.Join(Arguments(eight, "anime", "high", "in", "out", true), " "); !strings.Contains(a, convert) {
+		t.Fatalf("8-bit source not converted: %s", a)
+	}
+	if a := strings.Join(Arguments(ten, "anime", "high", "in", "out", true), " "); strings.Contains(a, "vpp_qsv") {
+		t.Fatalf("10-bit source converted: %s", a)
+	}
+	if a := strings.Join(Arguments(eight, "anime", "high", "in", "out", false), " "); strings.Contains(a, "vpp_qsv") {
+		t.Fatalf("CPU encode got a QSV filter: %s", a)
+	}
+}
+
+func TestFirstError(t *testing.T) {
+	stderr := "libva info: VA-API version 1.23.0\nlibva info: va_openDriver() returns 0\n[hevc_qsv @ 0x1] Current profile is unsupported\n[out#0/matroska @ 0x2] Nothing was written into output file\n"
+	if got := firstError(stderr); got != "[hevc_qsv @ 0x1] Current profile is unsupported" {
+		t.Fatalf("firstError = %q", got)
+	}
+	if got := firstError("libva info: only\n\n"); got != "" {
+		t.Fatalf("firstError = %q", got)
+	}
+}
