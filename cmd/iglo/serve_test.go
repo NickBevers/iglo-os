@@ -56,14 +56,24 @@ func TestAdmissionSenderSkipsUnchangedAnswers(t *testing.T) {
 	step(0, 1)
 }
 
-func TestRedirectKeepsOnlyAppNames(t *testing.T) {
+func TestRedirectKeepsOnlyAppNamesAndTailnetHosts(t *testing.T) {
 	isAppHost := func(host string) bool { return host == "seerr.iglo.local" || host == "seerr.iglo.local:80" }
 	handler := redirectHandler("iglo.local", isAppHost, []byte("ca"))
 
 	for host, want := range map[string]string{
-		"seerr.iglo.local:80": "https://seerr.iglo.local/requests?x=1",
-		"iglo.local":          "https://iglo.local/requests?x=1",
-		"evil.example.com":    "https://iglo.local/requests?x=1",
+		"seerr.iglo.local:80":     "https://seerr.iglo.local/requests?x=1",
+		"iglo.local":              "https://iglo.local/requests?x=1",
+		"evil.example.com":        "https://iglo.local/requests?x=1",
+		"192.168.1.20":            "https://iglo.local/requests?x=1",
+		"8.8.8.8:80":              "https://iglo.local/requests?x=1",
+		"100.101.102.103":         "https://100.101.102.103/requests?x=1",
+		"100.101.102.103:80":      "https://100.101.102.103/requests?x=1",
+		"[fd7a:115c:a1e0::1]:80":  "https://[fd7a:115c:a1e0::1]/requests?x=1",
+		"[fd7a:115c:a1e0::1]":     "https://[fd7a:115c:a1e0::1]/requests?x=1",
+		"Iglo.Tail1234.ts.net":    "https://iglo.tail1234.ts.net/requests?x=1",
+		"iglo.tail1234.ts.net:80": "https://iglo.tail1234.ts.net/requests?x=1",
+		"evil.ts.net.example.com": "https://iglo.local/requests?x=1",
+		"a_b.ts.net":              "https://iglo.local/requests?x=1",
 	} {
 		r := httptest.NewRequest(http.MethodGet, "/requests?x=1", nil)
 		r.Host = host
