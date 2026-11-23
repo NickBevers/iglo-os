@@ -7,6 +7,8 @@ The installer puts Tailscale in the manager container. Connect it on the Tailsca
 
 Tailscale keeps the container's own DNS (`--accept-dns=false`), so the LAN names keep working.
 
+`iglo.local` only resolves on your LAN. A plain `http://` request to a tailnet address of Iglo-OS (`100.64.0.0/10`, `fd7a:115c:a1e0::/48` or a `.ts.net` name) goes to HTTPS on that same address, not to `iglo.local`. The `.ts.net` name has a trusted certificate through Serve. A bare tailnet IP shows a certificate warning, because the certificate of the manager only has its LAN names.
+
 ## Reach the host when the manager is down
 
 Everything above runs in the manager container. When that container is down,

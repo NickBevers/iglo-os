@@ -10,6 +10,7 @@ import (
 	"maps"
 	"net"
 	"net/http"
+	"net/netip"
 	"os"
 	"os/signal"
 	"path/filepath"
@@ -466,8 +467,9 @@ func port(addr string) string {
 }
 
 // redirectHandler sends everything to HTTPS, except the CA certificate that
-// devices need to download before they can trust HTTPS. App names keep their
-// name. Any other host goes to the hostname, so this is no open redirect.
+// devices need to download before they can trust HTTPS. App names and tailnet
+// addresses keep their name, because iglo.local doesn't resolve over
+// Tailscale. Any other host goes to the hostname, so this is no open redirect.
 func redirectHandler(hostname string, isAppHost func(string) bool, caPEM []byte) http.Handler {
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /ca.crt", func(w http.ResponseWriter, r *http.Request) {
@@ -477,16 +479,61 @@ func redirectHandler(hostname string, isAppHost func(string) bool, caPEM []byte)
 	})
 	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 		host := hostname
-		if isAppHost(r.Host) {
-			host = strings.ToLower(r.Host)
-			if name, _, err := net.SplitHostPort(host); err == nil {
-				host = name
+		if name := requestHost(r.Host); isAppHost(r.Host) || isTailnetName(name) {
+			host = name
+		} else if addr, err := netip.ParseAddr(name); err == nil && isTailnetAddr(addr) {
+			host = addr.String()
+			if addr.Is6() {
+				host = "[" + host + "]"
 			}
 		}
 		http.Redirect(w, r, fmt.Sprintf("https://%s%s", host, r.URL.RequestURI()), http.StatusMovedPermanently)
 	})
 
 	return mux
+}
+
+// requestHost is the Host header in lower case, without a port or the
+// brackets of an IPv6 address.
+func requestHost(host string) string {
+	host = strings.ToLower(host)
+	if name, _, err := net.SplitHostPort(host); err == nil {
+		return name
+	}
+
+	return strings.TrimSuffix(strings.TrimPrefix(host, "["), "]")
+}
+
+// tailnetPrefixes are the addresses Tailscale and Headscale give to nodes.
+var tailnetPrefixes = []netip.Prefix{
+	netip.MustParsePrefix("100.64.0.0/10"),
+	netip.MustParsePrefix("fd7a:115c:a1e0::/48"),
+}
+
+func isTailnetAddr(addr netip.Addr) bool {
+	addr = addr.Unmap()
+	for _, prefix := range tailnetPrefixes {
+		if prefix.Contains(addr) {
+			return true
+		}
+	}
+
+	return false
+}
+
+// isTailnetName reports a MagicDNS name like iglo.tail1234.ts.net. Only
+// letters, digits, dots and hyphens pass, so the name is safe in a URL.
+func isTailnetName(name string) bool {
+	if !strings.HasSuffix(name, ".ts.net") || len(name) > 253 {
+		return false
+	}
+	for _, c := range name {
+		if (c < 'a' || c > 'z') && (c < '0' || c > '9') && c != '.' && c != '-' {
+			return false
+		}
+	}
+
+	return true
 }
 
 func newServer(addr string, handler http.Handler) *http.Server {
