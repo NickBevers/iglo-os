@@ -470,6 +470,8 @@ func port(addr string) string {
 // devices need to download before they can trust HTTPS. App names and tailnet
 // addresses keep their name, because iglo.local doesn't resolve over
 // Tailscale. Any other host goes to the hostname, so this is no open redirect.
+// The redirect is temporary. Where it goes depends on the host and can change,
+// and browsers keep a permanent one, like the old one to iglo.local.
 func redirectHandler(hostname string, isAppHost func(string) bool, caPEM []byte) http.Handler {
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /ca.crt", func(w http.ResponseWriter, r *http.Request) {
@@ -487,7 +489,7 @@ func redirectHandler(hostname string, isAppHost func(string) bool, caPEM []byte)
 				host = "[" + host + "]"
 			}
 		}
-		http.Redirect(w, r, fmt.Sprintf("https://%s%s", host, r.URL.RequestURI()), http.StatusMovedPermanently)
+		http.Redirect(w, r, fmt.Sprintf("https://%s%s", host, r.URL.RequestURI()), http.StatusFound)
 	})
 
 	return mux

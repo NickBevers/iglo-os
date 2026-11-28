@@ -79,6 +79,9 @@ func TestRedirectKeepsOnlyAppNamesAndTailnetHosts(t *testing.T) {
 		r.Host = host
 		w := httptest.NewRecorder()
 		handler.ServeHTTP(w, r)
+		if w.Code != http.StatusFound {
+			t.Errorf("%s: status = %d, want %d, so browsers don't keep it", host, w.Code, http.StatusFound)
+		}
 		if got := w.Header().Get("Location"); got != want {
 			t.Errorf("%s: Location = %q, want %q", host, got, want)
 		}
